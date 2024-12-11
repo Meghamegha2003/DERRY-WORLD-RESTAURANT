@@ -1,0 +1,95 @@
+<%- include('../../views/partials/admin/header') %>
+
+<!-- Main Content -->
+<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+    <h1 class="mb-3 mb-md-0">Products List</h1>
+    <!-- Add Product Button (aligned left) -->
+    <a href="/admin/products/add" class="btn btn-primary mb-3 mb-md-0">
+      <i class="bi bi-plus-circle"></i> Add Product
+    </a>
+  </div>
+  
+  <!-- Products Table -->
+  <div class="table-responsive">
+    <table class="table table-hover table-bordered mt-3">
+      <thead class="table-dark">
+        <tr>
+          <th scope="col">Image</th>
+          <th scope="col">Product Name</th>
+          <th scope="col">Sales Price (USD)</th>
+          <th scope="col">Quantity</th>
+          <th scope="col">Status</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% products.forEach(product => { %>
+        <tr>
+          <!-- Display the first image of the product -->
+          <td>
+            <% if (product.productImage.length > 0) { %>
+              <img src="/uploads/<%= product.productImage[0] %>" alt="Product Image" style="width: 50px; height: 50px; object-fit: cover;">
+            <% } else { %>
+              <span class="text-muted">No Image</span>
+            <% } %>
+          </td>
+          <td><%= product.productName %></td>
+          <td><%= product.salesPrice %> USD</td>
+          <td><%= product.quantity %></td>
+          <td>
+            <span 
+              class="badge rounded-pill 
+                <%= product.status === 'Available' ? 'bg-success' : 
+                    product.status === 'Out of stock' ? 'bg-warning' : 'bg-secondary' %> 
+                px-3 py-2" 
+              style="font-size: 0.9rem;">
+              <i class="bi 
+                <%= product.status === 'Available' ? 'bi-check-circle-fill' : 
+                    product.status === 'Out of stock' ? 'bi-clock-fill' : 'bi-x-circle-fill' %>"></i>
+              <%= product.status %>
+            </span>
+          </td>
+          <td>
+            <!-- Toggle Status -->
+            <form action="/admin/products/status/<%= product._id %>" method="POST" style="display: inline;">
+              <button class="btn <%= product.status === 'Available' ? 'btn-danger' : 'btn-success' %> btn-sm" type="submit">
+                <%= product.status === 'Available' ? 'Deactivate' : 'Activate' %>
+              </button>
+            </form>
+            
+            <!-- Edit Button -->
+            <a href="/admin/products/edit/<%= product._id %>" class="btn btn-info btn-sm ms-2">
+              <i class="bi bi-pencil-square"></i> Edit
+            </a>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination Controls -->
+  <nav>
+    <ul class="pagination justify-content-center">
+      <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+        <a class="page-link" href="/admin/products?page=<%= currentPage - 1 %>">Previous</a>
+      </li>
+
+      <% for (let i = 1; i <= totalPages; i++) { %>
+        <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+          <a class="page-link" href="/admin/products?page=<%= i %>"><%= i %></a>
+        </li>
+      <% } %>
+
+      <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+        <a class="page-link" href="/admin/products?page=<%= currentPage + 1 %>">Next</a>
+      </li>
+    </ul>
+  </nav>
+</main>
+
+</div>
+</div>
+
+<%- include('../../views/partials/admin/footer') %> 

@@ -1,0 +1,19 @@
+<%- include('../partials/admin/header') %>
+
+<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
+  <h1 class="mb-4">Add Category</h1>
+
+  <form action="/admin/categories/add" method="POST">
+    <div class="mb-3">
+      <label for="name" class="form-label">Category Name</label>
+      <input type="text" id="name" name="name" class="form-control" required>
+    </div>
+    <div class="mb-3">
+      <label for="description" class="form-label">Category Description</label>
+      <textarea id="description" name="description" class="form-control" required></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Category</button>
+  </form>
+</main>
+
+<%- include('../partials/admin/footer') %>

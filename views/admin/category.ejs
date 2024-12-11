@@ -1,0 +1,82 @@
+<%- include('../../views/partials/admin/header') %>
+
+<!-- Main Content -->
+<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
+  <h1 class="mb-4">Category Management</h1>
+
+  <!-- Add Category Button -->
+  <div class="d-flex justify-content-end mb-3">
+    <a href="/admin/categories/add" class="btn btn-primary">
+      <i class="bi bi-plus-circle me-2"></i> Add Category
+    </a>
+  </div>
+
+  <!-- Categories Table -->
+  <table class="table table-hover table-bordered mt-3">
+    <thead class="table-dark">
+      <tr>
+        <th scope="col">Category Name</th>
+        <th scope="col">Description</th>
+        <th scope="col">Status</th>
+        <th scope="col">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% categories.forEach(category => { %>
+      <tr>
+        <td><%= category.name %></td>
+        <td><%= category.description || 'No description available' %></td>
+        <td>
+          <span 
+            class="badge rounded-pill 
+              <%= category.isActive ? 'bg-success' : 'bg-danger' %> 
+              px-3 py-2" 
+            style="font-size: 0.9rem;">
+            <i class="bi 
+              <%= category.isActive ? 'bi-check-circle-fill' : 'bi-x-circle-fill' %>"></i>
+            <%= category.isActive ? 'Active' : 'Inactive' %>
+          </span>
+        </td>
+        <td class="d-flex">
+          <!-- Toggle Status -->
+          <form action="/admin/categories/status/<%= category._id %>" method="POST" style="margin-right: 5px;">
+            <button class="btn <%= category.isActive ? 'btn-danger' : 'btn-success' %> btn-sm" type="submit">
+              <i class="bi <%= category.isActive ? 'bi-x-circle' : 'bi-check-circle' %> me-1"></i>
+              <%= category.isActive ? 'Deactivate' : 'Activate' %>
+            </button>
+          </form>
+
+          <!-- Edit Button -->
+          <a href="/admin/categories/edit/<%= category._id %>" class="btn btn-info btn-sm">
+            <i class="bi bi-pencil-square me-1"></i> Edit
+          </a>
+        </td>
+      </tr>
+      <% }); %>
+    </tbody>
+  </table>
+
+  <!-- Pagination Controls -->
+  <nav>
+    <ul class="pagination justify-content-center">
+      <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+        <a class="page-link" href="/admin/categories?page=<%= currentPage - 1 %>">Previous</a>
+      </li>
+
+      <% for (let i = 1; i <= totalPages; i++) { %>
+        <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+          <a class="page-link" href="/admin/categories?page=<%= i %>"><%= i %></a>
+        </li>
+      <% } %>
+
+      <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+        <a class="page-link" href="/admin/categories?page=<%= currentPage + 1 %>">Next</a>
+      </li>
+    </ul>
+  </nav>
+</main>
+
+</div>
+</div>
+
+<%- include('../../views/partials/admin/footer') %>

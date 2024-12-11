@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="keywords" content="Derry World, Travel, Explore" />
+    <meta name="description" content="Register to Derry World and start exploring today!" />
+    <meta name="author" content="Derry World" />
+    <link rel="shortcut icon" href="/images/favicon.png" type="image/png" />
+    <title>Register - Derry World</title>
+    <!-- Bootstrap CDN for better responsiveness -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="stylesheet" href="/css/responsive.css" />
+    <style>
+      .login-container {
+        background-color: #fff;
+        color: #000;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 30px;
+        margin-top: 50px;
+        margin-bottom: 50px;
+      }
+
+      .login-container h2 {
+        color: #000;
+        margin-bottom: 20px;
+      }
+
+      .login-container label {
+        font-weight: bold;
+      }
+
+      .btn-login {
+        background-color: #007bff;
+        color: #fff;
+        border: none;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        width: 100%;
+      }
+
+      .btn-login:hover {
+        background-color: #0056b3;
+      }
+
+      .btn-google {
+        background-color: #db4437;
+        color: #fff;
+        border: none;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        width: 100%;
+      }
+
+      .btn-google:hover {
+        background-color: #a33627;
+      }
+
+      /* Media Query for smaller screens */
+      @media (max-width: 767px) {
+        .login-container {
+          padding: 20px;
+        }
+
+        .btn-login,
+        .btn-google {
+          font-size: 14px;
+          padding: 8px;
+        }
+
+        .container {
+          padding-left: 15px;
+          padding-right: 15px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hero_area">
+      <div class="bg-box">
+        <img src="/images/hero-bg.jpg" alt="Background Image" class="img-fluid" />
+      </div>
+      <header class="header_section">
+        <div class="container">
+          <nav class="navbar navbar-expand-lg custom_nav-container">
+            <a class="navbar-brand" href="/">
+              <span>Derry World</span>
+            </a>
+          </nav>
+        </div>
+      </header>
+      <div class="container">
+        <div class="row justify-content-center">
+          <div class="col-lg-6 col-md-8 col-sm-12">
+            <div class="login-container">
+              <h2 class="text-center">Register</h2>
+
+              <% if (message) { %>
+              <div class="alert alert-danger" role="alert"><%= message %></div>
+              <% } %>
+              <% if (successMessage) { %>
+              <div class="alert alert-success" role="alert"><%= successMessage %></div>
+              <% } %>
+
+              <form id="registerForm" action="/register" method="post" novalidate>
+                <div class="form-group">
+                  <label for="username">Full Name</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="username"
+                    name="name"
+                    required
+                  />
+                  <div class="invalid-feedback">Please enter a valid name (at least 3 characters).</div>
+                </div>
+                <div class="form-group">
+                  <label for="email">Email</label>
+                  <input
+                    type="email"
+                    class="form-control"
+                    id="email"
+                    name="email"
+                    required
+                  />
+                  <div class="invalid-feedback">Please enter a valid email address.</div>
+                </div>
+                <div class="form-group">
+                  <label for="phone">Phone Number</label>
+                  <input
+                    type="tel"
+                    class="form-control"
+                    id="phone"
+                    name="phone"
+                    pattern="[0-9]{10}"
+                    required
+                  />
+                  <div class="invalid-feedback">Please enter a valid 10-digit phone number.</div>
+                </div>
+                <div class="form-group">
+                  <label for="password">Password</label>
+                  <input
+                    type="password"
+                    class="form-control"
+                    id="password"
+                    name="password"
+                    minlength="6"
+                    required
+                  />
+                  <div class="invalid-feedback">Password must be at least 6 characters long.</div>
+                </div>
+                <div class="form-group">
+                  <label for="confirm-password">Confirm Password</label>
+                  <input
+                    type="password"
+                    class="form-control"
+                    id="confirm-password"
+                    name="confirmPassword"
+                    required
+                  />
+                  <div class="invalid-feedback">Passwords must match.</div>
+                </div>
+                <div class="form-group form-check">
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    id="show-password"
+                  />
+                  <label class="form-check-label" for="show-password">Show Password</label>
+                </div>
+                <button type="submit" class="btn btn-login">Register</button>
+              </form>
+
+              <div class="text-center mt-3">
+                <p>- OR -</p>
+                <button
+                  onclick="location.href='/auth/google'"
+                  class="btn btn-google"
+                >
+                  <i class="fab fa-google"></i> Sign Up with Google
+                </button>
+              </div>
+              <p class="text-center mt-4">
+                Already have an account? <a href="/login">Login here</a>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const form = document.getElementById('registerForm');
+        const password = document.getElementById('password');
+        const confirmPassword = document.getElementById('confirm-password');
+        const showPassword = document.getElementById('show-password');
+
+        showPassword.addEventListener('change', function () {
+          const type = showPassword.checked ? 'text' : 'password';
+          password.type = type;
+          confirmPassword.type = type;
+        });
+
+        form.addEventListener('submit', function (event) {
+          if (!form.checkValidity() || password.value !== confirmPassword.value) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (password.value !== confirmPassword.value) {
+              confirmPassword.setCustomValidity('Passwords do not match.');
+            } else {
+              confirmPassword.setCustomValidity('');
+            }
+          }
+          form.classList.add('was-validated');
+        });
+      })();
+    </script>
+
+    <!-- Bootstrap JS and dependencies for dynamic components -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.0/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  </body>
+</html>

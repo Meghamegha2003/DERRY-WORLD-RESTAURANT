@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="keywords" content="Derry World, Travel, Explore" />
+    <meta name="description" content="Welcome to Derry World - Login to explore the best of everything!" />
+    <meta name="author" content="Derry World" />
+    <link rel="shortcut icon" href="images/favicon.png" type="image/png" />
+    <title>Login - Derry World</title>
+    <link rel="stylesheet" href="css/bootstrap.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/responsive.css" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        .login-container {
+            background-color: #fff;
+            color: #000;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+
+        .login-container h2 {
+            color: #000;
+            margin-bottom: 20px;
+        }
+
+        .login-container label {
+            font-weight: bold;
+        }
+
+        .forgot-password {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .forgot-password:hover {
+            text-decoration: underline;
+        }
+
+        .btn-login {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-login:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero_area">
+        <div class="bg-box">
+            <img src="images/hero-bg.jpg" alt="Background Image" class="img-fluid" />
+        </div>
+        <header class="header_section">
+            <div class="container">
+                <nav class="navbar navbar-expand-lg custom_nav-container">
+                    <a class="navbar-brand" href="/">
+                        <span>Derry World</span>
+                    </a>
+                    <div class="ml-auto">
+                        <a href="/register" class="btn btn-register mx-2">
+                            <i class="fas fa-user-plus"></i> Register
+                        </a>
+                    </div>
+                </nav>
+            </div>
+        </header>
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-6 col-md-8 col-sm-12">
+                    <div class="login-container">
+                        <h2 class="text-center">Login</h2>
+                        
+                        <% if (errorMessage) { %>
+                            <p style="color: red;"><%= errorMessage %></p>
+                        <% } %>
+
+                        <form action="/login" method="post" onsubmit="return validateLoginForm();">
+                            <div class="form-group">
+                                <label for="email">Email Address</label>
+                                <input type="email" class="form-control" id="email" name="email" required />
+                                <small id="emailError" class="text-danger" style="display: none;">Please enter a valid email address.</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="password">Password</label>
+                                <input type="password" class="form-control" id="password" name="password" required />
+                                <small id="passwordError" class="text-danger" style="display: none;">Password is required.</small>
+                            </div>
+                            <div class="form-group text-right">
+                                <a href="/forgotPassword" class="forgot-password">Forgot Password?</a>
+                            </div>
+                            <button type="submit" class="btn btn-login btn-block">Login</button>
+                        </form>
+
+                        
+                        <div class="text-center my-3">
+                            <p>Or login using:</p>
+                            <!-- Google Sign-In Button -->
+                            <button style="background-color: #007bff;"
+                            onclick="location.href='/auth/google'"
+                            class="btn btn-google btn-block">
+                            <i class="fab fa-google"></i> Sign Up with Google
+                          </button>
+                            <div class="g_id_signin" 
+                                data-type="standard"
+                                data-size="large"
+                                data-theme="outline"
+                                data-text="sign_in_with"
+                                data-shape="rectangular"
+                                data-logo_alignment="left">
+                            </div>
+                        </div>
+                        <p class="text-center mt-3">Don't have an account? <a href="/register">Register here</a></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function handleCredentialResponse(response) {
+            const credential = response.credential;
+            // Send the credential to your server for verification
+            fetch('/auth/google', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ credential })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Handle successful login
+                if (data.success) {
+                    window.location.href = '/dashboard'; // Redirect to dashboard or any other page
+                } else {
+                    alert('Google authentication failed.');
+                }
+            })
+            .catch(error => {
+                console.error('Error during Google authentication:', error);
+            });
+        }
+
+        // Listen for Google login response
+        window.onload = function() {
+            google.accounts.id.initialize({
+                client_id: GOOGLE_CLIENT_ID,
+                callback: handleCredentialResponse
+            });
+            google.accounts.id.renderButton(
+                document.getElementById("g_id_onload"),
+                {
+                    theme: "outline",
+                    size: "large",
+                    shape: "rectangular",
+                    text: "sign_in_with",
+                    logo_alignment: "left"
+                }
+            );
+        };
+
+        function validateLoginForm() {
+            const email = document.getElementById('email');
+            const password = document.getElementById('password');
+            const emailError = document.getElementById('emailError');
+            const passwordError = document.getElementById('passwordError');
+            let isValid = true;
+
+            // Reset error messages
+            emailError.style.display = 'none';
+            passwordError.style.display = 'none';
+
+            // Email validation
+            if (!email.value) {
+                emailError.textContent = 'Email is required.';
+                emailError.style.display = 'block';
+                isValid = false;
+            } else if (!/\S+@\S+\.\S+/.test(email.value)) {
+                emailError.textContent = 'Please enter a valid email address.';
+                emailError.style.display = 'block';
+                isValid = false;
+            }
+
+            // Password validation
+            if (!password.value) {
+                passwordError.style.display = 'block';
+                isValid = false;
+            }
+
+            return isValid;
+        }
+    </script>
+</body>
+</html>

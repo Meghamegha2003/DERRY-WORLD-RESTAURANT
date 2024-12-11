@@ -1,0 +1,51 @@
+<%- include('../../views/partials/admin/header') %>
+
+<!-- Main Content -->
+<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
+  <h1 class="mb-4">Customers List</h1>
+
+  <!-- Customers Table -->
+  <table class="table table-hover table-bordered mt-3">
+    <thead class="table-dark">
+      <tr>
+        <th scope="col">Name</th>
+        <th scope="col">Email</th>
+        <th scope="col">Status</th>
+        <th scope="col">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% customers.forEach(customer => { %>
+      <tr>
+        <td><%= customer.name %></td>
+        <td><%= customer.email %></td>
+        <td>
+          <span 
+            class="badge rounded-pill <%= customer.isBlocked ? 'bg-danger' : 'bg-success' %> px-3 py-2" 
+            style="font-size: 0.9rem;"
+          >
+            <i class="bi <%= customer.isBlocked ? 'bi-x-circle-fill' : 'bi-check-circle-fill' %>"></i>
+            <%= customer.status %>
+          </span>
+        </td>
+        <td>
+          
+          <form action="/admin/customers/status/<%= customer._id %>" method="POST" style="display: inline;">
+            <button class="btn <%= customer.isBlocked ? 'btn-success' : 'btn-danger' %> btn-sm" type="submit">
+              <%= customer.status === 'Active' ? 'Block' : 'Active' %>
+            </button>
+          </form>
+          
+
+          
+
+        </td>
+      </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</main>
+</div>
+</div>
+
+<%- include('../../views/partials/admin/footer') %>
