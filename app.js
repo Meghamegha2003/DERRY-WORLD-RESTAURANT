@@ -39,7 +39,6 @@ app.use(passport.session());  // Session should be initialized after passport
 
 // Middleware
 app.use(cookieParser());
-app.use(attachUserToLocals); // Add this line to attach user to locals
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -67,43 +66,78 @@ const preventCaching = (req, res, next) => {
 
 // Google authentication routes
 app.get('/auth/google', 
-  passport.authenticate('google', { scope: ['profile', 'email'] })
+    passport.authenticate('google', { 
+        scope: ['profile', 'email'],
+        prompt: 'select_account' // Forces Google account selection
+    })
 );
 
-app.get(
-  '/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login' }),
-  (req, res) => {
-    const user = req.user;
-    const jwtToken = jwt.sign(
-      { id: user._id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
+app.get('/auth/google/callback', 
+    passport.authenticate('google', { 
+        failureRedirect: '/login',
+        failureMessage: true,
+        session: false 
+    }),
+    (req, res) => {
+        try {
+            if (!req.user) {
+                return res.redirect('/login?error=Google authentication failed');
+            }
 
-    res.cookie('auth_token', jwtToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 3600000,
-    });
+            // Set JWT token in cookie
+            res.cookie('token', req.user.token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                maxAge: 24 * 60 * 60 * 1000 // 24 hours
+            });
 
-    res.redirect('/');
-  }
-);
-
-app.get('/logout', (req, res) => {
-  req.logout((err) => {
-    if (err) {
-      console.error('Error logging out:', err);
-      return res.status(500).send('Error logging out.');
+            // Redirect to home page
+            res.redirect('/');
+        } catch (error) {
+            console.error('Error in Google callback:', error);
+            res.redirect('/login?error=Authentication error');
+        }
     }
-    res.clearCookie('auth_token');
-    res.redirect('/');
-  });
+);
+
+// Logout route
+app.get('/logout', (req, res) => {
+    try {
+        // Clear JWT token
+        res.clearCookie('token');
+        
+        // Clear session cookie
+        res.clearCookie('connect.sid');
+        
+        // Destroy session if it exists
+        if (req.session) {
+            req.session.destroy((err) => {
+                if (err) {
+                    console.error('Error destroying session:', err);
+                }
+            });
+        }
+
+        // Logout from passport
+        if (req.logout) {
+            req.logout((err) => {
+                if (err) {
+                    console.error('Error logging out from passport:', err);
+                }
+            });
+        }
+
+        // Redirect to login page
+        res.redirect('/login');
+    } catch (error) {
+        console.error('Error during logout:', error);
+        res.redirect('/login');
+    }
 });
 
 // Define routes
 app.use(preventCaching);
+app.use(attachUserToLocals);
 
 // Routes
 app.use('/', userRouter);

@@ -75,7 +75,8 @@ router.get('/auth/google/callback',
   }
 );
 
-
-router.post('/logout',preventCaching, userController.logout)
+// Logout route
+router.post('/logout', preventCaching, userController.logout);
+router.get('/logout', preventCaching, userController.logout); // Adding GET route for Google auth logout
 
 module.exports = router;

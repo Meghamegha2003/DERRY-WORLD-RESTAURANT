@@ -493,11 +493,30 @@ const filterProductsByType = async (req, res) => {
 
 
 
-const logout = (req, res) => {
-  // Clear the token cookie
-  res.clearCookie('token');
-  // Redirect to the landing page
-  res.redirect('/');
+const logout = async (req, res) => {
+    try {
+        // Clear the JWT token cookie
+        res.clearCookie('token');
+        
+        // Handle Google OAuth logout
+        if (req.session) {
+            // Destroy the session
+            req.session.destroy((err) => {
+                if (err) {
+                    console.error('Error destroying session:', err);
+                }
+            });
+        }
+
+        // Clear any other auth-related cookies
+        res.clearCookie('connect.sid'); // Clear session cookie
+        
+        // Redirect to login page
+        res.redirect('/login');
+    } catch (error) {
+        console.error('Error during logout:', error);
+        res.redirect('/login');
+    }
 };
 
 module.exports = {
