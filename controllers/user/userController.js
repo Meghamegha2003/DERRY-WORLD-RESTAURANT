@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 const User= require('../../models/userSchema');
 const OTP = require('../../models/otpSchema');
 const Product = require('../../models/productSchema');
-
+const Category = require('../../models/categorySchema');
 
 // Email configuration
 const transporter = nodemailer.createTransport({
@@ -54,31 +54,24 @@ const generateAndSaveOtp = async (email) => {
   }
 };
 
+
 const renderLandingPage = async (req, res) => {
   try {
-    const products = await Product.find({ isAvailable: true })
-      .populate('category')
-      .sort('-createdAt')
-      .limit(6);
-    
-    res.render('home', { 
-      user: req.user || null,
-      products,
-      message: req.query.message || '',
-      successMessage: req.query.successMessage || '',
-      activePage: 'home'
-    });
+    const categories = await Category.find();  
+    const categoryFilter = req.query.category || null;
+    const query = categoryFilter ? { 'category.name': categoryFilter } : {};
+
+    const products = await Product.find(query).populate('category');
+
+    const activePage = 'home';
+
+    res.render('home', { products, categories, activePage });
   } catch (error) {
-    console.error('Error in renderLandingPage:', error);
-    res.render('home', { 
-      user: null,
-      products: [],
-      message: 'Error loading products',
-      successMessage: '',
-      activePage: 'home'
-    });
+    console.error('Error fetching menu data:', error);
+    res.status(500).send('Internal Server Error');
   }
 };
+
 
 const renderRegisterPage = (req, res) => {
   if (req.user) {
@@ -93,26 +86,35 @@ const renderRegisterPage = (req, res) => {
 
 const renderMenuPage = async (req, res) => {
   try {
-    const products = await Product.find({ isAvailable: true }).populate('category');
-    res.render('menu', { 
-      user: req.user || null,
-      products,
-      message: req.query.message || '',
-      successMessage: req.query.successMessage || '',
-      activePage: 'menu'
-    });
+    // Fetch all active categories
+    const categories = await Category.find({ isActive: true });
+
+    // Get the selected category filter
+    const categoryFilter = req.query.category || null;
+
+    let query = { isAvailable: true };
+
+    // If a category filter is selected, resolve its ObjectId
+    if (categoryFilter) {
+      const category = await Category.findOne({ name: categoryFilter, isActive: true });
+      if (category) {
+        query.category = category._id; // Use the ObjectId
+      } else {
+        // Handle case where category does not exist (optional)
+        query = { isAvailable: false }; // No products will be found
+      }
+    }
+
+    // Fetch filtered products
+    const products = await Product.find(query).populate('category');
+
+    // Render the menu page with products and categories
+    res.render('menu', { products, categories, selectedCategory: categoryFilter });
   } catch (error) {
-    console.error('Error in renderMenuPage:', error);
-    res.render('menu', { 
-      user: req.user || null,
-      products: [],
-      message: 'Error loading menu items',
-      successMessage: '',
-      activePage: 'menu'
-    });
+    console.error('Error fetching menu data:', error);
+    res.status(500).send('Internal Server Error');
   }
 };
-
 
 
 const registerUser = async (req, res) => {
@@ -286,6 +288,15 @@ const loginUser = async (req, res) => {
       });
     }
 
+    // Prevent admin users from logging in through user login
+    if (user.isAdmin) {
+      return res.render('login', {
+        errorMessage: 'Please use admin login page',
+        successMessage: '',
+        activePage: 'login'
+      });
+    }
+
     // Log user details for debugging
     console.log('User details:', {
       email: user.email,
@@ -324,9 +335,13 @@ const loginUser = async (req, res) => {
       });
     }
 
-    // Create token and login
+    // Create user token
     const token = jwt.sign(
-      { userId: user._id, email: user.email },
+      { 
+        userId: user._id, 
+        email: user.email,
+        isAdmin: false
+      },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -465,22 +480,30 @@ const filterProductsByType = async (req, res) => {
   try {
     const { type } = req.query;
     const validTypes = ['veg', 'non-veg', 'vegan'];
-    
-    if (!type || !validTypes.includes(type)) {
+
+    // Normalize the type to lowercase and check for validity
+    const normalizedType = type ? type.toLowerCase() : null;
+
+    if (!normalizedType || !validTypes.includes(normalizedType)) {
       return res.status(400).json({ 
         success: false,
         message: 'Invalid or missing type parameter'
       });
     }
 
+    // Fetch products based on the type and availability
     const products = await Product.find({ 
-      type, 
+      type: normalizedType, 
       isAvailable: true 
     }).populate('category');
 
+    // Optionally, fetch categories to send in the response
+    const categories = await Category.find();
+
     res.status(200).json({
       success: true,
-      products
+      products,
+      categories // Include categories if needed for the frontend
     });
   } catch (error) {
     console.error('Error in filterProductsByType:', error);
@@ -519,6 +542,75 @@ const logout = async (req, res) => {
     }
 };
 
+
+const getFoodDetails = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const product = await Product.findById(productId).populate('category');
+
+    if (!product) {
+      return res.status(404).send('Product not found');
+    }
+
+    // Fetch the user's rating for the product if authenticated
+    let userRating = null;
+    if (req.user) {
+      const rating = product.ratings.find(r => r.user.toString() === req.user._id.toString());
+      if (rating) {
+        userRating = rating;  // Store the user's rating if exists
+      }
+    }
+
+    // Render the product details page with the product and userRating
+    res.render('foodDetails', { product, userRating });
+  } catch (error) {
+    console.error('Error fetching product details:', error);
+    res.status(500).send('Internal Server Error');
+  }
+};
+
+const rateProduct = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const { rating, review } = req.body; // Get rating and optional review from the request body
+    const userId = req.user._id; // Assuming `req.user` is populated by authentication middleware
+
+    // Find the product
+    const product = await Product.findById(productId);
+
+    if (!product) {
+      return res.status(404).send('Product not found');
+    }
+
+    // Find if the user has already rated the product
+    const existingRating = product.ratings.find(rating => rating.user.toString() === userId.toString());
+
+    if (existingRating) {
+      // Update the existing rating
+      existingRating.score = parseInt(rating, 10);
+      if (review) existingRating.review = review;
+    } else {
+      // Add a new rating
+      product.ratings.push({ user: userId, score: parseInt(rating, 10), review });
+      product.totalRatings += 1; // Increment the total number of ratings
+    }
+
+    // Recalculate the average rating
+    const totalScore = product.ratings.reduce((sum, r) => sum + r.score, 0);
+    product.averageRating = totalScore / product.ratings.length;
+
+    // Save the updated product
+    await product.save();
+
+    // Redirect back to the product's details page
+    res.redirect(`/food/${productId}`);
+  } catch (error) {
+    console.error('Error rating product:', error);
+    res.status(500).send('Internal Server Error');
+  }
+};
+
+
 module.exports = {
   renderLandingPage,
   renderRegisterPage,
@@ -530,5 +622,7 @@ module.exports = {
   verifyPasswordResetOtp,
   resetPassword,
   filterProductsByType,
+  getFoodDetails,
+  rateProduct,
   logout
 };

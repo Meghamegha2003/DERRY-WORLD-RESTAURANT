@@ -8,7 +8,7 @@ const attachUserToLocals = require('./middlewares/attachUserToLocals');
 const errorHandler = require('./middlewares/errorHandler');
 const cookieParser = require('cookie-parser');
 const adminRouter = require('./routes/adminRouter');
-const passport = require('./config/passport');  // Import passport configuration
+const passport = require('./config/passport');  
 const session = require('express-session');
 const jwt = require('jsonwebtoken');
 const upload = require('./config/multerConfig');
@@ -18,36 +18,38 @@ dotenv.config();
 
 const app = express();
 
-// Connect to the database
 connectDB();
 
 // Configure session
 app.use(session({
-  secret: process.env.SESSION_SECRET,  // Set your session secret
-  resave: false,                     // Do not resave session if unmodified
-  saveUninitialized: false,          // Do not save uninitialized sessions
+  secret: process.env.SESSION_SECRET, 
+  resave: false,                     
+  saveUninitialized: false,          
   cookie: {
-    httpOnly: true,                  // Protect the cookie from client-side access
-    secure: process.env.NODE_ENV === 'production', // Set secure to true in production
-    maxAge: 24 * 60 * 60 * 1000,     // 1 day session expiry
+    httpOnly: true,                 
+    secure: process.env.NODE_ENV === 'production', 
+    maxAge: 24 * 60 * 60 * 1000,    
   }
 }));
 
 // Initialize Passport
 app.use(passport.initialize());
-app.use(passport.session());  // Session should be initialized after passport
+app.use(passport.session());  
 
 // Middleware
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/food', userRouter);
 
 app.use(cors({
   origin: process.env.CLIENT_ORIGIN || 'http://localhost:3000',
   credentials: true,
 }));
 
-app.use(express.static(path.join(__dirname, 'public')));
+// app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Views setup
 app.set('views', [
@@ -68,7 +70,7 @@ const preventCaching = (req, res, next) => {
 app.get('/auth/google', 
     passport.authenticate('google', { 
         scope: ['profile', 'email'],
-        prompt: 'select_account' // Forces Google account selection
+        prompt: 'select_account' 
     })
 );
 
@@ -88,7 +90,7 @@ app.get('/auth/google/callback',
             res.cookie('token', req.user.token, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
-                maxAge: 24 * 60 * 60 * 1000 // 24 hours
+                maxAge: 24 * 60 * 60 * 1000 
             });
 
             // Redirect to home page
@@ -103,13 +105,13 @@ app.get('/auth/google/callback',
 // Logout route
 app.get('/logout', (req, res) => {
     try {
-        // Clear JWT token
+        
         res.clearCookie('token');
         
-        // Clear session cookie
+        
         res.clearCookie('connect.sid');
         
-        // Destroy session if it exists
+        
         if (req.session) {
             req.session.destroy((err) => {
                 if (err) {
@@ -148,7 +150,7 @@ app.use('/admin', adminRouter);
 app.use(errorHandler);
 app.post('/admin/products/add', (req, res, next) => {
   console.log('Received request for /admin/products/add');
-  next(); // Pass to the next middleware
+  next(); 
 }, upload.array('productImage[]', 4), (req, res) => {
   console.log('Multer middleware reached');
   res.send('Files uploaded');

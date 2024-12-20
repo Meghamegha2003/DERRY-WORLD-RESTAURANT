@@ -15,7 +15,6 @@
     <table class="table table-hover table-bordered mt-3">
       <thead class="table-dark">
         <tr>
-          <th scope="col">Image</th>
           <th scope="col">Product Name</th>
           <th scope="col">Sales Price (USD)</th>
           <th scope="col">Quantity</th>
@@ -23,42 +22,36 @@
           <th scope="col">Actions</th>
         </tr>
       </thead>
+      
       <tbody>
         <% products.forEach(product => { %>
         <tr>
-          <!-- Display the first image of the product -->
-          <td>
-            <% if (product.productImage.length > 0) { %>
-              <img src="/uploads/<%= product.productImage[0] %>" alt="Product Image" style="width: 50px; height: 50px; object-fit: cover;">
-            <% } else { %>
-              <span class="text-muted">No Image</span>
-            <% } %>
-          </td>
-          <td><%= product.productName %></td>
+          <td><%= product.name %></td>
           <td><%= product.salesPrice %> USD</td>
           <td><%= product.quantity %></td>
           <td>
+            <!-- Badge showing current status -->
             <span 
               class="badge rounded-pill 
-                <%= product.status === 'Available' ? 'bg-success' : 
-                    product.status === 'Out of stock' ? 'bg-warning' : 'bg-secondary' %> 
+                <%= product.isAvailable ? 'bg-success' : 'bg-danger' %> 
                 px-3 py-2" 
               style="font-size: 0.9rem;">
               <i class="bi 
-                <%= product.status === 'Available' ? 'bi-check-circle-fill' : 
-                    product.status === 'Out of stock' ? 'bi-clock-fill' : 'bi-x-circle-fill' %>"></i>
-              <%= product.status %>
+                <%= product.isAvailable ? 'bi-check-circle-fill' : 'bi-x-circle-fill' %>"></i>
+              <%= product.isAvailable ? 'Available' : 'Unavailable' %>
             </span>
           </td>
-          <td>
-            <!-- Toggle Status -->
-            <form action="/admin/products/status/<%= product._id %>" method="POST" style="display: inline;">
-              <button class="btn <%= product.status === 'Available' ? 'btn-danger' : 'btn-success' %> btn-sm" type="submit">
-                <%= product.status === 'Available' ? 'Deactivate' : 'Activate' %>
+          <td class="d-flex">
+            <!-- Toggle Status Form -->
+            <form action="/admin/products/status/<%= product._id %>" method="POST">
+              <button class="btn <%= product.isAvailable ? 'btn-danger' : 'btn-success' %> btn-sm" type="submit">
+                <i class="bi <%= product.isAvailable ? 'bi-x-circle' : 'bi-check-circle' %> me-1"></i>
+                <%= product.isAvailable ? 'Deactivate' : 'Activate' %>
               </button>
             </form>
             
-            <!-- Edit Button -->
+      
+            <!-- Edit Product Button -->
             <a href="/admin/products/edit/<%= product._id %>" class="btn btn-info btn-sm ms-2">
               <i class="bi bi-pencil-square"></i> Edit
             </a>
@@ -66,6 +59,7 @@
         </tr>
         <% }); %>
       </tbody>
+      
     </table>
   </div>
 
@@ -92,4 +86,4 @@
 </div>
 </div>
 
-<%- include('../../views/partials/admin/footer') %> 
+<%- include('../../views/partials/admin/footer') %>

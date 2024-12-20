@@ -5,33 +5,68 @@ const mongoose = require('mongoose');
 const Product = require('../../models/productSchema');
 const Category = require('../../models/categorySchema')
 
-const loadLogin = (req, res) => {
-  res.render("adminLogin", { message: null });
-};
-
-const handleLogin = async (req, res) => {
-  const { email, password } = req.body;
+// const loginPage = (req, res) => {
+//   try {
+//     res.render('adminLogin', { errorMessage: null, successMessage: null });
+//   } catch (error) {
+//     console.error('Error loading login page:', error);
+//     res.status(500).send('Server Error');
+//   }
+// };
+const loginPage = async (req, res) => {
   try {
-    const user = await User.findOne({ email });
-    if (!user || !user.isAdmin) {
-      return res.render("adminLogin", { message: "Access denied: Admins only" });
+    const token = req.cookies?.admin_token; // Check for token in the cookies
+
+    if (token) {
+      // If a token exists, try to verify it
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+      // Check if the user exists and is an admin
+      const user = await User.findById(decoded.userId);
+      if (user && user.isAdmin) {
+        // If valid admin token, redirect to the dashboard
+        return res.redirect('/admin/dashboard');
+      }
     }
 
-    const isMatch = bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      return res.render("adminLogin", { message: "Invalid credentials" });
-    }
-
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.cookie('auth_token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
-
-    return res.redirect('/admin/dashboard');
-  } catch (err) {
-    console.error(err);
-    return res.render("adminLogin", { message: "An error occurred" });
+    // If no valid token or not an admin, render the login page
+    res.render('adminLogin', { errorMessage: null, successMessage: null });
+  } catch (error) {
+    console.error('Error loading login page:', error);
+    res.status(500).send('Server Error');
   }
 };
+
+
+const loginAdmin = async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    // Find the admin user in the database
+    const admin = await User.findOne({ email, isAdmin: true });
+    if (!admin) {
+      return res.render('adminLogin', { errorMessage: 'Invalid credentials or not an admin.', successMessage: null });
+    }
+
+    // Compare the submitted password with the hashed password in the database
+    const isMatch = await bcrypt.compare(password, admin.password);
+    if (!isMatch) {
+      return res.render('adminLogin', { errorMessage: 'Invalid credentials.', successMessage: null });
+    }
+
+    // Generate a JWT token
+    const token = jwt.sign({ userId: admin._id }, process.env.JWT_SECRET, { expiresIn: '12d' });
+
+    // Set the JWT in a cookie
+    res.cookie('admin_token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
+
+    // Redirect to the admin dashboard
+    res.redirect('/admin/dashboard'); 
+  } catch (error) {
+    console.error('Error during admin login:', error);
+    res.render('adminLogin', { errorMessage: 'An error occurred. Please try again.', successMessage: null });
+  }
+};
+
 
 
 const loadDashboard = async (req, res) => {
@@ -93,14 +128,46 @@ const updateUserStatus = async (req, res) => {
   }
 };
 
+// const logoutAdmin = (req, res) => {
+//   try {
+//     res.clearCookie('auth_token');
+//     res.render('adminLogin', { errorMessage: null, successMessage: 'Logged out successfully.' });
+//   } catch (error) {
+//     console.error('Error during logout:', error);
+//     res.status(500).send('Server Error');
+//   }
+// };
 
 
+const logoutAdmin = (req, res) => {
+  try {
+    // Clear the admin authentication token from cookies
+    res.clearCookie('admin_token', { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
+    // Clear session cookie (if any)
+    res.clearCookie('connect.sid');  // Adjust cookie name if using a different session name
 
+    // Destroy the session if it exists
+    if (req.session) {
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('Error destroying session:', err);
+        }
+      });
+    }
+
+    // Render the login page with a success message
+    res.render('adminLogin', { errorMessage: null, successMessage: 'Logged out successfully.' });
+  } catch (error) {
+    console.error('Error during logout:', error);
+    res.status(500).send('Server Error');
+  }
+};
 
 module.exports = { 
-  loadLogin,
-  handleLogin,
+  loginPage,
+  loginAdmin,
   loadDashboard,
   customerList,
   updateUserStatus,
+  logoutAdmin,
 };

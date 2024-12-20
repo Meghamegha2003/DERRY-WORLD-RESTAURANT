@@ -4,6 +4,9 @@ const Category = require('../../models/categorySchema');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const { saveBase64Image } = require("../../helpers/imageHelper");
+const { log } = require('console');
+const sharp=require('sharp')
 
 const viewProducts = async (req, res) => {
   const currentPage = parseInt(req.query.page) || 1;
@@ -31,9 +34,12 @@ const viewProducts = async (req, res) => {
 };
 
 const loadAddProductPage = async (req, res) => {
+  
+  
   try {
+    
       const categories = await Category.find();
-      const product = {};  // Define an empty product object
+      const product = {}; 
       res.render('addProduct', { categories, product, productImage: [] });  // Passing the empty product and productImage array
   } catch (err) {
       console.error('Error loading add product page:', err);
@@ -43,57 +49,55 @@ const loadAddProductPage = async (req, res) => {
 
 const addProduct = async (req, res) => {
   try {
-    const { productName, description, category, regularPrice, salesPrice, quantity, type } = req.body;
-    
-    // Validate required fields
-    if (!productName || !description || !category || !regularPrice || !salesPrice || !quantity || !type) {
-      return res.status(400).json({ message: 'Missing required fields' });
+    const { productName, category, regularPrice, salesPrice, quantity, description } = req.body;
+    const uploadedImages = req.files; // Get the uploaded images
+    const imagePaths = [];
+
+    for (let i = 0; i < 4; i++) {
+      const imageField = `imageInput${i}`;
+      
+      if (uploadedImages[imageField] && uploadedImages[imageField][0]) {
+        const image = uploadedImages[imageField][0];
+        const croppedImagePath = path.join('public/uploads/reImage', 'cropped_' + image.filename);
+
+        // Check image dimensions
+        const metadata = await sharp(image.path).metadata();
+        const cropWidth = Math.min(metadata.width,600);
+        const cropHeight = Math.min(metadata.height, 600);
+
+        await sharp(image.path)
+          .extract({ width: cropWidth, height: cropHeight, left: 0, top: 0 })
+          .toFile(croppedImagePath);
+
+        imagePaths.push(path.join('uploads/reImage', 'cropped_' + image.filename));
+      }
     }
 
-    // Validate images
-    if (!req.files || req.files.length !== 4) {
-      return res.status(400).json({ message: 'Please upload exactly 4 images' });
-    }
-
-    // Create image paths
-    const imagePaths = req.files.map(file => '/uploads/' + file.filename);
-    
-    // Create new product
-    const product = new Product({
-      productName,
-      description,
+    const newProduct = new Product({
+      name: productName,
       category,
       regularPrice,
       salesPrice,
       quantity,
-      type,
+      description,
       productImage: imagePaths,
-      status: 'Available' // Set default status
     });
 
-    await product.save();
-    res.status(200).json({ message: true, product });
-  } catch (err) {
-    console.error('Error adding product:', err);
-    // Delete uploaded files if product creation fails
-    if (req.files) {
-      req.files.forEach(file => {
-        const filePath = path.join(__dirname, '../../public/uploads', file.filename);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      });
-    }
-    res.status(500).json({ message: 'Error adding product', error: err.message });
+    await newProduct.save();
+    res.redirect('/admin/products');
+  } catch (error) {
+    console.error('Error adding product:', error);
+    res.status(500).json({ message: 'Failed to add product. Please try again.' });
   }
 };
+
 
 const editProductForm = async (req, res) => {
   try {
     const productId = req.params.id;
     const product = await Product.findById(productId).populate('category', 'name');
     const categories = await Category.find({ isActive: true });
-
+console.log("categoryies:")
     if (!product) {
       return res.status(404).send('Product not found');
     }
@@ -107,48 +111,79 @@ const editProductForm = async (req, res) => {
 
 const updateProduct = async (req, res) => {
   try {
+    const {
+      productName,
+      category,
+      regularPrice,
+      salesPrice,
+      quantity,
+      description,
+      croppedImage0,
+      croppedImage1,
+      croppedImage2,
+      croppedImage3,
+    } = req.body;
+
     const productId = req.params.id;
-    const { productName, description, category, regularPrice, salesPrice, quantity, type } = req.body;
+
+    if (!productName || !description || !regularPrice || !salesPrice || !quantity || !category) {
+      return res.status(400).json({ error: "All required fields must be filled" });
+    }
+console.log("hii",category)
+    const parsedRegularPrice = parseFloat(regularPrice);
+    const parsedSalesPrice = parseFloat(salesPrice);
+    const parsedQuantity = parseInt(quantity, 10);
+
+    if (isNaN(parsedRegularPrice) || isNaN(parsedSalesPrice) || isNaN(parsedQuantity)) {
+      return res.status(400).json({ error: "Prices and quantity must be valid numbers" });
+    }
+
+    const folderPath = path.join(__dirname, "../../public/uploads");
+
+    const croppedImages = [croppedImage0, croppedImage1, croppedImage2, croppedImage3];
+    const imagePaths = await Promise.all(
+      croppedImages.map(async (image, index) => {
+        if (image) {
+          const fileName = `product-${Date.now()}-${index}.png`;
+          return await saveBase64Image(image, fileName, folderPath);
+        }
+        return null;
+      })
+    );
+
+    const newImages = imagePaths.filter((path) => path !== null);
 
     const product = await Product.findById(productId);
-    if (!product) return res.status(404).json({ message: 'Product not found' });
 
-    // Update basic product information
-    product.productName = productName;
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    product.name = productName;
     product.description = description;
     product.category = category;
-    product.regularPrice = regularPrice;
-    product.salesPrice = salesPrice;
-    product.quantity = quantity;
-    product.type = type;
+    product.regularPrice = parsedRegularPrice;
+    product.salesPrice = parsedSalesPrice;
+    product.quantity = parsedQuantity;
 
-    // Handle new images if they are uploaded
-    if (req.files && req.files.length > 0) {
-      const newImages = req.files.map(file => '/uploads/' + file.filename);
-      
-      // If replacing all images, delete old ones first
-      if (req.body.replaceAll === 'true') {
-        // Delete old image files
-        const fs = require('fs');
-        const path = require('path');
-        product.productImage.forEach(imagePath => {
-          const fullPath = path.join(__dirname, '../../public', imagePath);
-          if (fs.existsSync(fullPath)) {
-            fs.unlinkSync(fullPath);
+    if (newImages.length > 0) {
+      if (Array.isArray(product.images) && product.images.length > 0) {
+        product.images.forEach((image) => {
+          const imagePath = path.join(folderPath, image);
+          if (fs.existsSync(imagePath)) {
+            fs.unlinkSync(imagePath);
           }
         });
-        product.productImage = newImages;
-      } else {
-        // Add new images to existing ones
-        product.productImage = [...product.productImage, ...newImages].slice(0, 4); // Keep max 4 images
       }
+      product.images = newImages;
     }
 
     await product.save();
-    res.json({ message: 'Product updated successfully', product });
+
+    res.redirect('/admin/products');
   } catch (error) {
-    console.error('Error updating product:', error);
-    res.status(500).json({ message: 'Error updating product', error: error.message });
+    console.error("Error updating product:", error);
+    res.status(500).json({ error: "Failed to update product" });
   }
 };
 
@@ -171,7 +206,7 @@ const deleteProductImage = async (req, res) => {
     // Delete the actual file
     const fs = require('fs');
     const path = require('path');
-    const filePath = path.join(__dirname, '../../public', imageToDelete);
+    const filePath = path.join(__dirname, '../../public/uploads', imageToDelete);
     
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
@@ -184,19 +219,45 @@ const deleteProductImage = async (req, res) => {
   }
 };
 
+
 const uploadCroppedImage = (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const filePath = '/uploads/products/' + req.file.filename;
+    const filePath = 'public/uploads' + req.file.filename;
     res.status(200).json({ filePath });
   } catch (error) {
     console.error('Error uploading cropped image:', error);
     res.status(500).json({ error: 'Server Error' });
   }
 };
+
+
+// Toggle Product Status (Activate/Deactivate)
+const toggleProductStatus = async (req, res) => {
+  const productId = req.params.id;
+
+  try {
+    // Find the product by ID
+    const product = await Product.findById(productId);
+    if (!product) return res.status(404).send('Product not found');
+
+    // Toggle isAvailable status
+    product.isAvailable = !product.isAvailable;
+
+    // Save changes to the database
+    await product.save();
+
+    res.redirect('/admin/products'); // Redirect back to the products list
+  } catch (error) {
+    console.error('Error toggling product status:', error);
+    res.status(500).send('Error toggling product status');
+  }
+};
+
+
 
 module.exports = {
   viewProducts,
@@ -205,5 +266,8 @@ module.exports = {
   editProductForm,
   updateProduct,
   deleteProductImage,
-  uploadCroppedImage
+  uploadCroppedImage,
+  toggleProductStatus,
+  
 };
+  

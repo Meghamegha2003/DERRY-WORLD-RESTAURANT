@@ -2,13 +2,13 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const productSchema = new Schema({
-    productName: {
+    name: {
         type: String,
-        required: true
+        required: true, 
     },
     description: {
         type: String,
-        required: true
+        required: true,
     },
     category: {
         type: Schema.Types.ObjectId,
@@ -17,28 +17,28 @@ const productSchema = new Schema({
     },
     regularPrice: {
         type: Number,
-        required: true
+        required: true, 
     },
     salesPrice: {
         type: Number,
-        required: true
+        required: true, 
     },
+    quantity: {
+        type: Number,
+        required: true, 
+    },
+    
     offerPrice: {
         type: Number,
         default: 0,
     },
-    quantity: {
-        type: Number,
-        required: true
-    },
-    productImage: [{ 
-        type: [{ type: String }], 
-    }],
+    
+    productImage: { type: [String], required: true },
     status: {
         type: String,
         enum: ['Available', 'Out of stock', 'Discontinued'],
         default: 'Available',
-        // required: true
+        
     },
     isAvailable: {
         type: Boolean,
@@ -48,11 +48,18 @@ const productSchema = new Schema({
         type: Boolean,
         default: false
     },
-    type: { // New field for product type
-        type: String,
-        enum: ['veg', 'non-veg', 'vegan'],
-        required: true
-    }
+    averageRating: { type: Number, default: 0 },
+  totalRatings: { type: Number, default: 0 },
+  ratings: [
+    {
+      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      score: { type: Number, required: true },
+      review: String,
+    },
+  ],
+  
+      type: { type: String, enum: ['Veg', 'Non-Veg', 'Vegan'], required: false },
+
 }, { timestamps: true });
 
 const Product = mongoose.model('Product', productSchema);

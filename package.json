@@ -27,13 +27,14 @@
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.11.0",
     "mongoose": "^8.8.1",
-    "multer": "^1.4.4",
+    "multer": "^1.4.5-lts.1",
     "multer-gridfs-storage": "^5.0.2",
     "nodemailer": "^6.9.16",
     "nodemon": "^3.1.7",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "rimraf": "^6.0.1",
+    "sharp": "^0.33.5",
     "tree": "^0.1.3"
   }
 }

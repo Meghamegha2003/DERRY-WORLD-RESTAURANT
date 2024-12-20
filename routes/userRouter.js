@@ -35,6 +35,7 @@ router.post('/login', userController.loginUser);
 router.get('/password-reset', preventCaching, (req, res) => {
   res.render('user/password-reset', { message: req.query.message || '', successMessage: req.query.successMessage || '' });
 });
+
 router.post('/request-password-reset', userController.requestPasswordReset);
 router.get('/verify-reset-otp', preventCaching, (req, res) => {
   res.render('user/verify-reset-otp', { message: req.query.message || '', successMessage: req.query.successMessage || '' });
@@ -74,6 +75,10 @@ router.get('/auth/google/callback',
     res.redirect('/'); // Redirect to home or any other page
   }
 );
+
+router.get('/food/:id',  userController.getFoodDetails);
+router.post('/food/:id/rate',  userController.rateProduct);
+
 
 // Logout route
 router.post('/logout', preventCaching, userController.logout);
