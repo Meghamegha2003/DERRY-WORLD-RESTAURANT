@@ -1,238 +1,618 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Food Details</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
-  <style>
-    /* Main Image Container */
-    .image-container {
-      position: relative;
-      height: 500px;
-      border: 1px solid #ddd;
-      overflow: hidden;
-    }
-    .image-container img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
+<html>
+  <head>
+    <!-- Basic Meta Tags -->
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
 
-    /* Zoom Box */
-    .zoom-box {
-      position: absolute;
-      top: 0;
-      left: 105%;
-      width: 400px;
-      height: 500px;
-      border: 1px solid #ddd;
-      overflow: hidden;
-      background: #fff;
-      z-index: 1000;
-    }
-    .zoom-box img {
-      position: absolute;
-      width: auto;
-      height: auto;
-      min-width: 100%;
-      min-height: 100%;
-    }
+    <title>Derry World - Cart</title>
 
-    /* Thumbnails */
-    .thumbnails-row img {
-      width: 80px;
-      height: 80px;
-      object-fit: cover;
-      cursor: pointer;
-      border: 1px solid #ddd;
-      transition: transform 0.3s, border 0.3s;
-    }
-    .thumbnails-row img:hover {
-      transform: scale(1.1);
-      border-color: #007bff;
-    }
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="css/bootstrap.css" />
 
-    /* Rating Stars */
-    .rating-label {
-      cursor: pointer;
-    }
-    .rating-label .fa-star {
-      font-size: 24px;
-      transition: color 0.2s ease;
-    }
-    .rating-label .fa-star:hover,
-    .rating-label .fa-star:hover ~ .fa-star {
-      color: #ffc107;
-    }
-    .rating-label input:checked + .fa-star {
-      color: #ffc107;
-    }
-  </style>
-</head>
-<body>
-  <section class="food-details py-5">
-    <div class="container">
-      <div class="row">
-        <!-- Big Product Image with Zoom -->
-        <div class="col-md-6 position-relative">
-          <div class="image-container">
-            <img id="mainImage" src="/<%= product.productImage[0] %>" alt="<%= product.name %>" onerror="this.src='/default-image.jpg'">
-          </div>
-          <div class="zoom-box" id="zoomBox" style="display: none;">
-            <img id="zoomedImage" src="/<%= product.productImage[0] %>" alt="Zoomed Image">
-          </div>
-          <div class="thumbnails-row d-flex justify-content-start mt-3 gap-2">
-            <% product.productImage.forEach((img, index) => { %>
-              <img 
-                src="/<%= img.replace(/\\/g, '/') %>" 
-                alt="Thumbnail <%= index + 1 %>" 
-                onclick="changeImage('/<%= img.replace(/\\/g, '/') %>')" 
-                onerror="this.src='/default-image.jpg'">
-            <% }); %>
-          </div>
-        </div>
+    <!-- Font Awesome -->
+    <link href="css/font-awesome.min.css" rel="stylesheet" />
 
-        <!-- Product Details Section -->
-        <div class="col-md-6">
-          <h2 class="mb-3"><%= product.name %></h2>
-          <p class="mb-3"><%= product.description %></p>
-          <h4 class="mb-3">Category: <%= product.category.name %></h4>
+    <!-- Custom Styles -->
+    <link href="css/style.css" rel="stylesheet" />
+    <link href="css/responsive.css" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&amp;family=Open+Sans:wght@400;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+      rel="stylesheet"
+    />
 
-          <!-- Price -->
-          <div class="price mb-3">
-            <% if (product.salesPrice < product.regularPrice) { %>
-              <h5 class="d-inline-block text-danger">$<%= product.salesPrice %></h5>
-              <h6 class="d-inline-block text-muted text-decoration-line-through ms-2">$<%= product.regularPrice %></h6>
-            <% } else { %>
-              <h5 class="d-inline-block text-success">$<%= product.regularPrice %></h5>
-            <% } %>
-          </div>
+    <style>
+      .collapse {
+        visibility: visible !important;
+      }
 
-          <!-- Ratings -->
-          <div class="rating mb-3">
-            <h6>Average Rating:</h6>
-            <div class="d-flex align-items-center">
-              <div class="stars">
-                <% for (let i = 0; i < 5; i++) { %>
-                  <i class="fa <% if (i < Math.round(product.averageRating)) { %>fa-star text-warning<% } else { %>fa-star-o text-muted<% } %>"></i>
-                <% } %>
+      .user_link {
+        text-decoration: none;
+      }
+
+      .cart_link svg {
+        width: 17px;
+        height: auto;
+        fill: var(--white);
+        margin-bottom: 2px;
+      }
+
+      /* Additional styling for other elements (same as before) */
+      .header_section {
+        padding: 10px 0;
+        background-color: #333;
+      }
+
+      .navbar-brand span {
+        font-family: "Dancing Script", cursive;
+        font-weight: bold;
+        font-size: 32px;
+        color: #ffffff;
+      }
+
+      .navbar-nav .nav-link {
+        color: #fff;
+        padding: 5px 20px;
+        text-align: center;
+        text-transform: uppercase;
+        border-radius: 5px;
+        -webkit-transition: all 0.3s;
+        transition: all 0.3s;
+      }
+
+      .navbar-nav .nav-link:hover {
+        color: #ffc107;
+      }
+
+      .user_option {
+        display: flex;
+        align-items: center;
+      }
+
+      .user_link {
+        color: #fff;
+        font-weight: 600;
+        margin-left: 15px;
+        transition: color 0.3s;
+      }
+
+      .user_link:hover {
+        color: #ffc107;
+      }
+
+      .cart_link {
+        position: relative;
+        display: inline-block;
+        margin-left: 15px;
+      }
+
+      .cart-link svg {
+        width: 20px;
+        height: auto;
+        fill: #fff;
+      }
+
+      .cart-count {
+        position: absolute;
+        top: -7px;
+        right: -12px;
+        background-color: #ffc107;
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+      }
+
+      .cart-count:hover {
+        background-color: #ff5722;
+      }
+
+      .dropdown-menu {
+        background-color: #333;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .dropdown-item {
+        color: #fff;
+        font-weight: 600;
+        transition: background-color 0.3s, color 0.3s;
+      }
+
+      .dropdown-item:hover {
+        background-color: #ffc107;
+        color: #333;
+      }
+
+      .navbar-toggler {
+        border: none;
+        background-color: #fff;
+      }
+
+      @media (max-width: 768px) {
+        .navbar-nav {
+          text-align: center;
+          margin-top: 10px;
+        }
+
+        .navbar-nav .nav-link {
+          margin: 10px 0;
+        }
+
+        .user_option {
+          flex-direction: column;
+          margin-top: 10px;
+        }
+
+        .cart-link {
+          margin-left: 0;
+        }
+      }
+      /* Main Image Container */
+      .image-container {
+        position: relative;
+        height: 500px;
+        border: 1px solid #ddd;
+        overflow: hidden;
+      }
+      .image-container img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      /* Zoom Box */
+      .zoom-box {
+        position: absolute;
+        top: 0;
+        left: 105%;
+        width: 400px;
+        height: 500px;
+        border: 1px solid #ddd;
+        overflow: hidden;
+        background: #fff;
+        z-index: 1000;
+      }
+      .zoom-box img {
+        position: absolute;
+        width: auto;
+        height: auto;
+        min-width: 100%;
+        min-height: 100%;
+      }
+
+      /* Thumbnails */
+      .thumbnails-row img {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        cursor: pointer;
+        border: 1px solid #ddd;
+        transition: transform 0.3s, border 0.3s;
+      }
+      .thumbnails-row img:hover {
+        transform: scale(1.1);
+        border-color: #007bff;
+      }
+
+      .rating-label {
+        cursor: pointer;
+      }
+
+      .rating-label .fa-star {
+        font-size: 30px;
+        transition: color 0.2s ease;
+      }
+
+      .rating-label .fa-star:hover,
+      .rating-label .fa-star:hover ~ .fa-star {
+        color: #ffc107; /* Gold color on hover */
+      }
+
+      .rating-label input:checked + .fa-star {
+        color: #ffc107; /* Gold color when selected */
+      }
+
+      .rating-label .fa-star.text-muted {
+        color: #dcdcdc; /* Light grey color for unfilled stars */
+      }
+
+      .rating-label .fa-star.text-warning {
+        color: #ffc107; /* Gold color for filled stars */
+      }
+
+      .footer_section {
+        background-color: #333;
+        color: white;
+        padding: 50px 0;
+      }
+
+      .footer_section h5 {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 15px;
+      }
+
+      .footer_section p,
+      .footer_section a {
+        font-size: 14px;
+      }
+
+      .footer_section a {
+        color: white;
+        text-decoration: none;
+        transition: color 0.3s;
+      }
+
+      .footer_section a:hover {
+        color: #ffc107;
+      }
+
+      .social-icons i {
+        font-size: 20px;
+        margin-right: 10px;
+        transition: color 0.3s;
+      }
+
+      .social-icons i:hover {
+        color: #ffc107;
+      }
+
+      @media (max-width: 768px) {
+        .footer_section .row {
+          text-align: center;
+        }
+
+        .footer_section .col-md-4 {
+          margin-bottom: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body class="sub_page">
+    <!-- Header (unchanged) -->
+    <header class="header_section">
+      <div class="container">
+        <nav class="navbar navbar-expand-lg custom_nav-container">
+          <a class="navbar-brand" href="/">
+            <span>Derry World</span>
+          </a>
+          <button
+            class="navbar-toggler"
+            type="button"
+            data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+          >
+            <span class="navbar-toggler-icon"></span>
+          </button>
+
+          <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav mx-auto">
+              <li class="nav-item">
+                <a class="nav-link" href="/">Home</a>
+              </li>
+              <li class="nav-item active">
+                <a class="nav-link" href="/menu">Menu</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="/about">About</a>
+              </li>
+            </ul>
+            <div class="user_option">
+              <% if (user) { %>
+              <!-- Dropdown for username -->
+              <div class="dropdown">
+                <a
+                  class="user_link dropdown-toggle"
+                  href="#"
+                  id="dropdownMenuButton"
+                  data-toggle="dropdown"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                >
+                  <i
+                    class="fa fa-user"
+                    aria-hidden="true"
+                    style="color: #ffc107"
+                  ></i>
+                  <span style="color: white"><%= user.name %></span>
+                </a>
+                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                  <a class="dropdown-item" href="/profile">Profile</a>
+                  <a class="dropdown-item" href="/order/{{orderId}}">Order</a>
+                  <a class="dropdown-item" href="/logout">Logout</a>
+                </div>
               </div>
-              <span class="ms-2"><%= product.averageRating.toFixed(1) %> out of 5</span>
+              <% } else { %>
+              <a class="user_link" href="/login">Login</a>
+              <a class="user_link" href="/register">Register</a>
+              <% } %>
+              <a class="cart_link" href="/cart">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 456.029 456.029"
+                  style="fill: #ffffff"
+                >
+                  <g>
+                    <path
+                      d="M345.6,338.862c-29.184,0-53.248,23.552-53.248,53.248c0,29.184,23.552,53.248,53.248,53.248c29.184,0,53.248-23.552,53.248-53.248C398.336,362.926,374.784,338.862,345.6,338.862z"
+                    />
+                    <path
+                      d="M439.296,84.91c-1.024,0-2.56-0.512-4.096-0.512H112.64l-5.12-34.304C104.448,27.566,84.992,10.67,61.952,10.67H20.48C9.216,10.67,0,19.886,0,31.15c0,11.264,9.216,20.48,20.48,20.48h41.472l31.744,216.064c4.096,27.136,27.648,47.616,55.296,47.616h212.992c26.624,0,49.664-18.944,55.296-45.056l33.28-166.4C457.728,97.71,450.56,86.958,439.296,84.91z"
+                    />
+                    <path
+                      d="M215.04,389.55c-1.024-28.16-24.576-50.688-52.736-50.688c-29.696,1.536-52.224,26.112-51.2,55.296c1.024,28.16,24.064,50.688,52.224,50.688h1.024C193.536,443.31,216.576,418.734,215.04,389.55z"
+                    />
+                  </g>
+                </svg>
+
+                <span class="cart-count"><%= cartCount %></span>
+              </a>
             </div>
-            <p class="text-muted"><%= product.totalRatings %> ratings and reviews</p>
+          </div>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <section class="food-details py-5">
+      <div class="container">
+        <div class="row">
+          <!-- Big Product Image with Zoom -->
+          <div class="col-md-6 position-relative">
+            <div class="image-container">
+              <img
+                id="mainImage"
+                src="/<%= product.productImage[0] %>"
+                alt="<%= product.name %>"
+                onerror="this.src='/default-image.jpg'"
+              />
+            </div>
+            <div class="zoom-box" id="zoomBox" style="display: none">
+              <img
+                id="zoomedImage"
+                src="/<%= product.productImage[0] %>"
+                alt="Zoomed Image"
+              />
+            </div>
+            <div class="thumbnails-row d-flex justify-content-start mt-3 gap-2">
+              <% product.productImage.forEach((img, index) => { %>
+              <img
+                src="/<%= img.replace(/\\/g, '/') %>"
+                alt="Thumbnail <%= index + 1 %>"
+                onclick="changeImage('/<%= img.replace(/\\/g, '/') %>')"
+                onerror="this.src='/default-image.jpg'"
+              />
+              <% }); %>
+            </div>
           </div>
 
-          <!-- Rate Product -->
-          <div class="rate-product mt-4">
-            <h6>Rate this Product:</h6>
-            <form id="ratingForm" action="/food/<%= product._id %>/rate" method="POST">
-              <div class="rating-input d-flex">
-                <% for (let i = 1; i <= 5; i++) { %>
+          <!-- Product Details Section -->
+          <div class="col-md-6">
+            <p class="mb-3"><%= product.name %></p>
+            <p class="mb-3"><%= product.description %></p>
+            <h4 class="mb-3">Category: <%= product.category.name %></h4>
+          
+            <!-- Price -->
+            <div class="price mb-3">
+              <% if (product.salesPrice < product.regularPrice) { %>
+              <h5 class="d-inline-block text-danger">
+                ₹<%= product.salesPrice %>
+              </h5>
+              <h6 class="d-inline-block text-muted text-decoration-line-through ms-2">
+                ₹<%= product.regularPrice %>
+              </h6>
+              <% } else { %>
+              <h5 class="d-inline-block text-success">
+                ₹<%= product.regularPrice %>
+              </h5>
+              <% } %>
+            </div>
+          
+            <!-- Quantity Check -->
+            <% if (product.quantity === 0) { %>
+            <p class="text-danger">Out of Stock</p>
+            <% } %>
+          
+            <!-- Ratings Section -->
+            <div class="rating mb-3">
+              <h6>Average Rating:</h6>
+              <div class="d-flex align-items-center">
+                <div class="stars">
+                  <% for (let i = 0; i < 5; i++) { %>
+                  <i
+                    class="fa <% if (i < Math.round(product.averageRating)) { %>fa-star text-warning<% } else { %>fa-star-o text-muted<% } %>"
+                  ></i>
+                  <% } %>
+                </div>
+                <span class="ms-2">(<%= product.averageRating %> / 5)</span>
+              </div>
+            </div>
+          
+            <!-- Rate Product Section -->
+            <div class="rate-product mt-4">
+              <h6>Rate this Product:</h6>
+              <form
+                id="ratingForm"
+                action="/food/<%= product._id %>/rate"
+                method="POST"
+              >
+                <div class="rating-input d-flex">
+                  <% for (let i = 1; i <= 5; i++) { %>
                   <label class="rating-label">
                     <input 
                       type="radio" 
                       name="rating" 
                       value="<%= i %>" 
                       hidden 
-                      <% if (userRating && userRating.score === i) { %>checked<% } %>
+                      <% if (userRating && userRating.score === i) { %> checked <% } %> 
+                      <% if (product.quantity === 0) { %> disabled <% } %> 
                     />
-                    <i class="fa fa-star" data-value="<%= i %>"></i>
+                    <i
+                      class="fa fa-star <% if (userRating && userRating.score >= i) { %>text-warning<% } else { %>text-muted<% } %>"
+                      data-value="<%= i %>"
+                    ></i>
                   </label>
-                <% } %>
-              </div>
-              <textarea 
-                class="form-control mt-3" 
-                name="review" 
-                rows="3" 
-                placeholder="Write your review (optional)"
-              ></textarea>
-              <button type="submit" class="btn btn-primary mt-2">Submit Rating</button>
+                  <% } %>
+                </div>
+                <textarea
+                  class="form-control mt-3"
+                  name="review"
+                  rows="3"
+                  placeholder="Write your review (optional)"
+                  <%= product.quantity === 0 ? "disabled" : "" %>
+                ></textarea>
+                <button 
+                  id="submit-rating" 
+                  type="submit" 
+                  class="btn btn-primary mt-2"
+                  <%= product.quantity === 0 ? "disabled" : "" %>
+                >
+                  Submit Rating
+                </button>
+              </form>
+            </div>
+          
+            <!-- Add to Cart Button -->
+            <% if (cartItems.includes(product._id.toString())) { %>
+            <a href="/cart" class="btn btn-success" style="margin-top: 17px">
+              Go to Cart
+            </a>
+            <% } else { %>
+            <form action="/add" method="POST">
+              <input
+                type="hidden"
+                name="productId"
+                value="<%= product._id %>"
+              />
+              <button
+                id="add-to-cart"
+                class="btn btn-primary"
+                type="submit"
+                style="margin-top: 12px; width: 127px"
+                <%= product.quantity === 0 ? "disabled" : "" %>
+              >
+                Add to Cart
+              </button>
             </form>
-            
+            <% } %>
+          
+            <!-- Back Button -->
+            <button
+              class="btn btn-secondary mt-3"
+              onclick="goBack()"
+              style="margin-top: 17px"
+            >
+              Go Back
+            </button>
           </div>
-
-          <!-- Add to Cart -->
-          <button class="btn btn-primary btn-lg w-100 mt-3">Add to Cart</button>
-
-          <!-- Back Button -->
-          <button class="btn btn-secondary mt-3" onclick="goBack()">Go Back</button>
+          
+          
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <script>
-    const imageContainer = document.querySelector('.image-container');
-    const zoomBox = document.getElementById('zoomBox');
-    const mainImage = document.getElementById('mainImage');
-    const zoomedImage = document.getElementById('zoomedImage');
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-    // Change the main image and zoomed image dynamically
-    function changeImage(src) {
-      mainImage.src = src;
-      zoomedImage.src = src;
-    }
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const mainImage = document.getElementById("mainImage");
+        const zoomBox = document.getElementById("zoomBox");
+        const zoomedImage = document.getElementById("zoomedImage");
 
-    // Display zoom effect
-    imageContainer.addEventListener('mousemove', (e) => {
-      const bounds = imageContainer.getBoundingClientRect();
-      const x = e.pageX - bounds.left;
-      const y = e.pageY - bounds.top;
+        // Adjust the zoomed image on mouse movement
+        mainImage.addEventListener("mousemove", (event) => {
+          const rect = mainImage.getBoundingClientRect();
+          const x = event.clientX - rect.left;
+          const y = event.clientY - rect.top;
 
-      const xPercent = (x / bounds.width) * 100;
-      const yPercent = (y / bounds.height) * 100;
+          // Calculate the zoom position percentage
+          const xPercent = (x / rect.width) * 100;
+          const yPercent = (y / rect.height) * 100;
 
-      zoomedImage.style.transform = `translate(-${xPercent}%, -${yPercent}%) scale(2)`;
-      zoomBox.style.display = 'block';
-    });
+          // Show the zoom box and update zoomed image position
+          zoomBox.style.display = "block";
+          zoomedImage.style.transformOrigin = `${xPercent}% ${yPercent}%`;
+          zoomedImage.style.transform = "scale(2)"; // Adjust the scale for zoom level
+        });
 
-    // Hide zoom box when mouse leaves
-    imageContainer.addEventListener('mouseleave', () => {
-      zoomBox.style.display = 'none';
-    });
-
-    document.querySelectorAll('.rating-label .fa-star').forEach(star => {
-      star.addEventListener('mouseover', (e) => {
-        const value = e.target.getAttribute('data-value');
-        highlightStars(value);
+        // Hide the zoom box when the mouse leaves the main image
+        mainImage.addEventListener("mouseleave", () => {
+          zoomBox.style.display = "none";
+        });
       });
 
-      star.addEventListener('mouseleave', () => {
-        resetStars();
+      function changeImage(src) {
+        mainImage.src = src;
+        zoomedImage.src = src;
+      }
+
+      const stars = document.querySelectorAll(".rating-label .fa-star");
+      const ratingInput = document.querySelector('input[name="rating"]');
+
+      stars.forEach((star) => {
+        star.addEventListener("mouseover", () => {
+          const value = star.getAttribute("data-value");
+          highlightStars(value);
+        });
+
+        star.addEventListener("mouseout", () => {
+          const checkedValue = ratingInput.value;
+          highlightStars(checkedValue);
+        });
+
+        star.addEventListener("click", () => {
+          const value = star.getAttribute("data-value");
+          ratingInput.value = value; // Set the radio button value
+          highlightStars(value); // Highlight selected stars
+        });
       });
 
-      star.addEventListener('click', (e) => {
-        const value = e.target.getAttribute('data-value');
-        selectRating(value);
-      });
-    });
+      function highlightStars(rating) {
+        stars.forEach((star) => {
+          const value = star.getAttribute("data-value");
+          if (value <= rating) {
+            star.classList.add("text-warning");
+            star.classList.remove("text-muted");
+          } else {
+            star.classList.add("text-muted");
+            star.classList.remove("text-warning");
+          }
+        });
+      }
 
-    function highlightStars(value) {
-      document.querySelectorAll('.rating-label .fa-star').forEach(star => {
-        star.style.color = star.getAttribute('data-value') <= value ? '#ffc107' : '#ccc';
-      });
-    }
+      
+      function updateCartDisplay(cart) {
+        const cartCount = cart.items.reduce(
+          (total, item) => total + item.quantity,
+          0
+        );
+        document.getElementById("cart-count").textContent = cartCount;
+      }
 
-    function resetStars() {
-      document.querySelectorAll('.rating-label .fa-star').forEach(star => {
-        const input = star.previousElementSibling;
-        star.style.color = input.checked ? '#ffc107' : '#ccc';
-      });
-    }
 
-    function selectRating(value) {
-      document.querySelectorAll('.rating-label input').forEach(input => {
-        input.checked = parseInt(input.value, 10) === parseInt(value, 10);
-      });
-      resetStars();
-    }
-
-    function goBack() {
-      window.history.back();
-    }
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-</body>
+      
+    </script>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
 </html>

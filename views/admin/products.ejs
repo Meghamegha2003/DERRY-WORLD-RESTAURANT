@@ -64,23 +64,60 @@
   </div>
 
   <!-- Pagination Controls -->
-  <nav>
-    <ul class="pagination justify-content-center">
-      <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
-        <a class="page-link" href="/admin/products?page=<%= currentPage - 1 %>">Previous</a>
-      </li>
-
-      <% for (let i = 1; i <= totalPages; i++) { %>
-        <li class="page-item <%= currentPage === i ? 'active' : '' %>">
-          <a class="page-link" href="/admin/products?page=<%= i %>"><%= i %></a>
+  <% if (totalPages > 1) { %>
+    <nav>
+      <ul class="pagination justify-content-center">
+        <!-- Previous Button -->
+        <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+          <a class="page-link" href="/admin/products?page=<%= currentPage - 1 %>">Previous</a>
         </li>
-      <% } %>
-
-      <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
-        <a class="page-link" href="/admin/products?page=<%= currentPage + 1 %>">Next</a>
-      </li>
-    </ul>
-  </nav>
+  
+        <!-- Dynamic Page Numbers -->
+        <% 
+          const maxPagesToShow = 5; 
+          let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+          let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+  
+          // Adjust startPage if near the end of total pages
+          if (endPage - startPage + 1 < maxPagesToShow) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+          }
+        %>
+  
+        <% if (startPage > 1) { %>
+          <li class="page-item">
+            <a class="page-link" href="/admin/products?page=1">1</a>
+          </li>
+          <% if (startPage > 2) { %>
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+          <% } %>
+        <% } %>
+  
+        <% for (let i = startPage; i <= endPage; i++) { %>
+          <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+            <a class="page-link" href="/admin/products?page=<%= i %>"><%= i %></a>
+          </li>
+        <% } %>
+  
+        <% if (endPage < totalPages) { %>
+          <% if (endPage < totalPages - 1) { %>
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+          <% } %>
+          <li class="page-item">
+            <a class="page-link" href="/admin/products?page=<%= totalPages %>"><%= totalPages %></a>
+          </li>
+        <% } %>
+  
+        <!-- Next Button -->
+        <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+          <a class="page-link" href="/admin/products?page=<%= currentPage + 1 %>">Next</a>
+        </li>
+      </ul>
+    </nav>
+  <% } %>
+  
+  
+  
 </main>
 
 </div>

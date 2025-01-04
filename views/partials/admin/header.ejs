@@ -159,23 +159,13 @@
         </button>
         <ul class="nav flex-column mt-3">
           <li class="nav-item">
-            <a class="nav-link active" href="/admin/dashboard">
+            <a class="nav-link" href="/admin/dashboard">
               <i class="bi bi-grid"></i> Dashboard
             </a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="/admin/customer-list">
-              <i class="bi bi-cart"></i> Customers
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="/admin/products">
-              <i class="bi bi-box"></i> Products
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="#">
-              <i class="bi bi-people"></i> Users
+              <i class="bi bi-people"></i> Customers
             </a>
           </li>
           <li class="nav-item">
@@ -184,13 +174,18 @@
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="#">
-              <i class="bi bi-percent"></i> Coupons
+            <a class="nav-link" href="/admin/products">
+              <i class="bi bi-box"></i> Products
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="/admin/products/add">
-              <i class="bi bi-image"></i> Add Product
+            <a class="nav-link" href="/admin/orders">
+              <i class="bi bi-cart"></i> Orders
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">
+              <i class="bi bi-percent"></i> Coupons
             </a>
           </li>
           <li class="nav-item">
@@ -204,5 +199,26 @@
             </a>
           </li>
         </ul>
+        
+        <script>
+        // Get all the nav links inside the sidebar
+        const navLinks = document.querySelectorAll('.sidebar .nav-link');
+        
+        // Get the current URL path
+        const currentPath = window.location.pathname;
+        
+        // Loop through all the nav links
+        navLinks.forEach(link => {
+          // Check if the href matches the current URL
+          if (link.getAttribute('href') === currentPath) {
+            // Add the 'active' class to the matching link
+            link.classList.add('active');
+          } else {
+            // Remove the 'active' class from non-matching links
+            link.classList.remove('active');
+          }
+        });
+        </script>
+        
       </nav>
     

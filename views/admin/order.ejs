@@ -1,0 +1,103 @@
+<%- include('../../views/partials/admin/header') %>
+
+<!-- Main Content -->
+<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
+  <h1 class="mb-4">Order Management</h1>
+
+  <!-- Orders Table -->
+  <table class="table table-hover table-bordered mt-3">
+    <thead class="table-dark">
+      <tr>
+        <th scope="col">Order ID</th>
+        <th scope="col">Customer Name</th>
+        <th scope="col">Total Amount</th>
+        <th scope="col">Status</th>
+        <th scope="col">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% orders.forEach(order => { %>
+      <tr>
+        <td><%= order._id %></td>
+        <td><%= order.userName %></td>
+        <td><%= order.totalAmount %></td>
+        <td>
+          <button class="btn <%= order.status === 'completed' ? 'btn-danger' : 'btn-success' %> btn-sm" type="submit">
+            <i class="bi <%= order.status === 'completed' ? 'bi-x-circle' : 'bi-check-circle' %> me-1"></i>
+            <%= order.status == 'Pending' ? 'Mark as Pending' : 'Mark as Completed' %>
+          </button>
+          <!-- <span 
+            class="badge rounded-pill 
+              <%= order.status === 'completed' ? 'bg-success' : order.status === 'shipped' ? 'bg-warning' : 'bg-danger' %> 
+              px-3 py-2" 
+            style="font-size: 0.9rem;">
+            <i class="bi 
+              <%= order.status === 'completed' ? 'bi-check-circle-fill' : order.status === 'shipped' ? 'bi-truck' : 'bi-x-circle-fill' %>"></i>
+            <%= order.status && order.status.charAt(0).toUpperCase() + order.status.slice(1) || 'Unknown Status' %>
+          </span> -->
+        </td>
+        
+        <td class="d-flex">
+          <!-- Update Status -->
+          <form action="/admin/orders/status/<%= order._id %>" method="POST" style="margin-right: 5px;">
+            <div class="btn-group">
+              <button 
+              type="button" 
+              class="btn btn-sm <%= order.status === 'completed' ? 'btn-danger' : 'btn-success' %> dropdown-toggle" 
+              data-bs-toggle="dropdown" 
+              aria-expanded="false" 
+            >
+              <%= (order.status || 'unknown').charAt(0).toUpperCase() + (order.status || 'unknown').slice(1) %> <!-- Capitalize status -->
+            </button>
+            
+              <ul class="dropdown-menu">
+                <!-- Dropdown options for statuses -->
+                <% const statuses =  ['Pending', 'Shipped', 'Completed', 'Cancelled']; %>
+                <% statuses.forEach(status => { %>
+                  <li>
+                    <button 
+                      class="dropdown-item" 
+                      type="submit" 
+                      name="status" 
+                      value="<%= status %>" 
+                      <%= order.status === status ? 'disabled' : '' %>
+                      style="color:black">
+  
+                      <%= status.charAt(0).toUpperCase() + status.slice(1) %>
+                    </button>
+                  </li>
+                <% }); %>
+              </ul>
+            </div>
+          </form>
+          
+        </td>
+      </tr>
+      <% }); %>
+    </tbody>
+  </table>
+
+  <!-- Pagination Controls -->
+  <nav>
+    <ul class="pagination justify-content-center">
+      <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+        <a class="page-link" href="/admin/orders?page=<%= currentPage - 1 %>">Previous</a>
+      </li>
+
+      <% for (let i = 1; i <= totalPages; i++) { %>
+        <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+          <a class="page-link" href="/admin/orders?page=<%= i %>"><%= i %></a>
+        </li>
+      <% } %>
+
+      <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+        <a class="page-link" href="/admin/orders?page=<%= currentPage + 1 %>">Next</a>
+      </li>
+    </ul>
+  </nav>
+</main>
+
+</div>
+</div>
+
+<%- include('../../views/partials/admin/footer') %>

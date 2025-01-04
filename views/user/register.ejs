@@ -3,17 +3,34 @@
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
     <meta name="keywords" content="Derry World, Travel, Explore" />
-    <meta name="description" content="Register to Derry World and start exploring today!" />
+    <meta
+      name="description"
+      content="Register to Derry World and start exploring today!"
+    />
     <meta name="author" content="Derry World" />
     <link rel="shortcut icon" href="/images/favicon.png" type="image/png" />
     <title>Register - Derry World</title>
     <!-- Bootstrap CDN for better responsiveness -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
+    />
     <link rel="stylesheet" href="/css/style.css" />
     <link rel="stylesheet" href="/css/responsive.css" />
+    <!-- SweetAlert CDN -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.14/dist/sweetalert2.min.css"
+    />
     <style>
       .login-container {
         background-color: #fff;
@@ -88,7 +105,11 @@
   <body>
     <div class="hero_area">
       <div class="bg-box">
-        <img src="/images/hero-bg.jpg" alt="Background Image" class="img-fluid" />
+        <img
+          src="/images/hero-bg.jpg"
+          alt="Background Image"
+          class="img-fluid"
+        />
       </div>
       <header class="header_section">
         <div class="container">
@@ -107,12 +128,18 @@
 
               <% if (message) { %>
               <div class="alert alert-danger" role="alert"><%= message %></div>
-              <% } %>
-              <% if (successMessage) { %>
-              <div class="alert alert-success" role="alert"><%= successMessage %></div>
+              <% } %> <% if (successMessage) { %>
+              <div class="alert alert-success" role="alert">
+                <%= successMessage %>
+              </div>
               <% } %>
 
-              <form id="registerForm" action="/register" method="post" novalidate>
+              <form
+                id="registerForm"
+                action="/register"
+                method="post"
+                novalidate
+              >
                 <div class="form-group">
                   <label for="username">Full Name</label>
                   <input
@@ -122,7 +149,9 @@
                     name="name"
                     required
                   />
-                  <div class="invalid-feedback">Please enter a valid name (at least 3 characters).</div>
+                  <div class="invalid-feedback">
+                    Please enter a valid name (at least 3 characters).
+                  </div>
                 </div>
                 <div class="form-group">
                   <label for="email">Email</label>
@@ -133,7 +162,9 @@
                     name="email"
                     required
                   />
-                  <div class="invalid-feedback">Please enter a valid email address.</div>
+                  <div class="invalid-feedback">
+                    Please enter a valid email address.
+                  </div>
                 </div>
                 <div class="form-group">
                   <label for="phone">Phone Number</label>
@@ -145,7 +176,9 @@
                     pattern="[0-9]{10}"
                     required
                   />
-                  <div class="invalid-feedback">Please enter a valid 10-digit phone number.</div>
+                  <div class="invalid-feedback">
+                    Please enter a valid 10-digit phone number.
+                  </div>
                 </div>
                 <div class="form-group">
                   <label for="password">Password</label>
@@ -157,7 +190,9 @@
                     minlength="6"
                     required
                   />
-                  <div class="invalid-feedback">Password must be at least 6 characters long.</div>
+                  <div class="invalid-feedback">
+                    Password must be at least 6 characters long.
+                  </div>
                 </div>
                 <div class="form-group">
                   <label for="confirm-password">Confirm Password</label>
@@ -176,7 +211,9 @@
                     class="form-check-input"
                     id="show-password"
                   />
-                  <label class="form-check-label" for="show-password">Show Password</label>
+                  <label class="form-check-label" for="show-password"
+                    >Show Password</label
+                  >
                 </div>
                 <button type="submit" class="btn btn-login">Register</button>
               </form>
@@ -205,18 +242,18 @@
         const password = document.getElementById('password');
         const confirmPassword = document.getElementById('confirm-password');
         const showPassword = document.getElementById('show-password');
-
+    
         showPassword.addEventListener('change', function () {
           const type = showPassword.checked ? 'text' : 'password';
           password.type = type;
           confirmPassword.type = type;
         });
-
+    
         form.addEventListener('submit', function (event) {
           if (!form.checkValidity() || password.value !== confirmPassword.value) {
             event.preventDefault();
             event.stopPropagation();
-
+    
             if (password.value !== confirmPassword.value) {
               confirmPassword.setCustomValidity('Passwords do not match.');
             } else {
@@ -225,12 +262,34 @@
           }
           form.classList.add('was-validated');
         });
+    
+        '<% if (message) { %>'
+          Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: '<%= message %>',
+          });
+        '<% } %>'
+    
+        '<% if (successMessage) { %>'
+          Swal.fire({
+            icon: 'success',
+            title: 'Success!',
+            text: '<%= successMessage %>',
+          });
+       ' <% } %>'
       })();
-    </script>
 
+      
+
+      
+    </script>
+    
     <!-- Bootstrap JS and dependencies for dynamic components -->
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.0/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <!-- SweetAlert JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.14/dist/sweetalert2.all.min.js"></script>
   </body>
 </html>

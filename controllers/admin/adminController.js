@@ -5,14 +5,7 @@ const mongoose = require('mongoose');
 const Product = require('../../models/productSchema');
 const Category = require('../../models/categorySchema')
 
-// const loginPage = (req, res) => {
-//   try {
-//     res.render('adminLogin', { errorMessage: null, successMessage: null });
-//   } catch (error) {
-//     console.error('Error loading login page:', error);
-//     res.status(500).send('Server Error');
-//   }
-// };
+
 const loginPage = async (req, res) => {
   try {
     const token = req.cookies?.admin_token; // Check for token in the cookies

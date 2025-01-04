@@ -91,21 +91,55 @@ const addProduct = async (req, res) => {
   }
 };
 
-
-const editProductForm = async (req, res) => {
+const editProduct = async (req, res) => {
   try {
-    const productId = req.params.id;
-    const product = await Product.findById(productId).populate('category', 'name');
-    const categories = await Category.find({ isActive: true });
-console.log("categoryies:")
-    if (!product) {
-      return res.status(404).send('Product not found');
+    const productId = req.params.id; // Get the product ID from the route parameter
+    const { productName, category, regularPrice, salesPrice, quantity, description } = req.body;
+    const uploadedImages = req.files; // Get the uploaded images
+    const existingProduct = await Product.findById(productId); // Find the product by ID
+
+    if (!existingProduct) {
+      return res.status(404).json({ message: 'Product not found.' });
     }
 
-    res.render('editProduct', { product, categories });
+    const updatedImagePaths = existingProduct.productImage.slice(); // Copy existing images
+
+    for (let i = 0; i < 4; i++) {
+      const imageField = `imageInput${i}`;
+
+      if (uploadedImages[imageField] && uploadedImages[imageField][0]) {
+        const image = uploadedImages[imageField][0];
+        const croppedImagePath = path.join('public/uploads/reImage', 'cropped_' + image.filename);
+
+        // Check image dimensions
+        const metadata = await sharp(image.path).metadata();
+        const cropWidth = Math.min(metadata.width, 600);
+        const cropHeight = Math.min(metadata.height, 600);
+
+        await sharp(image.path)
+          .extract({ width: cropWidth, height: cropHeight, left: 0, top: 0 })
+          .toFile(croppedImagePath);
+
+        // Replace the corresponding image in the array
+        updatedImagePaths[i] = path.join('uploads/reImage', 'cropped_' + image.filename);
+      }
+    }
+
+    // Update the product details
+    existingProduct.name = productName;
+    existingProduct.category = category;
+    existingProduct.regularPrice = regularPrice;
+    existingProduct.salesPrice = salesPrice;
+    existingProduct.quantity = quantity;
+    existingProduct.description = description;
+    existingProduct.productImage = updatedImagePaths;
+
+    await existingProduct.save();
+
+    res.redirect('/admin/products');
   } catch (error) {
-    console.error(error);
-    res.status(500).send('Error loading product details');
+    console.error('Error editing product:', error);
+    res.status(500).json({ message: 'Failed to update product. Please try again.' });
   }
 };
 
@@ -257,17 +291,42 @@ const toggleProductStatus = async (req, res) => {
   }
 };
 
+const getPaginatedProducts = async (req, res) => {
+  try {
+    const perPage = 6; // Display 6 products per page
+    const page = parseInt(req.query.page) || 1; // Get current page from query params, default to 1
+
+    // Calculate total products and pages
+    const totalProducts = await Product.countDocuments();
+    const totalPages = Math.ceil(totalProducts / perPage);
+
+    // Fetch products for the current page
+    const products = await Product.find()
+      .skip((page - 1) * perPage) // Skip products for previous pages
+      .limit(perPage);
+
+    // Render the products page with pagination details
+    res.render('admin/products', {
+      products,
+      currentPage: page,
+      totalPages,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+};
 
 
 module.exports = {
   viewProducts,
   loadAddProductPage,
   addProduct,
-  editProductForm,
+  editProduct,
   updateProduct,
   deleteProductImage,
   uploadCroppedImage,
   toggleProductStatus,
-  
+  getPaginatedProducts
 };
   

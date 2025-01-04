@@ -29,11 +29,11 @@ const addCategoryForm = (req, res) => {
 };
 
 const addCategory = async (req, res) => {
-  const { name, description } = req.body; // Make sure this matches the form fields
+  const { name, description } = req.body; 
 
   const newCategory = new Category({
     name,
-    description, // Save the description
+    description,
     isActive: true,
   });
 

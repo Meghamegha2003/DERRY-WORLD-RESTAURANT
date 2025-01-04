@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
     <link rel="stylesheet" href="css/style.css" />
     <link rel="stylesheet" href="css/responsive.css" />
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=myMap"></script>
     <style>
         .login-container {
             background-color: #fff;
@@ -82,9 +82,10 @@
                     <div class="login-container">
                         <h2 class="text-center">Login</h2>
                         
-                        <% if (errorMessage) { %>
+                        <% if (typeof errorMessage !== 'undefined' && errorMessage) { %>
                             <p style="color: red;"><%= errorMessage %></p>
                         <% } %>
+                        
 
                         <form action="/login" method="post" onsubmit="return validateLoginForm();">
                             <div class="form-group">
@@ -98,31 +99,19 @@
                                 <small id="passwordError" class="text-danger" style="display: none;">Password is required.</small>
                             </div>
                             <div class="form-group text-right">
-                                <a href="/forgotPassword" class="forgot-password">Forgot Password?</a>
+                                <a href="/forgot-password" class="forgot-password">Forgot Password?</a>
                             </div>
                             <button type="submit" class="btn btn-login btn-block">Login</button>
                         </form>
 
-                        
                         <div class="text-center my-3">
                             <p>Or login using:</p>
                             <!-- Google Sign-In Button -->
-                            <button style="background-color: #007bff;"
-                            onclick="location.href='/auth/google'"
-                            class="btn btn-google btn-block">
-                            <i class="fab fa-google"></i> Sign Up with Google
-                          </button>
-                            <div class="g_id_signin" 
-                                data-type="standard"
-                                data-size="large"
-                                data-theme="outline"
-                                data-text="sign_in_with"
-                                data-shape="rectangular"
-                                data-logo_alignment="left">
-                            </div>
+                            <button style="background-color: #007bff;" onclick="googleSignIn()" class="btn btn-google btn-block">
+                                <i class="fab fa-google"></i> Sign Up with Google
+                            </button>
                         </div>
                         <p class="text-center mt-3">Don't have an account? <a href="/register">Register here</a></p>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -130,48 +119,9 @@
     </div>
 
     <script>
-        function handleCredentialResponse(response) {
-            const credential = response.credential;
-            // Send the credential to your server for verification
-            fetch('/auth/google', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ credential })
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Handle successful login
-                if (data.success) {
-                    window.location.href = '/dashboard'; // Redirect to dashboard or any other page
-                } else {
-                    alert('Google authentication failed.');
-                }
-            })
-            .catch(error => {
-                console.error('Error during Google authentication:', error);
-            });
-        }
+      
 
-        // Listen for Google login response
-        window.onload = function() {
-            google.accounts.id.initialize({
-                client_id: GOOGLE_CLIENT_ID,
-                callback: handleCredentialResponse
-            });
-            google.accounts.id.renderButton(
-                document.getElementById("g_id_onload"),
-                {
-                    theme: "outline",
-                    size: "large",
-                    shape: "rectangular",
-                    text: "sign_in_with",
-                    logo_alignment: "left"
-                }
-            );
-        };
-
+ 
         function validateLoginForm() {
             const email = document.getElementById('email');
             const password = document.getElementById('password');

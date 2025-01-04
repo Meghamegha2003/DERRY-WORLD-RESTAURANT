@@ -1,181 +1,186 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <!-- Basic -->
+    <!-- Basic Meta Tags -->
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <!-- Mobile Metas -->
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, shrink-to-fit=no"
     />
-    <!-- Site Metas -->
-    <meta name="keywords" content="" />
-    <meta name="description" content="" />
-    <meta name="author" content="" />
-    <link rel="shortcut icon" href="images/favicon.png" type="" />
 
-    <title>Derry World</title>
+    <title>Derry World - Cart</title>
 
-    <!-- bootstrap core css -->
-    <link rel="stylesheet" type="text/css" href="css/bootstrap.css" />
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="css/bootstrap.css" />
 
-    <!--owl slider stylesheet -->
-    <link
-      rel="stylesheet"
-      type="text/css"
-      href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css"
-    />
-    <!-- nice select  -->
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/jquery-nice-select/1.1.0/css/nice-select.min.css"
-      integrity="sha512-CruCP+TD3yXzlvvijET8wV5WxxEh5H8P4cmz0RFbKK6FlZ2sYl3AEsKlLPHbniXKSrDdFewhbmBK5skbdsASbQ=="
-      crossorigin="anonymous"
-    />
-    <!-- font awesome style -->
+    <!-- Font Awesome -->
     <link href="css/font-awesome.min.css" rel="stylesheet" />
 
-    <!-- Custom styles for this template -->
+    <!-- Custom Styles -->
     <link href="css/style.css" rel="stylesheet" />
-    <!-- responsive style -->
     <link href="css/responsive.css" rel="stylesheet" />
+
     <style>
-      .filters_menu li.active {
-  font-weight: bold;
-  color: #ffbe33;
-}
+      /* Change color for Logout link */
+      .header_section .logout_link {
+        color: white; /* Set to your desired color */
+      }
+      .logout_link:hover {
+        color: #ffc107;
+      }
+
+      /* General Styling */
+      .header_section,
+      .footer_section {
+        background-color: #333; /* Dark color for both header and footer */
+        color: white;
+      }
+
+      .header_section .navbar-nav .nav-link,
+      .footer_section .footer_text .logout_link {
+        color: white;
+      }
+
+      .nav-link:hover,
+      .footer_section .footer_text:hover {
+        color: #ffc107; /* Highlight color for links on hover */
+      }
+
+      .footer_section {
+        padding: 20px 0;
+        text-align: center;
+      }
+
+      /* Navbar Customization */
+      .header_section .navbar-brand {
+        color: white;
+      }
+
+      .cart_link {
+        position: relative;
+        display: inline-block; /* Ensures the cart icon is positioned relative to this */
+      }
+
+      .cart-count {
+        position: absolute;
+        top: 0; /* Adjusts the vertical position */
+        right: 0; /* Adjusts the horizontal position */
+        background-color: #ffc107;
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+        border-radius: 50%;
+        width: 20px; /* Adjusts the width of the badge */
+        height: 20px; /* Adjusts the height of the badge */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        transform: translate(
+          50%,
+          -50%
+        ); /* Ensures the badge is perfectly aligned to the top-right corner */
+      }
+
+      @media (max-width: 768px) {
+        .cart-count {
+          font-size: 10px; /* Adjust the font size for smaller screens */
+          width: 18px;
+          height: 18px;
+        }
+      }
 
     </style>
   </head>
   <body class="sub_page">
-    <div class="hero_area">
-      <div class="bg-box">
-        <img src="images/hero-bg.jpg" alt="" />
-      </div>
-      <!-- header section strats -->
-      <header class="header_section">
-        <div class="container">
-          <nav class="navbar navbar-expand-lg custom_nav-container">
-            <a class="navbar-brand" href="index.html">
-              <span> Derry World </span>
-            </a>
+    <!-- Header (unchanged) -->
+    <header class="header_section">
+      <div class="container">
+        <nav class="navbar navbar-expand-lg custom_nav-container">
+          <a class="navbar-brand" href="/">
+            <span>Derry World</span>
+          </a>
+          <button
+            class="navbar-toggler"
+            type="button"
+            data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+          >
+            <span class="navbar-toggler-icon"></span>
+          </button>
 
-            <button
-              class="navbar-toggler"
-              type="button"
-              data-toggle="collapse"
-              data-target="#navbarSupportedContent"
-              aria-controls="navbarSupportedContent"
-              aria-expanded="false"
-              aria-label="Toggle navigation"
-            >
-              <span class=""> </span>
-            </button>
-
-            <div class="collapse navbar-collapse" id="navbarSupportedContent">
-              <ul class="navbar-nav mx-auto">
-                <li class="nav-item">
-                  <a class="nav-link" href="index.html">Home </a>
-                </li>
-                <li class="nav-item active">
-                  <a class="nav-link" href="menu"
-                    >Menu <span class="sr-only">(current)</span>
-                  </a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link" href="about.html">About</a>
-                </li>
-              </ul>
-              <div class="user_option">
-                <% if (user) { %>
-                <a class="user_link">
+          <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav mx-auto">
+              <li class="nav-item">
+                <a class="nav-link" href="/">Home</a>
+              </li>
+              <li class="nav-item active">
+                <a class="nav-link" href="/menu">Menu</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="/about">About</a>
+              </li>
+            </ul>
+            <div class="user_option">
+              <% if (user) { %>
+              <!-- Dropdown for username -->
+              <div class="dropdown">
+                <a
+                  class="user_link dropdown-toggle"
+                  href="#"
+                  id="dropdownMenuButton"
+                  data-toggle="dropdown"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                >
                   <i
                     class="fa fa-user"
                     aria-hidden="true"
-                    style="color: #ffbe33"
+                    style="color: #ffc107"
                   ></i>
                   <span style="color: white"><%= user.name %></span>
                 </a>
-                <a href="/logout" class="logout_link"> Logout </a>
-                <% } else { %>
-                <a class="user_link" href="/login">Login</a>
-                <a class="user_link" href="/register">Register</a>
-                <% } %>
-
-
-
-
-                <a class="cart_link" href="#">
-                  <svg
-                    version="1.1"
-                    id="Capa_1"
-                    xmlns="http://www.w3.org/2000/svg"
-                    xmlns:xlink="http://www.w3.org/1999/xlink"
-                    x="0px"
-                    y="0px"
-                    viewBox="0 0 456.029 456.029"
-                    style="enable-background: new 0 0 456.029 456.029"
-                    xml:space="preserve"
-                  >
-                    <g>
-                      <g>
-                        <path
-                          d="M345.6,338.862c-29.184,0-53.248,23.552-53.248,53.248c0,29.184,23.552,53.248,53.248,53.248
-                   c29.184,0,53.248-23.552,53.248-53.248C398.336,362.926,374.784,338.862,345.6,338.862z"
-                        />
-                      </g>
-                    </g>
-                    <g>
-                      <g>
-                        <path
-                          d="M439.296,84.91c-1.024,0-2.56-0.512-4.096-0.512H112.64l-5.12-34.304C104.448,27.566,84.992,10.67,61.952,10.67H20.48
-                   C9.216,10.67,0,19.886,0,31.15c0,11.264,9.216,20.48,20.48,20.48h41.472c2.56,0,4.608,2.048,5.12,4.608l31.744,216.064
-                   c4.096,27.136,27.648,47.616,55.296,47.616h212.992c26.624,0,49.664-18.944,55.296-45.056l33.28-166.4
-                   C457.728,97.71,450.56,86.958,439.296,84.91z"
-                        />
-                      </g>
-                    </g>
-                    <g>
-                      <g>
-                        <path
-                          d="M215.04,389.55c-1.024-28.16-24.576-50.688-52.736-50.688c-29.696,1.536-52.224,26.112-51.2,55.296
-                   c1.024,28.16,24.064,50.688,52.224,50.688h1.024C193.536,443.31,216.576,418.734,215.04,389.55z"
-                        />
-                      </g>
-                    </g>
-                    <g></g>
-                    <g></g>
-                    <g></g>
-                    <g></g>
-                    <g></g>
-                    <g></g>
-                    <g></g>
-                    <g></g>
-                    <g></g>
-                    <g></g>
-                    <g></g>
-                    <g></g>
-                    <g></g>
-                    <g></g>
-                    <g></g>
-                  </svg>
-                </a>
-                <form class="form-inline">
-                  <button class="btn my-2 my-sm-0 nav_search-btn" type="submit">
-                    <i class="fa fa-search" aria-hidden="true"></i>
-                  </button>
-                </form>
+                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                  <a class="dropdown-item" href="/profile">Profile</a>
+                  <a class="dropdown-item" href="/order/{{orderId}}">Order</a>
+                  <a class="dropdown-item" href="/logout">Logout</a>
+                </div>
+                
               </div>
+              <% } else { %>
+              <a class="user_link" href="/login">Login</a>
+              <a class="user_link" href="/register">Register</a>
+              <% } %>
+              <a class="cart_link" href="/cart">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 456.029 456.029"
+                  style="fill: #ffffff"
+                >
+                  <g>
+                    <path
+                      d="M345.6,338.862c-29.184,0-53.248,23.552-53.248,53.248c0,29.184,23.552,53.248,53.248,53.248c29.184,0,53.248-23.552,53.248-53.248C398.336,362.926,374.784,338.862,345.6,338.862z"
+                    />
+                    <path
+                      d="M439.296,84.91c-1.024,0-2.56-0.512-4.096-0.512H112.64l-5.12-34.304C104.448,27.566,84.992,10.67,61.952,10.67H20.48C9.216,10.67,0,19.886,0,31.15c0,11.264,9.216,20.48,20.48,20.48h41.472l31.744,216.064c4.096,27.136,27.648,47.616,55.296,47.616h212.992c26.624,0,49.664-18.944,55.296-45.056l33.28-166.4C457.728,97.71,450.56,86.958,439.296,84.91z"
+                    />
+                    <path
+                      d="M215.04,389.55c-1.024-28.16-24.576-50.688-52.736-50.688c-29.696,1.536-52.224,26.112-51.2,55.296c1.024,28.16,24.064,50.688,52.224,50.688h1.024C193.536,443.31,216.576,418.734,215.04,389.55z"
+                    />
+                  </g>
+                </svg>
+
+                <span class="cart-count"><%= cartCount %></span>
+              </a>
             </div>
-          </nav>
-        </div>
-      </header>
-      <!-- end header section -->
-    </div>
+          </div>
+        </nav>
+      </div>
+    </header>
 
-    <!-- food section -->
-
+    
+    <!-- Food section -->
     <section class="food_section layout_padding">
       <div class="container">
         <div class="heading_container heading_center">
@@ -183,100 +188,55 @@
         </div>
     
         <ul class="filters_menu">
-          <li
-            class="<%= !selectedCategory ? 'active' : '' %>"
-            onclick="window.location.href='/menu?category='"
-          >
-            All
-          </li>
-          <% categories.forEach((category) => { %>
-            <li
-              class="<%= selectedCategory === category.name ? 'active' : '' %>"
-              onclick="window.location.href='/menu?category=<%= category.name %>'"
-            >
+          <li class="<%= !selectedCategory ? 'active' : '' %>" onclick="window.location.href='/menu?category='">All</li>
+          <% categories.forEach(category => { %>
+            <li class="<%= selectedCategory === category.name ? 'active' : '' %>" onclick="window.location.href='/menu?category=<%= category.name %>'">
               <%= category.name %>
             </li>
           <% }); %>
         </ul>
-        
-        
-        
-        
     
         <div class="filters-content">
           <div class="row grid">
             <% products.forEach((product) => { %>
-              <div class="col-sm-6 col-lg-4 all" data-category="<%= product.category.name %>">
+              <div class="col-sm-6 col-lg-4 all">
                 <div class="box">
                   <div>
                     <div class="img-box">
-                        <a href="/food/<%= product._id %>">
-                          <img src="/<%= product.productImage[0] %>" alt="<%= product.name %>" />
-                        </a>
-                      </div>
-
+                      <a href="/food/<%= product._id %>">
+                        <img src="/<%= product.productImage[0] %>" alt="<%= product.name %>" />
+                      </a>
+                    </div>
                     <div class="detail-box">
                       <h5><%= product.name %></h5>
                       <p><%= product.description %></p>
-                      <div class="options">
-                        <!-- Dynamically display product price -->
-                        <h6>$<%= product.salesPrice || product.regularPrice %></h6>
-                        <a href="">
-                          <svg
-                            version="1.1"
-                            id="Capa_1"
-                            xmlns="http://www.w3.org/2000/svg"
-                            xmlns:xlink="http://www.w3.org/1999/xlink"
-                            x="0px"
-                            y="0px"
-                            viewBox="0 0 456.029 456.029"
-                            style="enable-background: new 0 0 456.029 456.029"
-                            xml:space="preserve"
-                          >
-                            <g>
-                              <g>
-                                <path
-                                  d="M345.6,338.862c-29.184,0-53.248,23.552-53.248,53.248c0,29.184,23.552,53.248,53.248,53.248
-                           c29.184,0,53.248-23.552,53.248-53.248C398.336,362.926,374.784,338.862,345.6,338.862z"
-                                />
-                              </g>
-                            </g>
-                            <g>
-                              <g>
-                                <path
-                                  d="M439.296,84.91c-1.024,0-2.56-0.512-4.096-0.512H112.64l-5.12-34.304C104.448,27.566,84.992,10.67,61.952,10.67H20.48
-                           C9.216,10.67,0,19.886,0,31.15c0,11.264,9.216,20.48,20.48,20.48h41.472c2.56,0,4.608,2.048,5.12,4.608l31.744,216.064
-                           c4.096,27.136,27.648,47.616,55.296,47.616h212.992c26.624,0,49.664-18.944,55.296-45.056l33.28-166.4
-                           C457.728,97.71,450.56,86.958,439.296,84.91z"
-                                />
-                              </g>
-                            </g>
-                            <g>
-                              <g>
-                                <path
-                                  d="M215.04,389.55c-1.024-28.16-24.576-50.688-52.736-50.688c-29.696,1.536-52.224,26.112-51.2,55.296
-                           c1.024,28.16,24.064,50.688,52.224,50.688h1.024C193.536,443.31,216.576,418.734,215.04,389.55z"
-                                />
-                              </g>
-                            </g>
-                            <g></g>
-                            <g></g>
-                            <g></g>
-                            <g></g>
-                            <g></g>
-                            <g></g>
-                            <g></g>
-                            <g></g>
-                            <g></g>
-                            <g></g>
-                            <g></g>
-                            <g></g>
-                            <g></g>
-                            <g></g>
-                            <g></g>
-                          </svg>
-                        </a>
+                      <div class="price mb-3">
+                        <% if (product.salesPrice < product.regularPrice) { %>
+                          <h5 class="d-inline-block" style="color: #ffc107">₹<%= product.salesPrice %></h5>
+                          <strike class="d-inline-block" style="color: white; text-decoration:line-through;">₹<%= product.regularPrice %></strike>
+                        <% } else { %>
+                          <h5 class="d-inline-block" style="color: #ffc107">₹<%= product.regularPrice %></h5>
+                        <% } %>
                       </div>
+    
+                      <!-- Display Rating -->
+                      <div class="rating mb-3">
+                        <h6>Average Rating:</h6>
+                        <div class="d-flex align-items-center">
+                          <div class="stars">
+                            <% for (let i = 0; i < 5; i++) { %>
+                              <i class="fa <% if (i < Math.round(product.averageRating)) { %>fa-star text-warning<% } else { %>fa-star-o text-muted<% } %>"></i>
+                            <% } %>
+                          </div>
+                         <div>
+                          
+                         </div>
+                          
+                        </div>
+                        <p class="text-muted"><%= product.totalRatings %> ratings and reviews</p>
+                      </div>
+    
+                      
                     </div>
                   </div>
                 </div>
@@ -284,31 +244,11 @@
             <% }); %>
           </div>
         </div>
-    
-        <div class="btn-box">
-          <a href=""> View More </a>
-        </div>
       </div>
     </section>
     
-    <script>
-      function filterByCategory(category) {
-        const allProducts = document.querySelectorAll('.filters-content .row .col-lg-4');
-        
-        allProducts.forEach((product) => {
-          const productCategory = product.getAttribute('data-category');
-          
-          // Show all if no category is selected
-          if (!category || productCategory === category) {
-            product.style.display = 'block';
-          } else {
-            product.style.display = 'none';
-          }
-        });
-      }
-    </script>
-    
-    <!-- end food section -->
-
+    <!-- Include footer -->
     <%- include('../../views/partials/user/footer') %>
     
+  </body>
+</html>

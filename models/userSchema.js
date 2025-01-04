@@ -59,11 +59,15 @@ const userSchema = new Schema({
             message: (props) => `${props.value} is not a valid phone number!`,
         },
     },    
-    address: {
-        type: String,
-        trim: true,
-        default: null,
-    },
+    addresses: [
+        {
+          street: { type: String, required: true },
+          city: { type: String, required: true },
+          state: { type: String, required: true },
+          zipCode: { type: String, required: true },
+          
+        },
+    ],
     status: {
         type: String,
         enum: ['Active', 'Blocked'],

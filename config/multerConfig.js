@@ -1,30 +1,62 @@
-const multer = require('multer');
 const path = require('path');
+const multer = require('multer');
+const sharp = require('sharp');
 
-// Define storage settings
+
+
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'public/uploads'); 
+      cb(null, 'public/uploads/reImage');
     },
     filename: (req, file, cb) => {
-        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-        cb(null, `${uniqueSuffix}-${file.originalname}`); // Unique filename
-    },
-});
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + path.extname(file.originalname));  }
+  });
+  
+  const upload = multer({
+    storage,
+    fileFilter: (req, file, cb) => {
+      const fileTypes = /jpeg|jpg|png/;
+      const extname = fileTypes.test(path.extname(file.originalname).toLowerCase());
+      const mimeType = fileTypes.test(file.mimetype);
+      if (mimeType && extname) {
+        cb(null, true);
+      } else {
+        cb(new Error('Images only!'));
+      }
+    }
+  });
 
+  
+  
+  const cropImages = async (req, res, next) => {
+    try {
+      const uploadedImages = req.files;
+      if (uploadedImages && uploadedImages.length > 0) {
+        const croppedImages = await Promise.all(
+          uploadedImages.map(async (image) => {
+            const croppedImagePath = 'public/uploads/cropped_' + image.filename;
+            await sharp(image.path)
+              .resize({ width: 600, height: 600 })
+              .toFile(productDetailsImagePath);
+            return {
+              ...image,
+              path: croppedImagePath,
+              filename: 'cropped_' + image.filename,
+            };
+          })
+        );
+        req.files = croppedImages;
+        next();
+      } else {
+        res.status(400).send('No images uploaded');
+      }
+    } catch (error) {
+      console.error(error);
+      res.status(500).send('Error processing the images');
+    }
+  };
+  
 
-const upload = multer({
-    storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, 
-    fileFilter: (req, file, cb,) => {
-        const allowedTypes = ['image/jpeg', 'image/png'];
-        if (allowedTypes.includes(file.mimetype)) {
-            cb(null, true);
-        } else {
-            cb(new Error('Only JPEG and PNG images are allowed.'));
-            console.log("no multer uploads")
-        }
-    },
-});
 
 module.exports = upload;

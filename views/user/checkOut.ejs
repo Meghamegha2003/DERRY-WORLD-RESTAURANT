@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <!-- Basic Meta Tags -->
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+
+    <title>Derry World - Cart</title>
+
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="css/bootstrap.css" />
+
+    <!-- Font Awesome -->
+    <link href="css/font-awesome.min.css" rel="stylesheet" />
+
+    <!-- Custom Styles -->
+    <link href="css/style.css" rel="stylesheet" />
+    <link href="css/responsive.css" rel="stylesheet" />
+
+    <style>
+      /* Change color for Logout link */
+      .header_section .logout_link {
+        color: white; /* Set to your desired color */
+      }
+      .logout_link:hover {
+        color: #ffc107;
+      }
+
+      /* General Styling */
+      .header_section,
+      .footer_section {
+        background-color: #333; /* Dark color for both header and footer */
+        color: white;
+      }
+
+      .header_section .navbar-nav .nav-link,
+      .footer_section .footer_text .logout_link {
+        color: white;
+      }
+
+      .nav-link:hover,
+      .footer_section .footer_text:hover {
+        color: #ffc107; /* Highlight color for links on hover */
+      }
+
+      .footer_section {
+        padding: 20px 0;
+        text-align: center;
+      }
+
+      /* Navbar Customization */
+      .header_section .navbar-brand {
+        color: white;
+      }
+
+      .cart_link {
+        position: relative;
+        display: inline-block; /* Ensures the cart icon is positioned relative to this */
+      }
+
+      .cart-count {
+        position: absolute;
+        top: 0; /* Adjusts the vertical position */
+        right: 0; /* Adjusts the horizontal position */
+        background-color: #ffc107;
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+        border-radius: 50%;
+        width: 20px; /* Adjusts the width of the badge */
+        height: 20px; /* Adjusts the height of the badge */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        transform: translate(
+          50%,
+          -50%
+        ); /* Ensures the badge is perfectly aligned to the top-right corner */
+      }
+
+      @media (max-width: 768px) {
+        .cart-count {
+          font-size: 10px; /* Adjust the font size for smaller screens */
+          width: 18px;
+          height: 18px;
+        }
+      }
+
+      .checkout_section {
+        padding-top: 50px;
+      }
+
+      .address-section,
+      .order-summary {
+        border-radius: 10px;
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .order-item h5 {
+        font-size: 1.25rem;
+        color: #333;
+      }
+
+      .order-total h5 {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #28a745;
+      }
+
+      .payment-card {
+        border: 1px solid #ddd;
+      }
+
+      .payment-card .form-check-label {
+        font-size: 1.125rem;
+        font-weight: 500;
+      }
+
+      .btn-success {
+        background-color: #28a745;
+        border-color: #28a745;
+      }
+      @media (max-width: 768px) {
+        .checkout_section .row {
+          flex-direction: column;
+        }
+
+        .address_section,
+        .order_summary {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body class="sub_page">
+    <!-- Header (unchanged) -->
+    <header class="header_section">
+      <div class="container">
+        <nav class="navbar navbar-expand-lg custom_nav-container">
+          <a class="navbar-brand" href="/">
+            <span>Derry World</span>
+          </a>
+          <button
+            class="navbar-toggler"
+            type="button"
+            data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+          >
+            <span class="navbar-toggler-icon"></span>
+          </button>
+
+          <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav mx-auto">
+              <li class="nav-item">
+                <a class="nav-link" href="/">Home</a>
+              </li>
+              <li class="nav-item active">
+                <a class="nav-link" href="/menu">Menu</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="about">About</a>
+              </li>
+            </ul>
+            <div class="user_option">
+              <% if (user) { %>
+              <!-- Dropdown for username -->
+              <div class="dropdown">
+                <a
+                  class="user_link dropdown-toggle"
+                  href="#"
+                  id="dropdownMenuButton"
+                  data-toggle="dropdown"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                >
+                  <i
+                    class="fa fa-user"
+                    aria-hidden="true"
+                    style="color: #ffc107"
+                  ></i>
+                  <span style="color: white"><%= user.name %></span>
+                </a>
+                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                  <a class="dropdown-item" href="/profile">Profile</a>
+                  <a class="dropdown-item" href="/order/{{orderId}}">Order</a>
+                  <a class="dropdown-item" href="/logout">Logout</a>
+                </div>
+              </div>
+              <% } else { %>
+              <a class="user_link" href="/login">Login</a>
+              <a class="user_link" href="/register">Register</a>
+              <% } %>
+              <a class="cart_link" href="/cart">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 456.029 456.029"
+                >
+                  <g>
+                    <path
+                      d="M345.6,338.862c-29.184,0-53.248,23.552-53.248,53.248c0,29.184,23.552,53.248,53.248,53.248c29.184,0,53.248-23.552,53.248-53.248C398.336,362.926,374.784,338.862,345.6,338.862z"
+                    />
+                    <path
+                      d="M439.296,84.91c-1.024,0-2.56-0.512-4.096-0.512H112.64l-5.12-34.304C104.448,27.566,84.992,10.67,61.952,10.67H20.48C9.216,10.67,0,19.886,0,31.15c0,11.264,9.216,20.48,20.48,20.48h41.472l31.744,216.064c4.096,27.136,27.648,47.616,55.296,47.616h212.992c26.624,0,49.664-18.944,55.296-45.056l33.28-166.4C457.728,97.71,450.56,86.958,439.296,84.91z"
+                    />
+                    <path
+                      d="M215.04,389.55c-1.024-28.16-24.576-50.688-52.736-50.688c-29.696,1.536-52.224,26.112-51.2,55.296c1.024,28.16,24.064,50.688,52.224,50.688h1.024C193.536,443.31,216.576,418.734,215.04,389.55z"
+                    />
+                  </g>
+                </svg>
+                <span class="cart-count"><%= cartCount %></span>
+              </a>
+            </div>
+          </div>
+        </nav>
+      </div>
+    </header>
+
+    <section class="checkout_section layout_padding">
+      <div class="container">
+        <h2 class="text-center mb-5" style="font-size: 2.5rem; color: #333">
+          Checkout
+        </h2>
+
+        <div class="row">
+          
+      <!-- Address Section -->
+      <div class="col-md-6">
+        <div class="address_section">
+          <h4 class="text-muted">Delivery Address</h4>
+      
+          <% if (addresses && addresses.length > 0) { %>
+          <!-- Display saved addresses -->
+          <div class="saved-addresses">
+            <% addresses.forEach((address, index) => { %>
+            <div class="address-card p-4 bg-white rounded shadow-sm mb-4" id="address_<%= address.id %>">
+              <div class="form-check">
+                <input type="radio" class="form-check-input address-radio" name="selectedAddress" id="address_<%= address.id %>"
+                  value="<%= address.id %>" <%= index === 0 ? 'checked' : '' %>
+                />
+                <label class="form-check-label" for="address_<%= address.id %>">
+                  <p>
+                    <strong>Address <%= index + 1 %>:</strong> <%= address.street %>, <%= address.city %>, <%= address.state %> ,<%= address.zipCode %>
+                  </p>
+                </label>
+              </div>
+      
+              <!-- Edit button -->
+              <button type="button" class="btn btn-warning edit-address-btn btn-lg" data-address-id="<%= address.id %>">
+                Edit Address
+              </button>
+      
+              <!-- Delete button -->
+              <button type="button" class="btn btn-danger delete-address-btn btn-lg" data-address-id="<%= address.id %>">
+                Delete Address
+              </button>
+            </div>
+            <% }); %>
+          </div>
+          <% if (addresses.length < 3) { %>
+          <button class="btn btn-success w-100 mt-3" id="addAddressBtn">
+            Add Address
+          </button>
+          <% } %>
+          <% } else { %>
+          <button class="btn btn-success w-100" id="addAddressBtn">
+            Add Address
+          </button>
+          <% } %>
+      
+          <!-- Address Form (Initially Hidden) -->
+          <form id="addressForm" style="display: none" action="/cart/address/update" method="POST">
+            <h5>Edit Address</h5>
+            <input type="hidden" name="addressId" id="addressId" />
+            <input type="text" name="street" id="street" class="form-control mb-2" placeholder="Street Address" required />
+            <input type="text" name="city" id="city" class="form-control mb-2" placeholder="City" required />
+            <input type="text" name="state" id="state" class="form-control mb-2" placeholder="State" required />
+            <input type="text" name="zipCode" id="zipCode" class="form-control mb-2" placeholder="Postal Code" required />
+            <button type="submit" class="btn btn-success w-100 mt-2" action="/cart/address/add" method="POST">
+              Update Address
+            </button>
+          </form>
+        </div>
+      </div>
+      
+
+
+          <!-- Order Summary Section -->
+          <div class="col-md-6">
+            <div class="order_summary">
+              <h4 class="text-muted">Order Summary</h4>
+              <div class="order-card p-4 bg-white rounded shadow-sm mb-4">
+                <% cartItems.forEach(item => { %>
+                <div class="order-item mb-2">
+                  <h5><%= item.product %></h5>
+                  <p>₹<%= item.price *item.quantity %></p>
+                </div>
+                <% }); %>
+
+                <hr />
+
+                <div class="order-total">
+                  <h5>Total Amount: ₹<%= totalAmount %></h5>
+                </div>
+              </div>
+
+              <!-- Payment Section: Cash on Delivery -->
+              <div class="payment-card p-4 bg-white rounded shadow-sm">
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="paymentMethod"
+                    id="codPayment"
+                    value="cod"
+                    checked
+                  />
+                  <label class="form-check-label" for="codPayment">
+                    Cash on Delivery (COD)
+                  </label>
+                </div>
+                <!-- Add more payment methods if needed -->
+              </div>
+
+              <!-- Confirm Order Button -->
+              <button
+                type="button"
+                class="btn btn-success w-100 mt-4"
+                id="confirmOrderBtn"
+              >
+                Confirm Order
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+<!-- SweetAlert2 CDN -->
+<link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    // Handle address form submission for updating or adding a new address
+    document.getElementById('addressForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      
+      if (validateAddressForm()) {
+        const addressId = document.getElementById('addressId').value;
+        const street = document.getElementById('street').value;
+        const city = document.getElementById('city').value;
+        const state = document.getElementById('state').value;
+        const zipCode = document.getElementById('zipCode').value;
+
+        const formAction = addressId ? `/cart/address/update/${addressId}` : '/cart/address/add';
+
+        fetch(formAction, {
+          method: addressId ? 'PUT' : 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            street,
+            city,
+            state,
+            zipCode,
+          }),
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            Swal.fire({
+              title: 'Success!',
+              text: 'Your address has been saved.',
+              icon: 'success',
+              confirmButtonText: 'Great!'
+            }).then(() => {
+              window.location.reload(); // Refresh the page after success
+            });
+          } else {
+            Swal.fire({
+              title: 'Error!',
+              text: data.error || 'Something went wrong.',
+              icon: 'error',
+              confirmButtonText: 'Okay'
+            });
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          Swal.fire({
+            title: 'Error!',
+            text: 'There was an error saving the address.',
+            icon: 'error',
+            confirmButtonText: 'Okay'
+          });
+        });
+      }
+    });
+
+    // Show address form when adding a new address
+    document.getElementById('addAddressBtn').addEventListener('click', function () {
+      document.getElementById('addressForm').style.display = 'block';
+      document.getElementById('addAddressBtn').style.display = 'none'; // Hide the add button
+    });
+
+    // Confirm order button handler
+    document.getElementById('confirmOrderBtn').addEventListener('click', function () {
+      Swal.fire({
+        title: 'Are you sure?',
+        text: 'Do you want to confirm this order?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Confirm',
+        cancelButtonText: 'No, Cancel'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const selectedAddressId = document.querySelector('input[name="selectedAddress"]:checked').value;
+          const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
+
+          fetch('/order/confirm', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              addressId: selectedAddressId,
+              paymentMethod: paymentMethod,
+            }),
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.message) {
+              alert(data.message); // Show success message
+              window.location.href = `/order/latest`; // Redirect to order page
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            alert('There was an error confirming the order.');
+          });
+        }
+      });
+    });
+
+    // Event listener for editing an address
+    const editButtons = document.querySelectorAll('.edit-address-btn');
+    editButtons.forEach(button => {
+      button.addEventListener('click', function () {
+        const addressId = this.getAttribute('data-address-id');
+        // Code to edit the address goes here
+        // You can pre-fill the form with the current address data
+      });
+    });
+
+    // Event listener for deleting an address
+    const deleteButtons = document.querySelectorAll('.delete-address-btn');
+    deleteButtons.forEach(button => {
+      button.addEventListener('click', function () {
+        const addressId = this.getAttribute('data-address-id');
+
+        Swal.fire({
+          title: 'Are you sure?',
+          text: 'Do you want to delete this address?',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, Delete',
+          cancelButtonText: 'No, Cancel'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            fetch(`/cart/address/delete/${addressId}`, {
+              method: 'DELETE',
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                Swal.fire({
+                  title: 'Deleted!',
+                  text: 'Your address has been deleted.',
+                  icon: 'success',
+                  confirmButtonText: 'Okay'
+                }).then(() => {
+                  window.location.reload(); // Refresh the page after deletion
+                });
+              } else {
+                Swal.fire({
+                  title: 'Error!',
+                  text: data.error || 'Something went wrong.',
+                  icon: 'error',
+                  confirmButtonText: 'Okay'
+                });
+              }
+            })
+            .catch(error => {
+              console.error('Error:', error);
+              Swal.fire({
+                title: 'Error!',
+                text: 'There was an error deleting the address.',
+                icon: 'error',
+                confirmButtonText: 'Okay'
+              });
+            });
+          }
+        });
+      });
+    });
+  });
+</script>
+
+
+<%- include('../../views/partials/user/footer') %>
+
+    <!-- Optional: You can include Bootstrap JS and jQuery if not already included in your project -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

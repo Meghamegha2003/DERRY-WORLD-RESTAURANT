@@ -73,7 +73,7 @@
               <% for (let i = 0; i < 4; i++) { %>
                 <div class="col-6 col-md-3">
                   <div class="image-card">
-                    <img src="/images/placeholder.png" id="previewImage<%= i %>" class="preview-image" 
+                    <img id="previewImage<%= i %>" class="preview-image" 
                       style="width: 100%; height: 150px; object-fit: cover;" onclick="triggerFileInput('<%= i %>')">
                     <input type="file" id="imageInput<%= i %>" name="imageInput<%= i %>" accept="image/*" 
                       style="display: none;" onchange="showImagePreview(event, '<%= i %>')">
@@ -142,6 +142,65 @@
 </style>
 
 <script>
+
+document.getElementById('addProductForm').addEventListener('submit', function(event) {
+    const form = event.target;
+    let isValid = true;
+
+    // Function to trim input values
+    function trimInput(input) {
+      if (input && input.value) {
+        input.value = input.value.trim();
+        if (input.required && input.value === '') {
+          isValid = false;
+          input.classList.add('is-invalid');
+        } else {
+          input.classList.remove('is-invalid');
+        }
+      }
+    }
+
+    // Trim and validate all inputs
+    const inputs = form.querySelectorAll('input, textarea, select');
+    inputs.forEach(input => trimInput(input));
+
+    // Prevent form submission if validation fails
+    if (!isValid) {
+      event.preventDefault();
+      Swal.fire({
+        icon: 'error',
+        title: 'Validation Error',
+        text: 'Please fill out all required fields correctly!',
+        confirmButtonText: 'OK',
+        timer: 3000
+      });
+    } else {
+      Swal.fire({
+        icon: 'success',
+        title: 'Form Submitted',
+        text: 'Your product is being added...',
+        showConfirmButton: false,
+        timer: 2000
+      });
+    }
+  });
+
+  // Show image preview for image inputs
+  function showImagePreview(event, index) {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById(`previewImage${index}`).src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  // Trigger file input on image click
+  function triggerFileInput(index) {
+    document.getElementById(`imageInput${index}`).click();
+  }
   let cropper;
   let currentImageIndex;
 

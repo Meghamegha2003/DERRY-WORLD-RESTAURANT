@@ -67,36 +67,47 @@
 
           <!-- Image Upload Section -->
           <div class="col-12">
-            <h5 class="mb-3">Product Images</h5>
-            <div class="row g-3" id="imageContainer">
-              <% for (let i = 0; i < 4; i++) { %>
-                <div class="col-6 col-md-3">
-                  <div class="image-card">
-                    <img 
-                      src="<%= (product.images && product.images[i]) || '/images/placeholder.png' %>" 
-                      id="previewImage<%= i %>" 
-                      class="preview-image"
-                      style="width: 100%; height: 150px; object-fit: cover;" 
-                      onclick="triggerFileInput('<%= i %>')"
-                    >
-                    <input type="file" 
-                      id="imageInput<%= i %>" 
-                      name="imageInput<%= i %>" 
-                      accept="image/*"
-                      style="display: none;" 
-                      onchange="showImagePreview(event, '<%= i %>')"
-                    >
-                    <input type="hidden" 
-                      id="croppedImage<%= i %>" 
-                      name="croppedImage<%= i %>" 
-                      value="<%= product.images ? product.images[i] : '' %>"
-                    >
-                  </div>
-                </div>
-              <% } %>
-            </div>
-          </div>
+            <h5 class="mb-3">Edit Product Images</h5>
+            <form action="/admin/edit-product/<%= product._id %>" method="POST" enctype="multipart/form-data">
+              <div class="row g-3" id="imageContainer">
+                <% for (let i = 0; i < 4; i++) { %>
+                  <div class="col-6 col-md-3">
+                    <div class="image-card">
+                      <!-- Image Preview -->
+                      <img 
+                        src="<%= product.productImage[i] ? '/' + product.productImage[i] : '/path/to/placeholder-image.jpg' %>" 
+                        id="previewImage<%= i %>" 
+                        class="preview-image"
+                        style="width: 100%; height: 150px; object-fit: cover; cursor: pointer;" 
+                        onclick="triggerFileInput('<%= i %>')"
+                        alt="Product Image <%= i + 1 %>"
+                      >
           
+                      <!-- File Input -->
+                      <input 
+                        type="file" 
+                        id="imageInput<%= i %>" 
+                        name="imageInput<%= i %>" 
+                        accept="image/*" 
+                        style="display: none;" 
+                        onchange="showImagePreview(event, '<%= i %>')"
+                      >
+          
+                      <!-- Hidden Input for Cropped Image -->
+                      <input 
+                        type="hidden" 
+                        id="croppedImage<%= i %>" 
+                        name="croppedImage<%= i %>" 
+                        value="<%= product.productImage[i] ? product.productImage[i] : '' %>"
+                      >
+                    </div>
+                  </div>
+                <% } %>
+              </div>
+          
+              <button type="submit" class="btn btn-primary mt-3">Save Changes</button>
+            </form>
+          </div>
 
           <div class="col-12 mt-4">
             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -159,21 +170,20 @@
   let cropper;
   let currentImageIndex;
 
-  function triggerFileInput(index) {
-    document.getElementById(`imageInput${index}`).click();
-  }
 
   function showImagePreview(event, index) {
-    currentImageIndex = index;
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = function (e) {
-        document.getElementById('cropperImage').src = e.target.result;
-        openCropperModal();
+        document.getElementById(`previewImage${index}`).src = e.target.result;
       };
       reader.readAsDataURL(file);
     }
+  }
+
+  function triggerFileInput(index) {
+    document.getElementById(`imageInput${index}`).click();
   }
 
   function openCropperModal() {
