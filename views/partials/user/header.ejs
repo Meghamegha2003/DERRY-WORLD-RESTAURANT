@@ -15,9 +15,97 @@
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/jquery-nice-select/1.1.0/css/nice-select.min.css"
     />
-    <link href="css/font-awesome.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link href="css/style.css" rel="stylesheet" />
     <link href="css/responsive.css" rel="stylesheet" />
+    <style>
+      .user_option {
+        display: flex;
+        align-items: center;
+        margin-left: 15px;
+        gap: 25px;
+      }
+
+      .user_info {
+        display: flex;
+        align-items: center;
+      }
+
+      .user_name {
+        color: white;
+        margin: 0 10px;
+        font-size: 16px;
+      }
+
+      .logout_link {
+        color: #ffffff;
+        text-decoration: none;
+        font-size: 16px;
+        transition: all 0.3s;
+        padding-left: 10px;
+        border-left: 1px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .logout_link:hover {
+        color: #ffbe33;
+        text-decoration: none;
+      }
+
+      .user_info i {
+        font-size: 18px;
+      }
+
+      .cart_link {
+        position: relative;
+        color: white;
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+
+      .cart_link:hover {
+        color: #ffbe33;
+        text-decoration: none;
+      }
+
+      .cart_link i {
+        font-size: 20px;
+      }
+
+      .cart-count {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: #ffbe33;
+        color: white;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .nav-item .nav-link {
+        padding: 8px 15px;
+        transition: all 0.3s;
+      }
+
+      .nav-item .nav-link:hover {
+        color: #ffbe33;
+      }
+
+      @media (max-width: 991px) {
+        .user_option {
+          margin-top: 15px;
+          flex-wrap: wrap;
+        }
+        
+        .cart_link {
+          margin: 10px 0;
+        }
+      }
+    </style>
   </head>
 
   <body>
@@ -56,17 +144,28 @@
                 <li class="nav-item">
                   <a class="nav-link" href="/about">About</a>
                 </li>
+                <% if (user) { %>
                 <li class="nav-item">
-                  <a class="nav-link" href="/book">Book Table</a>
+                  <a class="nav-link" href="/orders">Orders</a>
                 </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="/profile">Profile</a>
+                </li>
+                <% } %>
               </ul>
               <div class="user_option"> 
                 <% if (user) { %> 
-                  <a class="user_link">
+                  <div class="user_info">
                     <i class="fa fa-user" aria-hidden="true" style="color: #ffbe33;"></i>
-                    <span style="color: white;"><%= user.name %></span>
+                    <span class="user_name"><%= user.name %></span>
+                  </div>
+                  <a href="/cart" class="cart_link">
+                    <i class="fa fa-shopping-cart" style="color: #ffbe33;"></i>
+                    <% if (typeof cartCount !== 'undefined' && cartCount > 0) { %>
+                      <span class="cart-count"><%= cartCount %></span>
+                    <% } %>
                   </a>
-                  <a href="/logout" class="logout_link" > Logout </a> 
+                  <a href="/logout" class="logout_link">Logout</a>
                 <% } else { %>
                 <a class="user_link" href="/login">Login</a>
                 <a class="user_link" href="/register">Register</a>

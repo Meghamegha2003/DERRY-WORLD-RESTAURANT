@@ -40,23 +40,22 @@
                   </div>
                   <div class="detail-box">
                     <h5><%= product.name %></h5>
-                    <p class="description"><%= product.description %></p>
+                    <p><%= product.description %></p>
                     <div class="options">
                       <div class="price-container">
                         <% if (product.salesPrice && product.salesPrice < product.regularPrice) { %>
-                          <span class="regular-price">₹<%= product.regularPrice %></span>
-                          <span class="sales-price">₹<%= product.salesPrice %></span>
+                          <h6>
+                            <span style="text-decoration: line-through; color: #999; margin-right: 10px;">₹<%= product.regularPrice %></span>
+                            ₹<%= product.salesPrice %>
+                          </h6>
                         <% } else { %>
-                          <span class="regular-price-only">₹<%= product.regularPrice %></span>
+                          <h6>₹<%= product.regularPrice %></h6>
                         <% } %>
                       </div>
-                      <div class="action-buttons">
-                        <a href="#" class="add-to-wishlist" onclick="addToWishlist('<%= product._id %>', event)">
+                      <div class="d-flex align-items-center">
+                        <button class="wishlist-btn" onclick="addToWishlist('<%= product._id %>')">
                           <i class="fa fa-heart"></i>
-                        </a>
-                        <a href="#" class="add-to-cart" onclick="addToCart('<%= product._id %>', event)">
-                          <i class="fa fa-shopping-cart"></i>
-                        </a>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -74,38 +73,34 @@
   </div>
 </section>
 
-<script>
-async function addToCart(productId, event) {
-  event.preventDefault();
-  try {
-    const response = await fetch('/cart/add', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ productId }),
-    });
-    
-    const result = await response.json();
-    
-    if (response.ok && result.success) {
-      // Update cart count in the header
-      const cartCountElement = document.querySelector('.cart-count');
-      if (cartCountElement && result.cartCount) {
-        cartCountElement.textContent = result.cartCount;
-      }
-      
-      // Show success message
-      alert(result.message || 'Product added to cart successfully!');
-    } else {
-      throw new Error(result.message || 'Failed to add product to cart');
-    }
-  } catch (error) {
-    console.error('Error adding to cart:', error);
-    alert(error.message || 'Failed to add product to cart. Please try again.');
+<style>
+  .wishlist-btn {
+    background: none;
+    border: none;
+    color: white;
+    padding: 5px;
+    font-size: 24px;
+    transition: color 0.3s ease;
   }
-}
+  .wishlist-btn:hover {
+    color: #ffbe33;
+  }
+  .options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 15px;
+  }
+  .fa-heart {
+    font-size: 24px;
+  }
+  .price-container h6 {
+    margin: 0;
+    color: white;
+  }
+</style>
 
+<script>
 async function addToWishlist(productId, event) {
   event.preventDefault();
   try {

@@ -261,7 +261,14 @@
                       <h5><%= product.name %></h5>
                       <p><%= product.description %></p>
                       <div class="options">
-                        <h6>₹<%= product.salesPrice.toFixed(2) %></h6>
+                        <h6>
+                          <% if (product.salesPrice && product.salesPrice < product.regularPrice) { %>
+                            <span style="text-decoration: line-through; color: #999; margin-right: 10px;">₹<%= product.regularPrice %></span>
+                            ₹<%= product.salesPrice %>
+                          <% } else { %>
+                            ₹<%= product.regularPrice %>
+                          <% } %>
+                        </h6>
                         <div class="d-flex align-items-center">
                           <button class="btn wishlist-btn" onclick="toggleWishlist('<%= product._id %>')">
                             <i class="fa fa-heart"></i>

@@ -60,10 +60,49 @@
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
 
+    .profile-summary {
+        padding: 24px 16px;
+        text-align: center;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .profile-avatar {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 16px;
+        background: var(--primary);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .profile-avatar i {
+        font-size: 40px;
+        color: white;
+    }
+
+    .profile-name-small {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: var(--text-primary);
+    }
+
+    .profile-email {
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-bottom: 0;
+    }
+
+    .nav-links {
+        padding: 16px 0;
+    }
+
     .nav-item {
         display: flex;
         align-items: center;
-        padding: 16px;
+        padding: 12px 16px;
         color: var(--text-primary);
         text-decoration: none;
         border-radius: 8px;
@@ -72,7 +111,7 @@
     }
 
     .nav-item:hover {
-        background-color: var(--bg-secondary);
+        background-color: #fff3eb;
         color: var(--primary);
     }
 
@@ -107,21 +146,86 @@
     }
 
     .order-card {
+        background: white;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         border: 1px solid var(--border);
-        border-radius: 8px;
-        margin-bottom: 16px;
-        background: var(--bg-primary);
-        transition: all 0.2s ease;
+        transition: all 0.3s ease;
     }
 
     .order-card:hover {
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+    }
+
+    .order-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+        background: #fff3eb;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 12px 12px 0 0;
+    }
+
+    .order-id-section {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .order-id-section i {
+        color: var(--primary);
+        font-size: 1.2rem;
+    }
+
+    .order-id {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .order-date {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    .order-status {
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .status-delivered {
+        background: #e6f4ea;
+        color: #1e8e3e;
+    }
+
+    .status-processing {
+        background: #fef7e0;
+        color: #b06000;
+    }
+
+    .status-cancelled {
+        background: #fce8e6;
+        color: #d93025;
+    }
+
+    .order-content {
+        padding: 20px;
     }
 
     .restaurant-info {
         display: flex;
         align-items: center;
-        padding: 20px;
+        gap: 16px;
+        margin-bottom: 20px;
+        padding-bottom: 16px;
         border-bottom: 1px solid var(--border);
     }
 
@@ -130,149 +234,117 @@
         height: 60px;
         border-radius: 8px;
         object-fit: cover;
-        margin-right: 16px;
     }
 
-    .restaurant-name {
-        font-size: 18px;
+    .restaurant-details h4 {
+        font-size: 1.1rem;
         font-weight: 600;
         color: var(--text-primary);
         margin-bottom: 4px;
     }
 
-    .order-info {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        color: var(--text-secondary);
-        font-size: 14px;
+    .order-summary {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 20px;
     }
 
-    .order-info-item {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-    }
-
-    .order-info-item i {
-        font-size: 14px;
-    }
-
-    .order-status {
-        margin-left: auto;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 500;
-        font-size: 14px;
-    }
-
-    .status-icon {
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        color: white;
-    }
-
-    .status-delivered .status-icon {
-        background-color: var(--success);
-    }
-
-    .status-processing .status-icon {
-        background-color: var(--warning);
-    }
-
-    .status-cancelled .status-icon {
-        background-color: var(--danger);
-    }
-
-    .status-text {
-        font-weight: 500;
-    }
-
-    .status-delivered .status-text {
-        color: var(--success);
-    }
-
-    .status-processing .status-text {
-        color: var(--warning);
-    }
-
-    .status-cancelled .status-text {
-        color: var(--danger);
-    }
-
-    .order-meta {
-        padding: 16px 20px;
+    .summary-row {
         display: flex;
         justify-content: space-between;
-        background-color: var(--bg-secondary);
-        color: var(--text-secondary);
-        font-size: 13px;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
     }
 
-    .meta-item {
+    .summary-row:last-child {
+        margin-bottom: 0;
+        padding-top: 8px;
+        border-top: 1px dashed var(--border);
+        font-weight: 600;
+    }
+
+    .order-items {
+        margin-bottom: 20px;
+    }
+
+    .order-item {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .item-image {
+        width: 48px;
+        height: 48px;
+        border-radius: 6px;
+        object-fit: cover;
+    }
+
+    .item-details {
+        flex: 1;
+    }
+
+    .item-name {
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+    }
+
+    .item-quantity {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    .item-price {
+        font-weight: 600;
+        color: var(--text-primary);
     }
 
     .order-actions {
         display: flex;
-        padding: 16px 20px;
         gap: 12px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
     }
 
     .action-button {
         flex: 1;
-        padding: 12px;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
+        padding: 10px;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        font-weight: 500;
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 8px;
+        cursor: pointer;
         transition: all 0.2s ease;
     }
 
-    .reorder-btn {
-        background-color: var(--primary);
+    .action-button.primary {
+        background: var(--primary);
         color: white;
         border: none;
     }
 
-    .reorder-btn:hover {
-        background-color: #e67312;
+    .action-button.secondary {
+        background: white;
+        color: var(--primary);
+        border: 1px solid var(--primary);
     }
 
-    .help-btn {
-        border: 1px solid var(--text-secondary);
-        background: var(--bg-primary);
-        color: var(--text-secondary);
+    .action-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
 
-    .help-btn:hover {
-        border-color: var(--text-primary);
-        color: var(--text-primary);
+    .action-button i {
+        font-size: 0.9rem;
     }
 
-    .track-btn {
-        background-color: var(--primary);
-        color: white;
-        border: none;
-    }
-
-    .track-btn:hover {
-        background-color: #e67312;
-    }
-
-    /* Modal Styles */
     .modal-swiggy .modal-content {
         border-radius: 8px;
         border: none;
@@ -307,121 +379,572 @@
         line-height: 1.6;
     }
 
-    .address-details, .payment-details {
-        background: var(--bg-secondary);
-        padding: 16px;
-        border-radius: 8px;
+    .addresses-section {
+        display: none;
     }
 
-    .detail-row {
+    .addresses-section.active {
+        display: block;
+    }
+
+    .orders-section.hidden {
+        display: none;
+    }
+
+    .address-card {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        border: 1px solid var(--border);
+        position: relative;
+    }
+
+    .address-actions {
+        position: absolute;
+        top: 16px;
+        right: 16px;
         display: flex;
-        justify-content: space-between;
+        gap: 8px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .address-card:hover .address-actions {
+        opacity: 1;
+    }
+
+    .btn {
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+    }
+
+    .btn-primary {
+        background-color: var(--primary);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background-color: #e67215;
+    }
+
+    .btn-outline {
+        background-color: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+    }
+
+    .btn-outline:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    .btn-icon {
+        padding: 8px;
+        border-radius: 4px;
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-icon:hover {
+        color: var(--primary);
+    }
+
+    .form-group {
+        margin-bottom: 24px;
+    }
+
+    .form-group label {
+        display: block;
+        font-size: 14px;
+        color: var(--text-secondary);
         margin-bottom: 8px;
     }
 
-    .detail-row:last-child {
-        margin-bottom: 0;
+    .form-control {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 16px;
+        transition: all 0.2s ease;
     }
 
-    .timeline {
-        position: relative;
+    .form-control:focus {
+        border-color: var(--primary);
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(252,128,25,0.1);
+    }
+
+    .profile-section {
+        padding: 24px;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .profile-form-container {
+        max-width: 600px;
+        margin: 24px auto;
+    }
+
+    .profile-form .form-group {
+        margin-bottom: 20px;
+    }
+
+    .profile-form label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--text-primary);
+        font-weight: 500;
+    }
+
+    .profile-form .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 14px;
+    }
+
+    .profile-form .form-control:disabled {
+        background-color: var(--bg-secondary);
+        cursor: not-allowed;
+    }
+
+    .profile-form .action-button {
+        width: 100%;
+        padding: 12px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .profile-form .action-button:hover {
+        background: #e67312;
+    }
+
+    .empty-orders {
+        text-align: center;
+        padding: 60px 20px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         margin: 20px 0;
     }
 
-    .timeline-item {
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        padding-bottom: 24px;
-        position: relative;
+    .empty-orders i {
+        font-size: 64px;
+        color: var(--primary);
+        margin-bottom: 24px;
+        display: block;
+        opacity: 0.9;
     }
 
-    .timeline-icon {
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        background: var(--primary);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 12px;
-        position: relative;
-        z-index: 1;
-    }
-
-    .timeline-content {
-        flex: 1;
-    }
-
-    .timeline-title {
+    .empty-orders h3 {
+        font-size: 24px;
         font-weight: 600;
         color: var(--text-primary);
-        margin-bottom: 4px;
+        margin-bottom: 12px;
     }
 
-    .timeline-subtitle {
+    .empty-orders p {
+        font-size: 16px;
         color: var(--text-secondary);
-        font-size: 13px;
+        margin-bottom: 32px;
     }
 
-    .timeline-line {
-        position: absolute;
-        left: 11px;
-        top: 24px;
-        bottom: 0;
-        width: 2px;
-        background: var(--border);
-    }
-
-    .order-items-preview {
-        padding: 16px 20px;
-        background-color: var(--bg-secondary);
-        border-radius: 8px;
-        margin-bottom: 16px;
-    }
-
-    .preview-item {
-        display: flex;
+    .browse-menu-btn {
+        display: inline-flex;
         align-items: center;
         gap: 8px;
+        background: var(--primary);
+        color: white;
+        padding: 14px 32px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+    }
+
+    .browse-menu-btn:hover {
+        background: #e67312;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(252,128,25,0.2);
+    }
+
+    .browse-menu-btn i {
+        font-size: 18px;
+        margin: 0;
+    }
+
+    /* Profile Section Styles */
+    .profile-section {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        margin-bottom: 24px;
+    }
+
+    .profile-header {
+        padding: 24px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .profile-header i {
+        font-size: 24px;
+        color: var(--primary);
+        background: #fff3eb;
+        padding: 12px;
+        border-radius: 50%;
+    }
+
+    .profile-header h2 {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0;
+    }
+
+    .profile-form-container {
+        padding: 24px;
+    }
+
+    .form-group {
+        margin-bottom: 24px;
+    }
+
+    .form-group label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-secondary);
         margin-bottom: 8px;
     }
 
-    .preview-item:last-child {
-        margin-bottom: 0;
+    .form-control {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 15px;
+        color: var(--text-primary);
+        transition: all 0.3s ease;
     }
 
-    .preview-item.more {
-        color: var(--primary);
-        cursor: pointer;
+    .form-control:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(252,128,25,0.1);
+        outline: none;
     }
 
-    .support-options {
+    .form-control:disabled {
+        background-color: #f8f9fa;
+        cursor: not-allowed;
+    }
+
+    /* Address Section Styles */
+    .addresses-section {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .addresses-header {
+        padding: 24px;
+        border-bottom: 1px solid var(--border);
         display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .addresses-header-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .addresses-header-left i {
+        font-size: 24px;
+        color: var(--primary);
+        background: #fff3eb;
+        padding: 12px;
+        border-radius: 50%;
+    }
+
+    .addresses-header h2 {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0;
+    }
+
+    .add-address-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--primary);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .add-address-btn:hover {
+        background: #e67312;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(252,128,25,0.2);
+    }
+
+    .addresses-list {
+        padding: 24px;
+    }
+
+    .address-card {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 16px;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .address-card:hover {
+        border-color: var(--primary);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+
+    .address-type {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--primary);
+        margin-bottom: 12px;
+    }
+
+    .address-details {
+        font-size: 15px;
+        color: var(--text-primary);
+        line-height: 1.6;
+    }
+
+    .address-actions {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        display: flex;
+        gap: 8px;
+    }
+
+    .address-action-btn {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        padding: 6px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .address-action-btn:hover {
+        color: var(--primary);
+        background: #fff3eb;
+    }
+
+    .empty-address {
+        text-align: center;
+        padding: 48px 24px;
+    }
+
+    .empty-address i {
+        font-size: 48px;
+        color: var(--primary);
+        margin-bottom: 16px;
+        opacity: 0.9;
+    }
+
+    .empty-address h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+    }
+
+    .empty-address p {
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-bottom: 24px;
+    }
+
+    /* Address Modal Styles */
+    .address-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    .address-modal.active {
+        display: flex;
+    }
+
+    .address-modal-content {
+        background: white;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 500px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+
+    .address-modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .address-modal-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
         gap: 12px;
     }
 
-    .support-btn {
+    .address-modal-title i {
+        color: var(--primary);
+    }
+
+    .address-modal-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 20px;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+
+    .address-modal-close:hover {
+        color: var(--text-primary);
+        background: rgba(0,0,0,0.05);
+    }
+
+    .address-modal-body {
+        padding: 24px;
+    }
+
+    .address-form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .address-type-selector {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+
+    .type-option {
         flex: 1;
         padding: 12px;
+        border: 1px solid var(--border);
         border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 8px;
+        cursor: pointer;
         transition: all 0.2s ease;
-        border: 1px solid var(--text-secondary);
-        background: var(--bg-primary);
+        background: white;
+    }
+
+    .type-option.active {
+        background: #fff3eb;
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    .type-option:hover {
+        border-color: var(--primary);
+    }
+
+    .address-modal-footer {
+        padding: 20px 24px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .modal-btn {
+        padding: 10px 24px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .modal-btn-secondary {
+        background: white;
+        border: 1px solid var(--border);
         color: var(--text-secondary);
     }
 
-    .support-btn:hover {
+    .modal-btn-secondary:hover {
         border-color: var(--text-primary);
         color: var(--text-primary);
+    }
+
+    .modal-btn-primary {
+        background: var(--primary);
+        border: none;
+        color: white;
+    }
+
+    .modal-btn-primary:hover {
+        background: #e67312;
+        transform: translateY(-1px);
     }
 
     @media (max-width: 768px) {
@@ -441,8 +964,14 @@
         .action-button {
             width: 100%;
         }
+
+        .address-actions {
+            opacity: 1;
+        }
     }
 </style>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <div class="profile-container">
     <div class="profile-info">
@@ -460,341 +989,422 @@
 
 <div class="main-container">
     <div class="sidebar">
-        <a href="/orders" class="nav-item active">
-            <i class="fas fa-shopping-bag"></i>
-            Orders
-        </a>
-        <a href="/favorites" class="nav-item">
-            <i class="fas fa-heart"></i>
-            Favourites
-        </a>
-        <a href="/payments" class="nav-item">
-            <i class="fas fa-wallet"></i>
-            Payments
-        </a>
-        <a href="/addresses" class="nav-item">
-            <i class="fas fa-map-marker-alt"></i>
-            Addresses
-        </a>
-        <a href="/settings" class="nav-item">
-            <i class="fas fa-cog"></i>
-            Settings
-        </a>
-        <a href="/support" class="nav-item">
-            <i class="fas fa-headset"></i>
-            Support
-        </a>
+        <div class="profile-summary">
+            <div class="profile-avatar">
+                <i class="fas fa-user-circle"></i>
+            </div>
+            <h4 class="profile-name-small"><%= user.name %></h4>
+            <p class="profile-email"><%= user.email %></p>
+        </div>
+        <div class="nav-links">
+            <a href="#" class="nav-item" onclick="showProfile(event)" data-section="profile">
+                <i class="fas fa-user"></i>
+                Profile
+            </a>
+            <a href="#" class="nav-item active" onclick="showOrders(event)" data-section="orders">
+                <i class="fas fa-shopping-bag"></i>
+                Orders
+            </a>
+            <a href="#" class="nav-item" onclick="showAddresses(event)" data-section="addresses">
+                <i class="fas fa-map-marker-alt"></i>
+                Addresses
+            </a>
+            <a href="/wishlist" class="nav-item">
+                <i class="fas fa-heart"></i>
+                Wishlist
+            </a>
+        </div>
     </div>
 
     <div class="content-area">
-        <h1 class="section-title">
-            <i class="fas fa-history"></i>
-            Past Orders
-        </h1>
-        
-        <% if (orders && orders.length > 0) { %>
-            <% orders.forEach(order => { %>
-                <div class="order-card">
-                    <div class="restaurant-info">
-                        <% if (order.items[0]?.product?.productImage?.length > 0) { %>
-                            <img src="/<%= order.items[0].product.productImage[0] %>" 
-                                 alt="Restaurant" 
-                                 class="restaurant-image">
-                        <% } %>
-                        <div>
-                            <div class="restaurant-name">
-                                <i class="fas fa-receipt"></i>
-                                Order #<%= order._id.toString().slice(-6).toUpperCase() %>
-                            </div>
-                            <div class="order-info">
-                                <div class="order-info-item">
-                                    <i class="fas fa-shopping-cart"></i>
-                                    <%= order.items.reduce((total, item) => total + item.quantity, 0) %> Items
-                                </div>
-                                <div class="order-info-item">
-                                    <i class="fas fa-rupee-sign"></i>
-                                    <%= ((order.totalAmount + (order.deliveryFee || 0)) || 0).toFixed(2) %>
-                                </div>
-                                <div class="order-info-item">
-                                    <i class="fas fa-map-pin"></i>
-                                    <%= order.deliveryAddress?.city || 'N/A' %>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="order-status status-<%= order.status.toLowerCase() %>">
-                            <div class="status-icon">
-                                <i class="fas <%= 
-                                    order.status === 'Delivered' ? 'fa-check' : 
-                                    order.status === 'Processing' ? 'fa-clock' : 
-                                    order.status === 'Cancelled' ? 'fa-times' : 
-                                    'fa-truck' %>"></i>
-                            </div>
-                            <span class="status-text"><%= order.status %></span>
-                        </div>
+        <div class="profile-section" id="profileSection" style="display: none;">
+            <div class="profile-header">
+                <i class="fas fa-user-circle"></i>
+                <h2>Profile Information</h2>
+            </div>
+            <div class="profile-form-container">
+                <form class="profile-form">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" class="form-control" value="<%= user.name %>" id="profileName">
                     </div>
-
-                    <div class="order-meta">
-                        <div class="meta-item">
-                            <i class="fas fa-hashtag"></i>
-                            ORDER #<%= order._id.toString().slice(-6).toUpperCase() %>
-                        </div>
-                        <div class="meta-item">
-                            <i class="far fa-calendar-alt"></i>
-                            <%= new Date(order.createdAt).toLocaleDateString('en-US', { 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric' 
-                            }) %>
-                        </div>
-                        <div class="meta-item">
-                            <i class="far fa-clock"></i>
-                            <%= new Date(order.createdAt).toLocaleTimeString('en-US', {
-                                hour: 'numeric',
-                                minute: 'numeric',
-                                hour12: true
-                            }) %>
-                        </div>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" class="form-control" value="<%= user.email %>" disabled>
                     </div>
-
-                    <div class="order-items-preview">
-                        <% order.items.slice(0, 2).forEach(item => { %>
-                            <div class="preview-item">
-                                <i class="fas fa-utensils"></i>
-                                <%= item.product?.name %> x <%= item.quantity %>
-                            </div>
-                        <% }); %>
-                        <% if (order.items.length > 2) { %>
-                            <div class="preview-item more">
-                                <i class="fas fa-ellipsis-h"></i>
-                                +<%= order.items.length - 2 %> more items
-                            </div>
-                        <% } %>
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        <input type="tel" class="form-control" value="<%= user.phone %>" id="profilePhone">
                     </div>
+                    <button type="button" class="action-button" onclick="updateProfile()">
+                        <i class="fas fa-save"></i>
+                        Save Changes
+                    </button>
+                </form>
+            </div>
+        </div>
 
-                    <div class="order-actions">
-                        <button class="action-button reorder-btn">
-                            <i class="fas fa-redo"></i>
-                            REORDER
-                        </button>
-                        <button class="action-button track-btn">
-                            <i class="fas fa-map-marked-alt"></i>
-                            TRACK ORDER
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Order Details Modal -->
-                <div class="modal fade modal-swiggy" id="orderModal<%= order._id %>" tabindex="-1" aria-hidden="true">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">
-                                    <i class="fas fa-info-circle"></i>
-                                    Order Details
-                                </h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <div class="orders-section">
+            <h1 class="section-title">
+                <i class="fas fa-history"></i>
+                Past Orders
+            </h1>
+            
+            <% if (orders && orders.length > 0) { %>
+                <% orders.forEach(order => { %>
+                    <div class="order-card">
+                        <div class="order-header">
+                            <div class="order-id-section">
+                                <i class="fas fa-hashtag"></i>
+                                <span class="order-id">ORDER #<%= order._id.toString().slice(-6).toUpperCase() %></span>
                             </div>
-                            <div class="modal-body">
-                                <!-- Order Items -->
-                                <div class="detail-section">
-                                    <div class="detail-title">
-                                        <i class="fas fa-shopping-basket"></i>
-                                        Order Items
-                                    </div>
-                                    <div class="items-list">
-                                        <% order.items.forEach(item => { %>
-                                            <div class="item-row">
-                                                <div class="item-info">
-                                                    <i class="fas fa-utensils"></i>
-                                                    <%= item.product?.name %>
-                                                    <span class="item-quantity">x<%= item.quantity %></span>
-                                                </div>
-                                                <div class="item-price">
-                                                    <i class="fas fa-rupee-sign"></i>
-                                                    <%= (item.price * item.quantity).toFixed(2) %>
-                                                </div>
-                                            </div>
-                                        <% }); %>
-                                    </div>
+                            <div class="order-date">
+                                <%= new Date(order.createdAt).toLocaleDateString('en-US', { 
+                                    year: 'numeric', 
+                                    month: 'long', 
+                                    day: 'numeric' 
+                                }) %>
+                            </div>
+                        </div>
+
+                        <div class="order-status">
+                            <% if (order.status === 'Delivered') { %>
+                                <div class="status-delivered">
+                                    <i class="fas fa-check"></i>
+                                    Delivered
                                 </div>
-
-                                <!-- Order Timeline -->
-                                <div class="detail-section">
-                                    <div class="detail-title">
-                                        <i class="fas fa-clock"></i>
-                                        Order Status
-                                    </div>
-                                    <div class="timeline">
-                                        <div class="timeline-item">
-                                            <div class="timeline-icon">
-                                                <i class="fas fa-check"></i>
-                                            </div>
-                                            <div class="timeline-content">
-                                                <div class="timeline-title">
-                                                    <i class="fas fa-shopping-cart"></i>
-                                                    Order Placed
-                                                </div>
-                                                <div class="timeline-subtitle">
-                                                    <i class="far fa-clock"></i>
-                                                    <%= new Date(order.createdAt).toLocaleString('en-US', {
-                                                        hour: 'numeric',
-                                                        minute: 'numeric',
-                                                        hour12: true
-                                                    }) %>
-                                                </div>
-                                            </div>
-                                            <div class="timeline-line"></div>
-                                        </div>
-
-                                        <% if (order.status !== 'Cancelled') { %>
-                                            <div class="timeline-item">
-                                                <div class="timeline-icon">
-                                                    <i class="fas <%= 
-                                                        order.status === 'Delivered' ? 'fa-check' : 
-                                                        'fa-clock' %>"></i>
-                                                </div>
-                                                <div class="timeline-content">
-                                                    <div class="timeline-title">
-                                                        <i class="fas <%= 
-                                                            order.status === 'Processing' ? 'fa-fire' : 
-                                                            order.status === 'Shipped' ? 'fa-truck' : 
-                                                            'fa-check-circle' %>"></i>
-                                                        <%= order.status === 'Processing' ? 'Preparing Your Order' : 
-                                                            order.status === 'Shipped' ? 'Out for Delivery' : 
-                                                            'Delivered' %>
-                                                    </div>
-                                                    <div class="timeline-subtitle">
-                                                        <i class="fas <%= 
-                                                            order.status === 'Delivered' ? 'fa-smile' : 
-                                                            'fa-spinner fa-spin' %>"></i>
-                                                        <%= order.status === 'Delivered' ? 'Your order has been delivered' : 
-                                                            'We\'re working on your order' %>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        <% } else { %>
-                                            <div class="timeline-item">
-                                                <div class="timeline-icon">
-                                                    <i class="fas fa-times"></i>
-                                                </div>
-                                                <div class="timeline-content">
-                                                    <div class="timeline-title">
-                                                        <i class="fas fa-ban"></i>
-                                                        Order Cancelled
-                                                    </div>
-                                                    <div class="timeline-subtitle">
-                                                        <i class="fas fa-info-circle"></i>
-                                                        Order has been cancelled
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        <% } %>
-                                    </div>
+                            <% } else if (order.status === 'Processing') { %>
+                                <div class="status-processing">
+                                    <i class="fas fa-clock"></i>
+                                    Processing
                                 </div>
+                            <% } else if (order.status === 'Cancelled') { %>
+                                <div class="status-cancelled">
+                                    <i class="fas fa-times"></i>
+                                    Cancelled
+                                </div>
+                            <% } %>
+                        </div>
 
-                                <!-- Delivery Address -->
-                                <% if (order.deliveryAddress) { %>
-                                    <div class="detail-section">
-                                        <div class="detail-title">
-                                            <i class="fas fa-map-marker-alt"></i>
-                                            Delivery Address
-                                        </div>
-                                        <div class="address-details">
-                                            <div class="address-row">
-                                                <i class="fas fa-home"></i>
-                                                <%= order.deliveryAddress.street || 'N/A' %>
-                                            </div>
-                                            <div class="address-row">
-                                                <i class="fas fa-city"></i>
-                                                <%= order.deliveryAddress.city || 'N/A' %>
-                                            </div>
-                                            <div class="address-row">
-                                                <i class="fas fa-map"></i>
-                                                <%= order.deliveryAddress.state || 'N/A' %> - 
-                                                <%= order.deliveryAddress.zipCode || 'N/A' %>
-                                            </div>
-                                        </div>
+                        <div class="order-content">
+                            <div class="restaurant-info">
+                                <% if (order.items[0]?.product?.productImage?.length > 0) { %>
+                                    <img src="/<%= order.items[0].product.productImage[0] %>" 
+                                         alt="Restaurant" 
+                                         class="restaurant-image">
+                                <% } %>
+                                <div class="restaurant-details">
+                                    <h4><%= order.restaurantName %></h4>
+                                    <p><%= order.restaurantAddress %></p>
+                                </div>
+                            </div>
+
+                            <div class="order-summary">
+                                <div class="summary-row">
+                                    <span>Item Total</span>
+                                    <span><i class="fas fa-rupee-sign"></i> <%= order.totalAmount.toFixed(2) %></span>
+                                </div>
+                                <% if (order.deliveryFee) { %>
+                                    <div class="summary-row">
+                                        <span>Delivery Fee</span>
+                                        <span><i class="fas fa-rupee-sign"></i> <%= order.deliveryFee.toFixed(2) %></span>
                                     </div>
                                 <% } %>
-
-                                <!-- Payment Details -->
-                                <div class="detail-section">
-                                    <div class="detail-title">
-                                        <i class="fas fa-credit-card"></i>
-                                        Payment Details
-                                    </div>
-                                    <div class="payment-details">
-                                        <div class="detail-row">
-                                            <span>
-                                                <i class="fas fa-wallet"></i>
-                                                Payment Method
-                                            </span>
-                                            <span>
-                                                <i class="fas <%= 
-                                                    order.paymentMethod.toLowerCase().includes('card') ? 'fa-credit-card' :
-                                                    order.paymentMethod.toLowerCase().includes('upi') ? 'fa-mobile-alt' :
-                                                    'fa-money-bill-wave' %>"></i>
-                                                <%= order.paymentMethod %>
-                                            </span>
-                                        </div>
-                                        <div class="detail-row">
-                                            <span>
-                                                <i class="fas fa-shopping-cart"></i>
-                                                Item Total
-                                            </span>
-                                            <span>
-                                                <i class="fas fa-rupee-sign"></i>
-                                                <%= order.totalAmount.toFixed(2) %>
-                                            </span>
-                                        </div>
-                                        <% if (order.deliveryFee) { %>
-                                            <div class="detail-row">
-                                                <span>
-                                                    <i class="fas fa-truck"></i>
-                                                    Delivery Fee
-                                                </span>
-                                                <span>
-                                                    <i class="fas fa-rupee-sign"></i>
-                                                    <%= order.deliveryFee.toFixed(2) %>
-                                                </span>
-                                            </div>
-                                        <% } %>
-                                        <div class="detail-row grand-total">
-                                            <span>
-                                                <i class="fas fa-file-invoice-dollar"></i>
-                                                Grand Total
-                                            </span>
-                                            <span>
-                                                <i class="fas fa-rupee-sign"></i>
-                                                <%= ((order.totalAmount + (order.deliveryFee || 0)) || 0).toFixed(2) %>
-                                            </span>
-                                        </div>
-                                    </div>
+                                <div class="summary-row">
+                                    <span>Grand Total</span>
+                                    <span><i class="fas fa-rupee-sign"></i> <%= ((order.totalAmount + (order.deliveryFee || 0)) || 0).toFixed(2) %></span>
                                 </div>
+                            </div>
+
+                            <div class="order-items">
+                                <% order.items.forEach(item => { %>
+                                    <div class="order-item">
+                                        <img src="/<%= item.product.productImage[0] %>" 
+                                             alt="Item" 
+                                             class="item-image">
+                                        <div class="item-details">
+                                            <h4 class="item-name"><%= item.product.name %></h4>
+                                            <p class="item-quantity">x<%= item.quantity %></p>
+                                        </div>
+                                        <div class="item-price">
+                                            <i class="fas fa-rupee-sign"></i> <%= (item.price * item.quantity).toFixed(2) %>
+                                        </div>
+                                    </div>
+                                <% }); %>
+                            </div>
+
+                            <div class="order-actions">
+                                <button class="action-button primary">
+                                    <i class="fas fa-redo"></i>
+                                    REORDER
+                                </button>
+                                <button class="action-button secondary">
+                                    <i class="fas fa-map-marked-alt"></i>
+                                    TRACK ORDER
+                                </button>
                             </div>
                         </div>
                     </div>
+                <% }); %>
+            <% } else { %>
+                <div class="empty-orders">
+                    <i class="fas fa-shopping-bag"></i>
+                    <h3>No orders yet</h3>
+                    <p>Hungry? Order your favorite food now!</p>
+                    <a href="/menu" class="browse-menu-btn">
+                        <i class="fas fa-utensils"></i>
+                        Browse Menu
+                    </a>
                 </div>
-            <% }); %>
+            <% } %>
+        </div>
 
-            <div class="show-more">
-                <button class="action-button help-btn">
-                    <i class="fas fa-chevron-down"></i>
-                    Show More Orders
+        <div class="addresses-section" id="addressesSection">
+            <div class="addresses-header">
+                <div class="addresses-header-left">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <h2>Saved Addresses</h2>
+                </div>
+                <button class="add-address-btn" onclick="openAddAddressModal()">
+                    <i class="fas fa-plus"></i>
+                    Add New Address
                 </button>
             </div>
-        <% } else { %>
-            <div class="empty-orders">
-                <i class="fas fa-shopping-bag"></i>
-                <h3>No orders yet</h3>
-                <p>Hungry? Order your favorite food now!</p>
-                <a href="/menu" class="action-button reorder-btn">
-                    <i class="fas fa-utensils"></i>
-                    Browse Menu
-                </a>
+            <div class="addresses-list">
+                <% if (user.addresses && user.addresses.length > 0) { %>
+                    <% user.addresses.forEach((address, index) => { %>
+                        <div class="address-card">
+                            <div class="address-type">
+                                <i class="fas <%= address.type === 'Home' ? 'fa-home' : 'fa-building' %>"></i>
+                                <%= address.type || 'Home' %>
+                            </div>
+                            <div class="address-details">
+                                <%= address.street %><br>
+                                <%= address.city %>, <%= address.state %> <%= address.pincode %>
+                            </div>
+                            <div class="address-actions">
+                                <button class="address-action-btn" onclick="editAddress(<%= index %>)">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="address-action-btn" onclick="deleteAddress(<%= index %>)">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                    <% }); %>
+                <% } else { %>
+                    <div class="empty-address">
+                        <i class="fas fa-map-marked-alt"></i>
+                        <h3>No addresses saved yet</h3>
+                        <p>Add a delivery address to get started</p>
+                    </div>
+                <% } %>
             </div>
-        <% } %>
+        </div>
     </div>
 </div>
+
+<!-- Address Modal -->
+<div class="address-modal" id="addressModal">
+    <div class="address-modal-content">
+        <div class="address-modal-header">
+            <h3 class="address-modal-title">
+                <i class="fas fa-map-marker-alt"></i>
+                <span id="modalTitle">Add New Address</span>
+            </h3>
+            <button class="address-modal-close" onclick="closeAddressModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="address-modal-body">
+            <form id="addressForm" onsubmit="handleAddressSubmit(event)">
+                <input type="hidden" id="addressIndex" value="">
+                <div class="address-type-selector">
+                    <button type="button" class="type-option active" onclick="selectAddressType('Home')">
+                        <i class="fas fa-home"></i>
+                        Home
+                    </button>
+                    <button type="button" class="type-option" onclick="selectAddressType('Work')">
+                        <i class="fas fa-building"></i>
+                        Work
+                    </button>
+                </div>
+                <div class="form-group">
+                    <label for="street">Street Address</label>
+                    <input type="text" 
+                           id="street" 
+                           class="form-control" 
+                           required 
+                           minlength="5"
+                           onblur="validateField(this, /.{5,}/, 'Street address must be at least 5 characters long')">
+                </div>
+                <div class="address-form-row">
+                    <div class="form-group">
+                        <label for="city">City</label>
+                        <input type="text" 
+                               id="city" 
+                               class="form-control" 
+                               required
+                               pattern="[a-zA-Z\s]{2,}"
+                               onblur="validateField(this, /^[a-zA-Z\s]{2,}$/, 'Please enter a valid city name')">
+                    </div>
+                    <div class="form-group">
+                        <label for="state">State</label>
+                        <input type="text" 
+                               id="state" 
+                               class="form-control" 
+                               required
+                               pattern="[a-zA-Z\s]{2,}"
+                               onblur="validateField(this, /^[a-zA-Z\s]{2,}$/, 'Please enter a valid state name')">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="pincode">PIN Code</label>
+                    <input type="text" 
+                           id="pincode" 
+                           class="form-control" 
+                           required 
+                           pattern="[1-9][0-9]{5}"
+                           maxlength="6"
+                           onblur="validateField(this, /^[1-9][0-9]{5}$/, 'Please enter a valid 6-digit PIN code')">
+                </div>
+            </form>
+        </div>
+        <div class="address-modal-footer">
+            <button class="modal-btn modal-btn-secondary" onclick="closeAddressModal()">Cancel</button>
+            <button class="modal-btn modal-btn-primary" onclick="document.getElementById('addressForm').requestSubmit()">Save Address</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentAddressType = 'Home';
+
+    function showOrders(e) {
+        e.preventDefault();
+        document.querySelector('.orders-section').classList.remove('hidden');
+        document.querySelector('.addresses-section').classList.remove('active');
+        document.querySelector('.profile-section').style.display = 'none';
+        
+        // Update active state in navigation
+        document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+    }
+
+    function showAddresses(e) {
+        e.preventDefault();
+        document.querySelector('.orders-section').classList.add('hidden');
+        document.querySelector('.addresses-section').classList.add('active');
+        document.querySelector('.profile-section').style.display = 'none';
+        
+        // Update active state in navigation
+        document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+    }
+
+    function showProfile(e) {
+        e.preventDefault();
+        document.querySelector('.orders-section').classList.add('hidden');
+        document.querySelector('.addresses-section').classList.remove('active');
+        document.querySelector('.profile-section').style.display = 'block';
+        
+        // Update active state in navigation
+        document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+    }
+
+    function openAddAddressModal() {
+        document.getElementById('modalTitle').textContent = 'Add New Address';
+        document.getElementById('addressForm').reset();
+        document.getElementById('addressIndex').value = '';
+        document.getElementById('addressModal').classList.add('active');
+        selectAddressType('Home');
+        currentAddressType = 'Home';
+    }
+
+    async function handleAddressSubmit(event) {
+        event.preventDefault();
+        
+        // Get form values
+        const street = document.getElementById('street').value.trim();
+        const city = document.getElementById('city').value.trim();
+        const state = document.getElementById('state').value.trim();
+        const pincode = document.getElementById('pincode').value.trim();
+
+        // Client-side validation
+        if (!street || !city || !state || !pincode) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Validation Error',
+                text: 'All fields are required',
+                confirmButtonColor: '#fc8019'
+            });
+            return;
+        }
+
+        // Create address data object
+        const addressData = {
+            type: currentAddressType, // This will be mapped to addressType in the backend
+            street,
+            city,
+            state,
+            pincode: pincode.toString() // Ensure pincode is a string
+        };
+
+        try {
+            // Show loading state
+            Swal.fire({
+                title: 'Saving Address...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            const index = document.getElementById('addressIndex').value;
+            const url = index === '' ? '/profile/address/add' : `/profile/address/edit/${index}`;
+
+            console.log('Sending address data:', addressData);
+            
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(addressData)
+            });
+
+            const data = await response.json();
+            console.log('Server response:', data);
+
+            if (response.ok) {
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: data.message,
+                    confirmButtonColor: '#fc8019'
+                });
+                window.location.reload();
+            } else {
+                throw new Error(data.message || 'Failed to save address');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: error.message || 'Failed to save address. Please try again.',
+                confirmButtonColor: '#fc8019'
+            });
+        }
+    }
+
+    function selectAddressType(type) {
+        currentAddressType = type;
+        document.querySelectorAll('.type-option').forEach(btn => {
+            btn.classList.toggle('active', btn.textContent.trim() === type);
+        });
+    }
+</script>
 
 <%- include('../partials/user/footer') %>

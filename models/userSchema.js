@@ -59,15 +59,34 @@ const userSchema = new Schema({
             message: (props) => `${props.value} is not a valid phone number!`,
         },
     },    
-    addresses: [
-        {
-          street: { type: String, required: true },
-          city: { type: String, required: true },
-          state: { type: String, required: true },
-          zipCode: { type: String, required: true },
-          
+    addresses: [{
+        addressType: { 
+            type: String, 
+            enum: ['Home', 'Work'],
+            default: 'Home',
+            required: true
         },
-    ],
+        street: { 
+            type: String, 
+            required: true,
+            minlength: [5, 'Street address must be at least 5 characters long']
+        },
+        city: { 
+            type: String, 
+            required: true,
+            match: [/^[a-zA-Z\s]{2,}$/, 'Please enter a valid city name']
+        },
+        state: { 
+            type: String, 
+            required: true,
+            match: [/^[a-zA-Z\s]{2,}$/, 'Please enter a valid state name']
+        },
+        pincode: { 
+            type: String, 
+            required: true,
+            match: [/^[1-9][0-9]{5}$/, 'Please enter a valid 6-digit PIN code']
+        }
+    }],
     status: {
         type: String,
         enum: ['Active', 'Blocked'],

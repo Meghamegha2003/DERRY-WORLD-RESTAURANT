@@ -47,13 +47,18 @@ router.get('/logout', preventCaching, userController.logout);
 router.get('/food/:productId', isAuthenticated, cartController.renderProductDetails);
 router.post('/food/:id/rate', isAuthenticated,  cartController.submitRating);
 router.post('/add', isAuthenticated, cartController.addToCart);
+
+// Profile and address routes
+router.get('/profile', isAuthenticated, cartController.getProfile);
+router.post('/profile/address/add', isAuthenticated, cartController.addAddress);
+router.post('/profile/address/edit/:id', isAuthenticated, cartController.updateAddress);
+router.delete('/profile/address/delete/:id', isAuthenticated, cartController.deleteAddress);
+
+// Cart routes
 router.get('/cart', isAuthenticated, cartController.getCart);
 router.post('/cart/update', isAuthenticated, cartController.updateCart);
 router.post('/cart/remove', isAuthenticated, cartController.removeFromCart);
-router.get('/profile', isAuthenticated, cartController.getProfile);
-router.post('/cart/address/add',  isAuthenticated, cartController.addAddress);
-router.post('/cart/address/update/:id',  isAuthenticated, cartController.updateAddress);
-router.delete('/cart/address/delete/:id', isAuthenticated, cartController.deleteAddress);
+
 router.get('/checkout',  isAuthenticated, cartController.renderCheckoutPage);
 
 // Google Authentication routes
@@ -76,6 +81,7 @@ router.get('/auth/google/callback',
 );
 
 router.post('/order/confirm', cartController.confirmOrder);
+router.get('/orders', isAuthenticated, cartController.getOrderDetails);
 router.get('/order/latest', isAuthenticated, cartController.getLatestOrder);
 router.get('/order/:Id', cartController.getOrderDetails);
 router.put('/:orderId', cartController.updateOrderDetails);

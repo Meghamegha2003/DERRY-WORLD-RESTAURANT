@@ -245,72 +245,159 @@ const getProfile = async (req, res) => {
   }
 };
 
-const addAddress = (req, res) => {
-  const { street, city, state, zipCode } = req.body;
-  console.log(req.body);
+const addAddress = async (req, res) => {
+  try {
+    console.log('Request body:', req.body);
+    const { type, street, city, state, pincode } = req.body;
+    const userId = req.user._id;
 
-  if (!street || !city || !state || !zipCode) {
-    return res.status(400).json({
-      success: false,
-      error: 'Missing required fields: street, city, state, or zipCode',
-    });
-  }
-
-  const newAddress = {
-    id: Date.now().toString(),
-    street,
-    city,
-    state,
-    zipCode,
-  };
-
-  req.user.addresses.push(newAddress);
-
-  req.user
-    .save()
-    .then(() => res.json({ success: true, address: newAddress }))
-    .catch((err) => {
-      console.error(err);
-      res.json({ success: false, error: err.message });
-    });
-};
-
-const updateAddress = (req, res) => {
-  const { id } = req.params;
-  const { street, city, state, zipCode } = req.body;
-
-  const address = req.user.addresses.find((addr) => addr.id === id);
-
-  if (address) {
-    address.street = street;
-    address.city = city;
-    address.state = state;
-    address.zipCode = zipCode;
-
-    req.user
-      .save()
-      .then(() => res.json({ success: true }))
-      .catch((err) => {
-        console.error(err);
-        res.json({ success: false, error: err.message });
+    // Validate the input
+    if (!street || !city || !state || !pincode) {
+      console.log('Missing fields:', { street, city, state, pincode });
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required'
       });
-  } else {
-    res.status(404).json({ success: false, message: 'Address not found' });
+    }
+
+    // Validate pincode format
+    if (!/^[1-9][0-9]{5}$/.test(pincode)) {
+      console.log('Invalid pincode:', pincode);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid PIN code format'
+      });
+    }
+
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Create the new address object
+    const newAddress = {
+      addressType: type || 'Home',
+      street: street,
+      city: city,
+      state: state,
+      pincode: pincode
+    };
+
+    console.log('New address object:', newAddress);
+
+    // Add the address to the user's addresses array
+    user.addresses.push(newAddress);
+
+    // Save with validation
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Address added successfully',
+      addresses: user.addresses
+    });
+
+  } catch (error) {
+    console.error('Error in addAddress:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to add address'
+    });
   }
 };
 
-const deleteAddress = (req, res) => {
-  const { id } = req.params;
+const updateAddress = async (req, res) => {
+  try {
+    const { type, street, city, state, pincode } = req.body;
+    const addressIndex = req.params.id;
+    const userId = req.user._id;
 
-  req.user.addresses = req.user.addresses.filter((addr) => addr.id !== id);
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
 
-  req.user
-    .save()
-    .then(() => res.json({ success: true }))
-    .catch((err) => {
-      console.error(err);
-      res.json({ success: false, error: err.message });
+    // Check if address exists
+    if (!user.addresses[addressIndex]) {
+      return res.status(404).json({
+        success: false,
+        message: 'Address not found'
+      });
+    }
+
+    // Update the address
+    user.addresses[addressIndex] = {
+      addressType: type || 'Home',
+      street,
+      city,
+      state,
+      pincode
+    };
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Address updated successfully',
+      addresses: user.addresses
     });
+
+  } catch (error) {
+    console.error('Error in updateAddress:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update address'
+    });
+  }
+};
+
+const deleteAddress = async (req, res) => {
+  try {
+    const addressIndex = req.params.id;
+    const userId = req.user._id;
+
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if address exists
+    if (!user.addresses[addressIndex]) {
+      return res.status(404).json({
+        success: false,
+        message: 'Address not found'
+      });
+    }
+
+    // Remove the address
+    user.addresses.splice(addressIndex, 1);
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Address deleted successfully',
+      addresses: user.addresses
+    });
+
+  } catch (error) {
+    console.error('Error in deleteAddress:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
 };
 
 const renderCheckoutPage = async (req, res) => {
@@ -415,7 +502,7 @@ const confirmOrder = async (req, res) => {
       user: userId, // Ensure this is correctly assigned
       items: cart.items,
       totalAmount,
-      address: selectedAddress,
+      deliveryAddress: selectedAddress,
       paymentMethod,
     });
     
@@ -452,7 +539,7 @@ const getLatestOrder = async (req, res) => {
   try {
     const latestOrder = await Order.findOne({ user: userId })
       .populate('items.product', 'name price productImage') // Populate product details
-      .populate('address') // Populate address details
+      .populate('deliveryAddress') // Populate address details
       .sort({ createdAt: -1 }); // Sort by latest order
 
     console.log('Latest Order:', latestOrder);
@@ -481,17 +568,21 @@ const getOrderDetails = async (req, res) => {
     // Fetch orders for the user and populate product details
     const orders = await Order.find({ user: userId })
       .populate('items.product', 'name price productImage') // Populating product details
-      .populate('address') // Populating address
+      .populate('deliveryAddress') // Populating address
       .sort({ createdAt: -1 }); // Sorting orders by creation date in descending order
 
     console.log(orders); // Logs orders for debugging
 
     if (!orders || orders.length === 0) {
-      return res.status(404).send('No orders found for this user.');
+      return res.render('userOrders', { orders: [], cartCount: 0 });
     }
 
+    // Get cart count for the header
+    const cart = await Cart.findOne({ user: userId });
+    const cartCount = cart ? cart.items.length : 0;
+
     // Render the orders page
-    res.render('userOrder', { orders });
+    res.render('userOrders', { orders, cartCount });
 
   } catch (error) {
     console.error('Error retrieving orders:', error); 
@@ -541,7 +632,3 @@ module.exports = {
   getOrderDetails,
   updateOrderDetails
 };
-
-
-
-
