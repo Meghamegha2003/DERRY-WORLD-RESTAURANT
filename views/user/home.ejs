@@ -1,5 +1,5 @@
 <%- include('../../views/partials/user/header') %>
-
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
       <!-- slider section -->
       <section class="slider_section">
@@ -153,6 +153,7 @@
                       <g></g>
                       <g></g>
                       <g></g>
+                      <g></g>
                     </svg>
                   </a>
                 </div>
@@ -234,54 +235,38 @@
 
     <!-- food section -->
 
-    <section class="food_section layout_padding">
+    <section class="food_section layout_padding-bottom">
       <div class="container">
         <div class="heading_container heading_center">
           <h2>Our Menu</h2>
         </div>
-    
+
         <ul class="filters_menu">
-          <li class="active" data-filter="*" onclick="filterByCategory('')">All</li>
-          <% categories.forEach((category) => { %>
-            <li onclick="filterByCategory('<%= category.name %>')"><%= category.name %></li>
+          <li class="active" data-filter="*">All</li>
+          <% categories.forEach(function(category) { %>
+            <li data-filter=".<%= category.name.toLowerCase() %>"><%= category.name %></li>
           <% }); %>
         </ul>
-        
-        
-        
-    
+
         <div class="filters-content">
           <div class="row grid">
-            <% products.forEach((product) => { %>
-              <div class="col-sm-6 col-lg-4 all <%= product.category.name %>">
+            <% products.forEach(function(product) { %>
+              <div class="col-sm-6 col-lg-4 all <%= product.category.name.toLowerCase() %>">
                 <div class="box">
                   <div>
                     <div class="img-box">
-                      <img src="/<%= product.productImage[0] %>" alt="<%= product.name %>" />
+                      <img src="<%= product.productImage[0] %>" alt="<%= product.name %>" />
                     </div>
                     <div class="detail-box">
                       <h5><%= product.name %></h5>
                       <p><%= product.description %></p>
                       <div class="options">
-                        <% if (product.salesPrice && product.salesPrice < product.regularPrice) { %>
-                          <div class="price-container">
-                            <h6>
-                              <span class="regular-price">₹<%= product.regularPrice %></span>
-                              <span class="sales-price">₹<%= product.salesPrice %></span>
-                            </h6>
-                          </div>
-                        <% } else { %>
-                          <h6>₹<%= product.regularPrice %></h6>
-                        <% } %>
-                        <% if (user) { %>
-                          <a href="#" onclick="addToWishlist('<%= product._id %>', event)" class="wishlist-link">
-                            <i class="fa fa-heart" aria-hidden="true"></i>
-                          </a>
-                        <% } else { %>
-                          <a href="/login" class="wishlist-link">
-                            <i class="fa fa-heart" aria-hidden="true"></i>
-                          </a>
-                        <% } %>
+                        <h6>₹<%= product.salesPrice.toFixed(2) %></h6>
+                        <div class="d-flex align-items-center">
+                          <button class="btn wishlist-btn" onclick="toggleWishlist('<%= product._id %>')">
+                            <i class="fa fa-heart"></i>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -290,14 +275,11 @@
             <% }); %>
           </div>
         </div>
-    
         <div class="btn-box">
           <a href=""> View More </a>
         </div>
       </div>
     </section>
-    
-
 
     <!-- end food section -->
 
@@ -445,93 +427,7 @@
     <!-- end client section -->
 
     <%- include('../../views/partials/user/footer') %>
-    <style>
-      .options {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 0;
-      }
-
-      .price-container {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .regular-price {
-        text-decoration: line-through;
-        color: rgba(255, 255, 255, 0.7);
-        font-size: 0.9em;
-      }
-
-      .sales-price {
-        color: #ffc107;
-        font-weight: bold;
-        margin-left: 8px;
-      }
-
-      h6 {
-        color: #ffc107 !important;
-      }
-
-      .wishlist-link {
-        color: #ffffff !important;
-        font-size: 20px;
-        transition: transform 0.3s ease;
-        background: none !important;
-        border: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        outline: none !important;
-        box-shadow: none !important;
-      }
-
-      .wishlist-link:hover {
-        transform: scale(1.1);
-        background: none !important;
-      }
-
-      .fa-heart {
-        color: #ffffff !important;
-        background: none !important;
-        fill: #ffffff !important;
-      }
-</style>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-nice-select/1.1.0/js/jquery.nice-select.min.js"></script>
     <script>
-      $(document).ready(function() {
-        $(".owl-carousel").owlCarousel();
-        $('select').niceSelect();
-      });
-    </script>
-    <script>
-      function myMap() {
-        // Your map initialization code here
-      }
-    </script>
-    <script>
-
-const filterItems = document.querySelectorAll('.filters_menu li');
-    const allProducts = document.querySelectorAll('.filters-content .all');
-    
-    filterItems.forEach(item => {
-      item.addEventListener('click', () => {
-        const filterValue = item.getAttribute('data-filter');
-        
-        allProducts.forEach(product => {
-          if (filterValue === '*' || product.classList.contains(filterValue.substring(1))) {
-            product.style.display = 'block';
-          } else {
-            product.style.display = 'none';
-          }
-        });
-      });
-    });
-
-
       // Prevent navigation to cached pages
       window.onpageshow = function(event) {
         if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
@@ -539,29 +435,60 @@ const filterItems = document.querySelectorAll('.filters_menu li');
         }
       };
     </script>
+    <style>
+      .wishlist-btn {
+        border: none;
+        background: none;
+        padding: 0;
+      }
+
+      .wishlist-btn i {
+        color: #ffffff;
+        font-size: 1.5rem;
+        transition: color 0.3s ease;
+      }
+
+      .wishlist-btn i:hover {
+        color: #f0f0f0;
+      }
+
+      .wishlist-btn i.active {
+        color: #dc3545;
+      }
+    </style>
     <script>
-async function addToWishlist(productId, event) {
-  event.preventDefault();
-  try {
-    const response = await fetch('/wishlist/add', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ productId }),
-    });
-    
-    if (response.ok) {
-      const heartIcon = event.target;
-      heartIcon.classList.toggle('fa-heart-o');
-      heartIcon.classList.toggle('fa-heart');
-      alert('Product added to wishlist successfully!');
-    } else {
-      throw new Error('Failed to add product to wishlist');
-    }
-  } catch (error) {
-    console.error('Error adding to wishlist:', error);
-    alert('Failed to add product to wishlist. Please try again.');
-  }
-}
-</script>
+      function toggleWishlist(productId) {
+        fetch('/api/wishlist/toggle', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ productId })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if(data.success) {
+            const heartIcon = event.target.closest('.wishlist-btn').querySelector('i');
+            heartIcon.classList.toggle('active');
+          }
+        })
+        .catch(error => console.error('Error:', error));
+      }
+    </script>
+    <script>
+      $(document).ready(function(){
+        // Initialize isotope
+        var $grid = $(".grid").isotope({
+          itemSelector: ".all",
+          layoutMode: "fitRows"
+        });
+
+        // Filter items on button click
+        $(".filters_menu li").click(function() {
+          $(".filters_menu li").removeClass("active");
+          $(this).addClass("active");
+          var filterValue = $(this).attr("data-filter");
+          $grid.isotope({ filter: filterValue });
+        });
+      });
+    </script>

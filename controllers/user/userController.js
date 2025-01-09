@@ -144,18 +144,21 @@ const pendingRegistrations = new Map();
 
 const renderLandingPage = async (req, res) => {
   try {
-    const categories = await Category.find();
-    const categoryFilter = req.query.category || null;
-    const query = categoryFilter ? { "category.name": categoryFilter } : {};
+    const products = await Product.find({ isListed: true, isBlocked: false })
+                                .populate('category')
+                                .lean();
+    
+    const categories = await Category.find({ isListed: true, isActive: true })
+                                   .lean();
 
-    const products = await Product.find(query).populate("category");
-
-    const activePage = "home";
-
-    res.render("home", { products, categories, activePage });
+    res.render("home", {
+      user: req.user,
+      products,
+      categories
+    });
   } catch (error) {
-    console.error("Error fetching menu data:", error);
-    res.status(500).send("Internal Server Error");
+    console.error('Error in renderLandingPage:', error);
+    res.status(500).send('Internal Server Error');
   }
 };
 
