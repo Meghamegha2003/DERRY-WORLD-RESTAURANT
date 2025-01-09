@@ -8,7 +8,6 @@ const orderController = require('../../controllers/admin/orderController');
 const isAdminAuthenticated = require('../../middlewares/adminAuthMiddileware');
 const upload = require('../../config/multerConfig')
 
-
 const preventCaching = (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -23,14 +22,32 @@ router.get('/dashboard', preventCaching,isAdminAuthenticated, adminController.lo
 router.get('/customer-list', preventCaching, adminController.customerList);
 router.post('/customers/status/:id', preventCaching,adminController.updateUserStatus);
 
-
+// Product routes
 router.get('/products', preventCaching, productController.viewProducts);
 router.get('/products/add', preventCaching, productController.loadAddProductPage);
-router.post('/products/add',isAdminAuthenticated,upload.fields([{ name: 'imageInput0', maxCount: 1 }, { name: 'imageInput1', maxCount: 1 }, { name: 'imageInput2', maxCount: 1 }, { name: 'imageInput3', maxCount: 1 },]), productController.addProduct);
+router.post('/products/add', isAdminAuthenticated, upload.fields([
+  { name: 'imageInput0', maxCount: 1 },
+  { name: 'imageInput1', maxCount: 1 },
+  { name: 'imageInput2', maxCount: 1 },
+  { name: 'imageInput3', maxCount: 1 }
+]), productController.addProduct);
+
 router.get('/products/edit/:id', preventCaching, productController.editProduct);
-router.post('/products/edit/:id', preventCaching,isAdminAuthenticated,upload.fields([{ name: 'imageInput0', maxCount: 1 }, { name: 'imageInput1', maxCount: 1 }, { name: 'imageInput2', maxCount: 1 }, { name: 'imageInput3', maxCount: 1 },]), productController.updateProduct);
-router.delete('/products/:productId/images/:imageIndex',preventCaching, productController.deleteProductImage);
-router.post('/products/status/:id',preventCaching, productController.toggleProductStatus);
+router.post('/products/edit/:id', isAdminAuthenticated, upload.fields([
+  { name: 'imageInput0', maxCount: 1 },
+  { name: 'imageInput1', maxCount: 1 },
+  { name: 'imageInput2', maxCount: 1 },
+  { name: 'imageInput3', maxCount: 1 }
+]), productController.updateProduct);
+
+router.delete('/products/:productId/images/:imageIndex', preventCaching, productController.deleteProductImage);
+router.post('/products/toggle-block/:id', preventCaching, productController.toggleProductBlock);
+
+// Get product details
+router.get('/products/:id', preventCaching, isAdminAuthenticated, productController.getProductDetails);
+
+// Check if product name exists
+router.get('/products/check-name', isAdminAuthenticated, productController.checkProductName);
 
 router.get('/categories', preventCaching, categoryController.viewCategories);
 router.get('/categories/add', preventCaching, categoryController.addCategoryForm);

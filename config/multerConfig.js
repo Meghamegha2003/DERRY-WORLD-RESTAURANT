@@ -1,16 +1,27 @@
 const path = require('path');
 const multer = require('multer');
 const sharp = require('sharp');
+const fs = require('fs');
 
-
+// Ensure upload directory exists
+const uploadDir = 'public/uploads/reImage';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, 'public/uploads/reImage');
+      // Ensure directory exists before saving
+      const dir = 'public/uploads/reImage';
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      cb(null, dir);
     },
     filename: (req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      cb(null, uniqueSuffix + path.extname(file.originalname));  }
+      cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
   });
   
   const upload = multer({
@@ -20,10 +31,12 @@ const storage = multer.diskStorage({
       const extname = fileTypes.test(path.extname(file.originalname).toLowerCase());
       const mimeType = fileTypes.test(file.mimetype);
       if (mimeType && extname) {
-        cb(null, true);
-      } else {
-        cb(new Error('Images only!'));
-      }
+        return cb(null, true);
+      } 
+      return cb(new Error('Only JPEG, JPG, and PNG images are allowed!'), false);
+    },
+    limits: {
+      fileSize: 5 * 1024 * 1024 // 5MB limit
     }
   });
 

@@ -5,6 +5,157 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
 
+<style>
+  .image-card {
+    position: relative;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  .preview-image {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+  }
+
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .modal-content {
+    background: white;
+    padding: 20px;
+    text-align: center;
+  }
+
+  .cropper-container {
+    width: 400px !important;
+    height: 400px !important;
+  }
+  .preview-container {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .preview-image {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border: 1px solid #ddd;
+  }
+  .existing-image-container {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .existing-image {
+    position: relative;
+    width: 100px;
+    height: 100px;
+  }
+  .existing-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border: 1px solid #ddd;
+  }
+  .delete-image {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(255, 0, 0, 0.8);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .preview-grid {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    margin-top: 15px;
+    width: 100%;
+  }
+  .preview-box {
+    position: relative;
+    width: calc(25% - 12px);
+    aspect-ratio: 1;
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .preview-box:hover {
+    border-color: #007bff;
+    background: #f1f8ff;
+  }
+  .preview-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .preview-box.empty {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .preview-box .delete-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(255, 0, 0, 0.8);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 25px;
+    height: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    transition: all 0.3s ease;
+  }
+  .preview-box .delete-btn:hover {
+    background: rgba(255, 0, 0, 1);
+    transform: scale(1.1);
+  }
+  .add-icon {
+    font-size: 24px;
+    color: #ccc;
+    transition: all 0.3s ease;
+  }
+  .preview-box:hover .add-icon {
+    color: #007bff;
+  }
+  .cropper-container {
+    width: 400px !important;
+    height: 400px !important;
+  }
+  #productImages {
+    display: none;
+  }
+</style>
+
 <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
   <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Edit Product</h1>
@@ -66,47 +217,24 @@
           </div>
 
           <!-- Image Upload Section -->
-          <div class="col-12">
-            <h5 class="mb-3">Edit Product Images</h5>
-            <form action="/admin/edit-product/<%= product._id %>" method="POST" enctype="multipart/form-data">
-              <div class="row g-3" id="imageContainer">
-                <% for (let i = 0; i < 4; i++) { %>
-                  <div class="col-6 col-md-3">
-                    <div class="image-card">
-                      <!-- Image Preview -->
-                      <img 
-                        src="<%= product.productImage[i] ? '/' + product.productImage[i] : '/path/to/placeholder-image.jpg' %>" 
-                        id="previewImage<%= i %>" 
-                        class="preview-image"
-                        style="width: 100%; height: 150px; object-fit: cover; cursor: pointer;" 
-                        onclick="triggerFileInput('<%= i %>')"
-                        alt="Product Image <%= i + 1 %>"
-                      >
-          
-                      <!-- File Input -->
-                      <input 
-                        type="file" 
-                        id="imageInput<%= i %>" 
-                        name="imageInput<%= i %>" 
-                        accept="image/*" 
-                        style="display: none;" 
-                        onchange="showImagePreview(event, '<%= i %>')"
-                      >
-          
-                      <!-- Hidden Input for Cropped Image -->
-                      <input 
-                        type="hidden" 
-                        id="croppedImage<%= i %>" 
-                        name="croppedImage<%= i %>" 
-                        value="<%= product.productImage[i] ? product.productImage[i] : '' %>"
-                      >
+          <div class="form-group">
+            <label>Product Images (Click on empty box to add image)</label>
+            <div class="preview-grid" id="imagePreview">
+              <% for(let i = 0; i < 4; i++) { %>
+                <div class="preview-box <%= product.productImage[i] ? '' : 'empty' %>" data-index="<%= i %>" onclick="<%= !product.productImage[i] ? 'triggerFileInput(' + i + ')' : '' %>">
+                  <% if(product.productImage[i]) { %>
+                    <img src="<%= product.productImage[i] %>" alt="Product Image <%= i + 1 %>">
+                    <button type="button" class="delete-btn" onclick="event.stopPropagation(); deleteExistingImage(<%= i %>)">&times;</button>
+                  <% } else { %>
+                    <div class="upload-placeholder">
+                      <i class="bi bi-plus-circle"></i>
+                      <span>Add Image</span>
                     </div>
-                  </div>
-                <% } %>
-              </div>
-          
-              <button type="submit" class="btn btn-primary mt-3">Save Changes</button>
-            </form>
+                  <% } %>
+                </div>
+              <% } %>
+            </div>
+            <input type="file" class="form-control" id="productImages" accept="image/*">
           </div>
 
           <div class="col-12 mt-4">
@@ -126,92 +254,120 @@
   <div class="modal-content">
     <img id="cropperImage" src="" style="width: 100%;">
     <div>
-      <button id="saveCroppedImage" class="btn btn-primary mt-3">Save Image</button>
+      <button id="cropButton" class="btn btn-primary mt-3">Save Image</button>
       <button onclick="closeCropperModal()" class="btn btn-secondary mt-3">Close</button>
     </div>
   </div>
 </div>
 
-<style>
-  .image-card {
-    position: relative;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    overflow: hidden;
-    cursor: pointer;
-  }
-
-  .preview-image {
-    width: 100%;
-    height: 150px;
-    object-fit: cover;
-  }
-
-  .modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    display: none;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .modal-content {
-    background: white;
-    padding: 20px;
-    text-align: center;
-  }
-</style>
-
 <script>
   let cropper;
-  let currentImageIndex;
+  let existingImages = <%= JSON.stringify(product.productImage || []) %>;
+  let newImages = [];
+  let currentBoxIndex = 0;
+  
+  function triggerFileInput(index) {
+    currentBoxIndex = index;
+    document.getElementById('productImages').click();
+  }
 
-
-  function showImagePreview(event, index) {
-    const file = event.target.files[0];
-    if (file) {
+  document.getElementById('productImages').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
-      reader.onload = function (e) {
-        document.getElementById(`previewImage${index}`).src = e.target.result;
+      reader.onload = function(e) {
+        cropperImage.src = e.target.result;
+        cropperModal.style.display = 'flex';
+        
+        if (cropper) {
+          cropper.destroy();
+        }
+        
+        cropper = new Cropper(cropperImage, {
+          aspectRatio: 1,
+          viewMode: 2,
+          dragMode: 'move',
+          autoCropArea: 1,
+          cropBoxResizable: false,
+          cropBoxMovable: false,
+          minContainerWidth: 400,
+          minContainerHeight: 400
+        });
       };
       reader.readAsDataURL(file);
     }
-  }
+    this.value = '';
+  });
 
-  function triggerFileInput(index) {
-    document.getElementById(`imageInput${index}`).click();
-  }
+  document.getElementById('cropButton').addEventListener('click', function() {
+    const croppedCanvas = cropper.getCroppedCanvas({
+      width: 400,
+      height: 400
+    });
 
-  function openCropperModal() {
-    const cropperImage = document.getElementById('cropperImage');
-    document.getElementById('cropperModal').style.display = 'flex';
+    const croppedImage = croppedCanvas.toDataURL('image/jpeg');
+    
+    if (currentBoxIndex < existingImages.length) {
+      existingImages[currentBoxIndex] = croppedImage;
+    } else {
+      newImages[currentBoxIndex - existingImages.length] = croppedImage;
+    }
+    
+    updateImagePreview();
 
-    if (cropper) cropper.destroy();
-    cropper = new Cropper(cropperImage, {
-      aspectRatio: 1,
-      viewMode: 1,
+    cropperModal.style.display = 'none';
+    if (cropper) {
+      cropper.destroy();
+      cropper = null;
+    }
+  });
+
+  function updateImagePreview() {
+    const boxes = document.querySelectorAll('.preview-box');
+    const allImages = [...existingImages, ...newImages];
+    
+    boxes.forEach((box, index) => {
+      if (allImages[index]) {
+        box.className = 'preview-box';
+        box.innerHTML = `
+          <img src="${allImages[index]}" alt="Product Image ${index + 1}">
+          <button type="button" class="delete-btn" onclick="event.stopPropagation(); deleteImage(${index})">&times;</button>
+        `;
+      } else {
+        box.className = 'preview-box empty';
+        box.innerHTML = '<div class="upload-placeholder"><i class="bi bi-plus-circle"></i><span>Add Image</span></div>';
+        box.onclick = () => triggerFileInput(index);
+      }
     });
   }
 
-  document.getElementById('saveCroppedImage').addEventListener('click', () => {
-    const croppedCanvas = cropper.getCroppedCanvas();
-    const croppedImage = croppedCanvas.toDataURL('image/png');
-
-    document.getElementById(`previewImage${currentImageIndex}`).src = croppedImage;
-    document.getElementById(`croppedImage${currentImageIndex}`).value = croppedImage;
-
-    closeCropperModal();
-  });
-
-  function closeCropperModal() {
-    document.getElementById('cropperModal').style.display = 'none';
-    if (cropper) cropper.destroy();
+  function deleteImage(index) {
+    if (index < existingImages.length) {
+      existingImages[index] = null;
+    } else {
+      newImages[index - existingImages.length] = null;
+    }
+    updateImagePreview();
   }
 
+  function deleteExistingImage(index) {
+    Swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, delete it!'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        existingImages.splice(index, 1);
+        updateImagePreview();
+      }
+    });
+  }
+
+  // Form submission handling remains the same
   const form = document.getElementById('editProductForm');
   const submitBtn = document.getElementById('submitBtn');
   form.addEventListener('input', () => {

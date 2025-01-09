@@ -50,174 +50,218 @@ const loadAddProductPage = async (req, res) => {
 const addProduct = async (req, res) => {
   try {
     const { productName, category, regularPrice, salesPrice, quantity, description } = req.body;
-    const uploadedImages = req.files; // Get the uploaded images
-    const imagePaths = [];
+    
+    // Check for unique product name (case insensitive)
+    const existingProduct = await Product.findOne({
+      name: { $regex: new RegExp(`^${productName}$`, 'i') }
+    });
 
+    if (existingProduct) {
+      return res.status(400).json({ 
+        message: 'A product with this name already exists' 
+      });
+    }
+
+    // Check if all 4 images are uploaded
+    if (!req.files || Object.keys(req.files).length !== 4) {
+      return res.status(400).json({ 
+        message: 'Please upload all 4 product images' 
+      });
+    }
+
+    const uploadedImages = req.files;
+    const imagePaths = [];
+    const uploadDir = path.join('public', 'uploads', 'reImage');
+
+    // Ensure upload directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    // Process each image
     for (let i = 0; i < 4; i++) {
       const imageField = `imageInput${i}`;
-      
-      if (uploadedImages[imageField] && uploadedImages[imageField][0]) {
-        const image = uploadedImages[imageField][0];
-        const croppedImagePath = path.join('public/uploads/reImage', 'cropped_' + image.filename);
+      if (!uploadedImages[imageField] || !uploadedImages[imageField][0]) {
+        return res.status(400).json({ 
+          message: `Missing image for position ${i + 1}` 
+        });
+      }
 
-        // Check image dimensions
-        const metadata = await sharp(image.path).metadata();
-        const cropWidth = Math.min(metadata.width,600);
-        const cropHeight = Math.min(metadata.height, 600);
+      const image = uploadedImages[imageField][0];
+      try {
+        const filename = `product_${Date.now()}_${i}.jpg`;
+        const croppedImagePath = path.join(uploadDir, filename);
 
         await sharp(image.path)
-          .extract({ width: cropWidth, height: cropHeight, left: 0, top: 0 })
+          .resize(600, 600, {
+            fit: 'cover',
+            position: 'center'
+          })
+          .jpeg({ quality: 80 })
           .toFile(croppedImagePath);
 
-        imagePaths.push(path.join('uploads/reImage', 'cropped_' + image.filename));
+        imagePaths.push(path.join('uploads', 'reImage', filename).replace(/\\/g, '/'));
+
+        fs.unlink(image.path, (err) => {
+          if (err) console.error('Error deleting temporary file:', err);
+        });
+      } catch (err) {
+        console.error('Error processing image:', err);
+        return res.status(500).json({ 
+          message: 'Error processing image. Please try again.' 
+        });
       }
     }
 
-    const newProduct = new Product({
-      name: productName,
+    const product = new Product({
+      name: productName.trim(),
       category,
       regularPrice,
       salesPrice,
       quantity,
-      description,
-      productImage: imagePaths,
+      description: description.trim(),
+      productImage: imagePaths
     });
 
-    await newProduct.save();
-    res.redirect('/admin/products');
+    await product.save();
+    res.status(200).json({ 
+      success: true, 
+      message: 'Product added successfully' 
+    });
   } catch (error) {
     console.error('Error adding product:', error);
-    res.status(500).json({ message: 'Failed to add product. Please try again.' });
+    res.status(500).json({ 
+      message: 'Failed to add product. Please try again.' 
+    });
   }
 };
 
 const editProduct = async (req, res) => {
   try {
-    const productId = req.params.id; // Get the product ID from the route parameter
-    const { productName, category, regularPrice, salesPrice, quantity, description } = req.body;
-    const uploadedImages = req.files; // Get the uploaded images
-    const existingProduct = await Product.findById(productId); // Find the product by ID
+    const productId = req.params.id;
+    const product = await Product.findById(productId).populate('category');
+    const categories = await Category.find();
 
-    if (!existingProduct) {
-      return res.status(404).json({ message: 'Product not found.' });
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
     }
 
-    const updatedImagePaths = existingProduct.productImage.slice(); // Copy existing images
-
-    for (let i = 0; i < 4; i++) {
-      const imageField = `imageInput${i}`;
-
-      if (uploadedImages[imageField] && uploadedImages[imageField][0]) {
-        const image = uploadedImages[imageField][0];
-        const croppedImagePath = path.join('public/uploads/reImage', 'cropped_' + image.filename);
-
-        // Check image dimensions
-        const metadata = await sharp(image.path).metadata();
-        const cropWidth = Math.min(metadata.width, 600);
-        const cropHeight = Math.min(metadata.height, 600);
-
-        await sharp(image.path)
-          .extract({ width: cropWidth, height: cropHeight, left: 0, top: 0 })
-          .toFile(croppedImagePath);
-
-        // Replace the corresponding image in the array
-        updatedImagePaths[i] = path.join('uploads/reImage', 'cropped_' + image.filename);
-      }
+    // Ensure product.productImage is an array
+    if (!Array.isArray(product.productImage)) {
+      product.productImage = [];
     }
 
-    // Update the product details
-    existingProduct.name = productName;
-    existingProduct.category = category;
-    existingProduct.regularPrice = regularPrice;
-    existingProduct.salesPrice = salesPrice;
-    existingProduct.quantity = quantity;
-    existingProduct.description = description;
-    existingProduct.productImage = updatedImagePaths;
+    // Pad the array with nulls if it has less than 4 items
+    while (product.productImage.length < 4) {
+      product.productImage.push(null);
+    }
 
-    await existingProduct.save();
-
-    res.redirect('/admin/products');
+    res.render('editProduct', { 
+      product, 
+      categories,
+      error: null 
+    });
   } catch (error) {
-    console.error('Error editing product:', error);
-    res.status(500).json({ message: 'Failed to update product. Please try again.' });
+    console.error('Error loading edit product page:', error);
+    res.status(500).json({ message: 'Error loading edit product page' });
   }
 };
 
 const updateProduct = async (req, res) => {
   try {
-    const {
-      productName,
-      category,
-      regularPrice,
-      salesPrice,
-      quantity,
-      description,
-      croppedImage0,
-      croppedImage1,
-      croppedImage2,
-      croppedImage3,
-    } = req.body;
-
     const productId = req.params.id;
-
-    if (!productName || !description || !regularPrice || !salesPrice || !quantity || !category) {
-      return res.status(400).json({ error: "All required fields must be filled" });
-    }
-console.log("hii",category)
-    const parsedRegularPrice = parseFloat(regularPrice);
-    const parsedSalesPrice = parseFloat(salesPrice);
-    const parsedQuantity = parseInt(quantity, 10);
-
-    if (isNaN(parsedRegularPrice) || isNaN(parsedSalesPrice) || isNaN(parsedQuantity)) {
-      return res.status(400).json({ error: "Prices and quantity must be valid numbers" });
-    }
-
-    const folderPath = path.join(__dirname, "../../public/uploads");
-
-    const croppedImages = [croppedImage0, croppedImage1, croppedImage2, croppedImage3];
-    const imagePaths = await Promise.all(
-      croppedImages.map(async (image, index) => {
-        if (image) {
-          const fileName = `product-${Date.now()}-${index}.png`;
-          return await saveBase64Image(image, fileName, folderPath);
-        }
-        return null;
-      })
-    );
-
-    const newImages = imagePaths.filter((path) => path !== null);
-
+    const { productName, category, regularPrice, salesPrice, quantity, description } = req.body;
+    
+    // Find existing product
     const product = await Product.findById(productId);
-
     if (!product) {
-      return res.status(404).json({ error: "Product not found" });
+      return res.status(404).json({ message: 'Product not found' });
     }
 
-    product.name = productName;
-    product.description = description;
-    product.category = category;
-    product.regularPrice = parsedRegularPrice;
-    product.salesPrice = parsedSalesPrice;
-    product.quantity = parsedQuantity;
+    // Check for unique name, excluding current product
+    const existingProduct = await Product.findOne({
+      _id: { $ne: productId },
+      name: { $regex: new RegExp(`^${productName}$`, 'i') }
+    });
 
-    if (newImages.length > 0) {
-      if (Array.isArray(product.images) && product.images.length > 0) {
-        product.images.forEach((image) => {
-          const imagePath = path.join(folderPath, image);
-          if (fs.existsSync(imagePath)) {
-            fs.unlinkSync(imagePath);
+    if (existingProduct) {
+      return res.status(400).json({ 
+        message: 'A product with this name already exists' 
+      });
+    }
+
+    // Update basic product information
+    product.name = productName.trim();
+    product.category = category;
+    product.regularPrice = regularPrice;
+    product.salesPrice = salesPrice;
+    product.quantity = quantity;
+    product.description = description.trim();
+
+    // Handle image updates if files were uploaded
+    if (req.files) {
+      const uploadedImages = req.files;
+      const imagePaths = [...product.productImage];
+
+      for (let i = 0; i < 4; i++) {
+        const imageField = `imageInput${i}`;
+        
+        if (uploadedImages && uploadedImages[imageField] && uploadedImages[imageField][0]) {
+          const image = uploadedImages[imageField][0];
+          try {
+            const filename = `product_${Date.now()}_${i}.jpg`;
+            const croppedImagePath = path.join('public', 'uploads', 'reImage', filename);
+
+            // Ensure directory exists
+            const dir = path.dirname(croppedImagePath);
+            if (!fs.existsSync(dir)) {
+              fs.mkdirSync(dir, { recursive: true });
+            }
+
+            // Delete old image if it exists
+            if (imagePaths[i]) {
+              const oldImagePath = path.join('public', imagePaths[i]);
+              if (fs.existsSync(oldImagePath)) {
+                fs.unlinkSync(oldImagePath);
+              }
+            }
+
+            // Save the new image
+            await sharp(image.path)
+              .resize(600, 600, {
+                fit: 'cover',
+                position: 'center'
+              })
+              .jpeg({ quality: 80 })
+              .toFile(croppedImagePath);
+
+            imagePaths[i] = path.join('uploads', 'reImage', filename).replace(/\\/g, '/');
+
+            fs.unlink(image.path, (err) => {
+              if (err) console.error('Error deleting temporary file:', err);
+            });
+          } catch (err) {
+            console.error('Error processing image:', err);
+            return res.status(500).json({ 
+              message: 'Error processing image. Please try again.' 
+            });
           }
-        });
+        }
       }
-      product.images = newImages;
+
+      product.productImage = imagePaths;
     }
 
     await product.save();
-
-    res.redirect('/admin/products');
+    res.status(200).json({ 
+      success: true, 
+      message: 'Product updated successfully' 
+    });
   } catch (error) {
-    console.error("Error updating product:", error);
-    res.status(500).json({ error: "Failed to update product" });
+    console.error('Error updating product:', error);
+    res.status(500).json({ 
+      message: 'Failed to update product. Please try again.' 
+    });
   }
 };
 
@@ -227,32 +271,31 @@ const deleteProductImage = async (req, res) => {
     const product = await Product.findById(productId);
 
     if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
+      return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    // Get the image path to delete
-    const imageToDelete = product.productImage[imageIndex];
-    
-    // Remove the image from the array
-    product.productImage.splice(imageIndex, 1);
-    await product.save();
+    const index = parseInt(imageIndex);
+    if (index >= 0 && index < product.productImage.length) {
+      // Delete the image file
+      const imagePath = path.join('public', product.productImage[index]);
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
 
-    // Delete the actual file
-    const fs = require('fs');
-    const path = require('path');
-    const filePath = path.join(__dirname, '../../public/uploads', imageToDelete);
-    
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+      // Remove the image path from the array
+      product.productImage[index] = null;
+      product.productImage = product.productImage.filter(path => path !== null);
+      await product.save();
+
+      res.json({ success: true, message: 'Image deleted successfully' });
+    } else {
+      res.status(400).json({ success: false, message: 'Invalid image index' });
     }
-
-    res.json({ message: 'Image deleted successfully' });
   } catch (error) {
-    console.error('Error deleting image:', error);
-    res.status(500).json({ message: 'Error deleting image' });
+    console.error('Error deleting product image:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete image' });
   }
 };
-
 
 const uploadCroppedImage = (req, res) => {
   try {
@@ -268,26 +311,34 @@ const uploadCroppedImage = (req, res) => {
   }
 };
 
-
-// Toggle Product Status (Activate/Deactivate)
-const toggleProductStatus = async (req, res) => {
-  const productId = req.params.id;
-
+// Toggle product block status
+const toggleProductBlock = async (req, res) => {
   try {
-    // Find the product by ID
+    const productId = req.params.id;
     const product = await Product.findById(productId);
-    if (!product) return res.status(404).send('Product not found');
 
-    // Toggle isAvailable status
-    product.isAvailable = !product.isAvailable;
+    if (!product) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Product not found' 
+      });
+    }
 
-    // Save changes to the database
+    // Toggle the isBlocked status
+    product.isBlocked = !product.isBlocked;
     await product.save();
 
-    res.redirect('/admin/products'); // Redirect back to the products list
+    res.json({ 
+      success: true, 
+      message: `Product ${product.isBlocked ? 'blocked' : 'unblocked'} successfully`,
+      isBlocked: product.isBlocked 
+    });
   } catch (error) {
-    console.error('Error toggling product status:', error);
-    res.status(500).send('Error toggling product status');
+    console.error('Error toggling product block status:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to toggle product block status' 
+    });
   }
 };
 
@@ -317,6 +368,44 @@ const getPaginatedProducts = async (req, res) => {
   }
 };
 
+// Check if product name exists
+const checkProductName = async (req, res) => {
+  try {
+    const { name } = req.query;
+    
+    const existingProduct = await Product.findOne({
+      name: { $regex: new RegExp(`^${name}$`, 'i') }
+    });
+
+    res.json({ exists: !!existingProduct });
+  } catch (error) {
+    console.error('Error checking product name:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// Get product details
+const getProductDetails = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const product = await Product.findById(productId).populate('category');
+
+    if (!product) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Product not found' 
+      });
+    }
+
+    res.json(product);
+  } catch (error) {
+    console.error('Error getting product details:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to get product details' 
+    });
+  }
+};
 
 module.exports = {
   viewProducts,
@@ -326,7 +415,8 @@ module.exports = {
   updateProduct,
   deleteProductImage,
   uploadCroppedImage,
-  toggleProductStatus,
-  getPaginatedProducts
+  toggleProductBlock,
+  getPaginatedProducts,
+  checkProductName,
+  getProductDetails
 };
-  

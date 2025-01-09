@@ -1,0 +1,42 @@
+<%- include('partials/user/header') %>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <div class="error-template">
+                <h1 class="display-4 text-danger mb-4">Oops!</h1>
+                <h2 class="h3 mb-3"><%= message || 'Something went wrong' %></h2>
+                
+                <% if (process.env.NODE_ENV === 'development' && error) { %>
+                    <div class="alert alert-danger">
+                        <pre class="mb-0"><%= JSON.stringify(error, null, 2) %></pre>
+                    </div>
+                <% } %>
+                
+                <div class="error-actions mt-4">
+                    <a href="/" class="btn btn-primary btn-lg me-2">
+                        <i class="fa fa-home me-2"></i>Go Home
+                    </a>
+                    <a href="javascript:history.back()" class="btn btn-outline-secondary btn-lg">
+                        <i class="fa fa-arrow-left me-2"></i>Go Back
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-template {
+    padding: 40px 15px;
+}
+.error-actions {
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+.error-actions .btn {
+    margin-right: 10px;
+}
+</style>
+
+<%- include('partials/user/footer') %>

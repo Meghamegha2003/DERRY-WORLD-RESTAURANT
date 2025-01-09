@@ -56,15 +56,30 @@ const sendOTP = async (email, otp) => {
 
 const renderLandingPage = async (req, res) => {
   try {
+    console.log('Product Model:', Product); // Debug log
+    
     const categories = await Category.find();
     const categoryFilter = req.query.category || null;
-    const query = categoryFilter ? { "category.name": categoryFilter } : {};
+    
+    let query = {};
+    if (categoryFilter) {
+      query.category = categoryFilter;
+    }
 
-    const products = await Product.find(query).populate("category");
+    const products = await Product.find(query)
+      .populate('category')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    console.log('Products found:', products); // Debug log
 
     const activePage = "home";
-
-    res.render("home", { products, categories, activePage });
+    res.render("home", { 
+      products, 
+      categories, 
+      activePage,
+      user: req.user || null 
+    });
   } catch (error) {
     console.error("Error fetching menu data:", error);
     res.status(500).send("Internal Server Error");
@@ -339,50 +354,50 @@ const loginUser = async (req, res) => {
 
 const renderMenuPage = async (req, res) => {
   try {
+    // Get the category filter from query params
+    const categoryName = req.query.category;
+    
     // Fetch all active categories
-    const categories = await Category.find({ isActive: true });
+    const categories = await Category.find({ isActive: true }).lean();
 
-    // Default values for cart
-    let cartItems = [];
-    let cartCount = 0;
-
-    // Fetch user's cart and calculate total quantity if the user has a cart
-    const userCart = await Cart.findOne({ user: req.user._id });
-    if (userCart) {
-      cartItems = userCart.items.map(item => item.product.toString());
-      cartCount = userCart.items.reduce((total, item) => total + item.quantity, 0);
-    }
-
-    // Get the selected category filter from query parameters
-    const categoryFilter = req.query.category || null;
-
-    let query = { isAvailable: true };
-
-    // If a category filter is selected, resolve its ObjectId
-    if (categoryFilter) {
-      const category = await Category.findOne({ name: categoryFilter, isActive: true });
+    // Build the product query
+    let productQuery = { isAvailable: true };
+    
+    // If category is specified, find the category and add it to the query
+    if (categoryName) {
+      const category = await Category.findOne({ name: categoryName });
       if (category) {
-        query.category = category._id; // Use the ObjectId for filtering
-      } else {
-        // Handle case where category does not exist (optional)
-        query = { isAvailable: false }; // No products will be found if category doesn't exist
+        productQuery.category = category._id;
       }
     }
 
-    // Fetch filtered products based on the query
-    const products = await Product.find(query).populate('category');
+    // Fetch products with populated category
+    const products = await Product.find(productQuery)
+      .populate('category')
+      .sort({ createdAt: -1 })
+      .lean();
 
-    // Render the menu page with products, categories, cart info, and selected category
-    res.render('menu', { 
-      products, 
-      categories, 
-      selectedCategory: categoryFilter,
-      cartCount: cartCount,  // Pass cart count to the view
-      activePage: 'menu'     // To highlight active menu item
+    // Get cart count if user is logged in
+    let cartCount = 0;
+    if (req.user) {
+      const cart = await Cart.findOne({ user: req.user._id });
+      if (cart) {
+        cartCount = cart.items.reduce((total, item) => total + item.quantity, 0);
+      }
+    }
+
+    // Render the menu page with data
+    res.render('menu', {
+      products,
+      categories,
+      selectedCategory: categoryName,
+      cartCount,
+      user: req.user,
+      title: 'Menu - Derry World'
     });
 
   } catch (error) {
-    console.error('Error fetching menu data:', error);
+    console.error('Error in renderMenuPage:', error);
     res.status(500).send('Internal Server Error');
   }
 };
@@ -391,30 +406,40 @@ const renderMenuPage = async (req, res) => {
 
 const logout = async (req, res) => {
   try {
-    // Clear the JWT token cookie
-    res.clearCookie("token");
-
-    // Handle Google OAuth logout
-    if (req.session) {
-      // Destroy the session
-      req.session.destroy((err) => {
-        if (err) {
-          console.error("Error destroying session:", err);
-        }
-      });
-    }
-
-    // Clear any other auth-related cookies
-    res.clearCookie("connect.sid"); // Clear session cookie
-
-    // Redirect to login page
-    res.redirect("/login");
+    res.clearCookie('jwt');
+    req.logout(() => {
+      res.redirect('/login');
+    });
   } catch (error) {
-    console.error("Error during logout:", error);
-    res.redirect("/login");
+    console.error('Error during logout:', error);
+    res.status(500).json({ message: 'Error during logout' });
   }
 };
 
+const addToCart = async (req, res) => {
+  try {
+    const { productId, quantity } = req.body;
+    const userId = req.user._id;
+
+    let cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+      cart = new Cart({ user: userId, items: [] });
+    }
+
+    const existingItem = cart.items.find(item => item.product.toString() === productId);
+    if (existingItem) {
+      existingItem.quantity = quantity;
+    } else {
+      cart.items.push({ product: productId, quantity });
+    }
+
+    await cart.save();
+    res.status(200).json({ message: 'Product added to cart successfully' });
+  } catch (error) {
+    console.error('Error adding to cart:', error);
+    res.status(500).json({ message: 'Error adding product to cart' });
+  }
+};
 
 module.exports = {
   renderLandingPage,
@@ -423,6 +448,7 @@ module.exports = {
   registerUser,
   verifyOTP,
   loginUser,
-  logout,
   renderMenuPage,
+  logout,
+  addToCart
 };

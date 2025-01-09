@@ -11,7 +11,8 @@ const errorHandler = require('./middlewares/errorHandler');
 const cookieParser = require('cookie-parser');
 const adminRouter = require('./routes/admin/adminRouter');
 const upload = require('./config/multerConfig');
-
+const session = require('express-session');
+const flash = require('connect-flash');
 
 const app = express();
 dotenv.config();
@@ -23,6 +24,25 @@ const preventCaching = (req, res, next) => {
   res.setHeader('Expires', '0');
   next();
 };
+
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false
+}));
+
+// Flash messages middleware
+app.use(flash());
+
+// Make flash messages available to all views
+app.use((req, res, next) => {
+  res.locals.messages = {
+    success: req.flash('success'),
+    error: req.flash('error')
+  };
+  next();
+});
 
 app.use(bodyParser.json());
 app.use(passport.initialize());
@@ -38,10 +58,9 @@ app.use('/', userRouter);
 app.use('/admin', adminRouter);
 app.use(errorHandler);
 app.use(cors({
-  origin: process.env.CLIENT_ORIGIN || 'http://localhost:3000',
+  origin: process.env.CLIENT_ORIGIN ,
   credentials: true,
 }));
-
 
 app.set('views', [
   path.join(__dirname, 'views/user'),
@@ -58,7 +77,6 @@ app.post('/admin/products/add', (req, res, next) => {
   res.send('Files uploaded');
 });
 
-
 const PORT = process.env.PORT;
 
 if (process.env.NODE_ENV !== 'test') {
@@ -68,6 +86,5 @@ if (process.env.NODE_ENV !== 'test') {
 app.listen(PORT, () => {
   console.log(`App is running on port ${PORT}`);
 });
-
 
 module.exports = app;
