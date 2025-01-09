@@ -1006,4 +1006,70 @@ a:focus {
 .footer_section .footer-info p a {
   color: inherit;
 }
+
+/* Auth Pages Styles */
+.auth-card {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+}
+
+.auth-card .card-body {
+    padding: 2.5rem;
+}
+
+.auth-card h2 {
+    color: #333;
+    font-size: 2.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.auth-card .form-control {
+    border-radius: 8px;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    transition: all 0.3s ease;
+}
+
+.auth-card .form-control:focus {
+    border-color: #ffbe33;
+    box-shadow: 0 0 0 0.2rem rgba(255, 190, 51, 0.25);
+}
+
+.auth-card .btn-primary {
+    background-color: #ffbe33;
+    border-color: #ffbe33;
+    padding: 12px 25px;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.auth-card .btn-primary:hover {
+    background-color: #e5a82d;
+    border-color: #e5a82d;
+    transform: translateY(-2px);
+}
+
+.auth-card .btn-outline-secondary {
+    border-color: #ddd;
+    color: #666;
+}
+
+.auth-card .btn-outline-secondary:hover {
+    background-color: #f8f9fa;
+    border-color: #ddd;
+    color: #333;
+}
+
+.auth-card .form-text {
+    color: #888;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+}
+
+.auth-card .alert {
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
 /*# sourceMappingURL=style.css.map */

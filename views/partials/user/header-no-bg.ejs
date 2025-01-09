@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <link rel="shortcut icon" href="/images/favicon.png" type="" />
+    <title>Derry World</title>
+
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/jquery-nice-select/1.1.0/css/nice-select.min.css"
+    />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="css/style.css" rel="stylesheet" />
+    <link href="css/responsive.css" rel="stylesheet" />
+    <style>
+      .header_section {
+        background: #222831;
+      }
+
+      .cart_link {
+        position: relative !important;
+        display: inline-block !important;
+      }
+
+      .cart_link svg {
+        width: 24px !important;
+        height: 24px !important;
+        fill: #ffffff !important;
+      }
+
+      .cart-count {
+        position: absolute !important;
+        top: -8px !important;
+        right: -8px !important;
+        background-color: #ffc107 !important;
+        color: white !important;
+        font-size: 12px !important;
+        font-weight: bold !important;
+        min-width: 18px !important;
+        height: 18px !important;
+        border-radius: 50% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 2px !important;
+        
+        box-shadow: 0 0 0 1px #ffc107 !important;
+        z-index: 1000 !important;
+      }
+
+      .dropdown-menu {
+        background-color: #222831;
+        border: 1px solid #ffc107;
+      }
+
+      .dropdown-item {
+        color: #ffffff;
+      }
+
+      .dropdown-item:hover {
+        background-color: #ffc107;
+        color: #222831;
+      }
+
+      @media (max-width: 768px) {
+        .cart-count {
+          font-size: 10px !important;
+          min-width: 16px !important;
+          height: 16px !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+   
+      <!-- header section starts -->
+      <header class="header_section">
+        <div class="container">
+          <nav class="navbar navbar-expand-lg custom_nav-container">
+            <a class="navbar-brand" href="/">
+              <span>Derry World</span>
+            </a>
+
+            <button
+              class="navbar-toggler"
+              type="button"
+              data-toggle="collapse"
+              data-target="#navbarSupportedContent"
+              aria-controls="navbarSupportedContent"
+              aria-expanded="false"
+              aria-label="Toggle navigation"
+            >
+              <span class=""></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+              <ul class="navbar-nav mx-auto">
+                <li class="nav-item">
+                  <a class="nav-link" href="/">Home</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="/menu">Menu</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="/about">About</a>
+                </li>
+              </ul>
+              <div class="user_option">
+                <% if (user) { %>
+                <!-- Dropdown for username -->
+                <div class="dropdown">
+                  <a
+                    class="user_link dropdown-toggle"
+                    href="#"
+                    id="dropdownMenuButton"
+                    data-toggle="dropdown"
+                    aria-haspopup="true"
+                    aria-expanded="false"
+                  >
+                    <i
+                      class="fa fa-user"
+                      aria-hidden="true"
+                      style="color: #ffc107"
+                    ></i>
+                    <span style="color: white"><%= user.name %></span>
+                  </a>
+                  <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="/profile">Profile</a>
+                    <a class="dropdown-item" href="/orders">My Orders</a>
+                    <a class="dropdown-item" href="/logout">Logout</a>
+                  </div>
+                </div>
+                <% } else { %>
+                <a class="user_link" href="/login">Login</a>
+                <a class="user_link" href="/register">Register</a>
+                <% } %>
+                <a class="cart_link" href="/cart">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 456.029 456.029"
+                  >
+                    <g>
+                      <path
+                        d="M345.6,338.862c-29.184,0-53.248,23.552-53.248,53.248c0,29.184,23.552,53.248,53.248,53.248c29.184,0,53.248-23.552,53.248-53.248C398.336,362.926,374.784,338.862,345.6,338.862z"
+                      />
+                      <path
+                        d="M439.296,84.91c-1.024,0-2.56-0.512-4.096-0.512H112.64l-5.12-34.304C104.448,27.566,84.992,10.67,61.952,10.67H20.48C9.216,10.67,0,19.886,0,31.15c0,11.264,9.216,20.48,20.48,20.48h41.472l31.744,216.064c4.096,27.136,27.648,47.616,55.296,47.616h212.992c26.624,0,49.664-18.944,55.296-45.056l33.28-166.4C457.728,97.71,450.56,86.958,439.296,84.91z"
+                      />
+                      <path
+                        d="M215.04,389.55c-1.024-28.16-24.576-50.688-52.736-50.688c-29.696,1.536-52.224,26.112-51.2,55.296c1.024,28.16,24.064,50.688,52.224,50.688h1.024C193.536,443.31,216.576,418.734,215.04,389.55z"
+                      />
+                    </g>
+                  </svg>
+                  <span class="cart-count"><%= cartCount %></span>
+                </a>
+              </div>
+            </div>
+          </nav>
+        </div>
+      </header>
+      <!-- end header section -->
+    

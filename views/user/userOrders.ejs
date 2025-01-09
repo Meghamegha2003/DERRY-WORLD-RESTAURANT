@@ -1,0 +1,800 @@
+<%- include('../partials/user/header-no-bg', { user, cartCount }) %>
+
+<style>
+    :root {
+        --primary: #fc8019;
+        --text-primary: #282c3f;
+        --text-secondary: #686b78;
+        --bg-primary: #ffffff;
+        --bg-secondary: #f2f2f2;
+        --success: #60b246;
+        --warning: #db7c38;
+        --danger: #e53935;
+        --border: #d4d5d9;
+    }
+
+    body {
+        background-color: var(--bg-secondary);
+        font-family: ProximaNova, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: var(--text-primary);
+        line-height: 1.5;
+    }
+
+    .profile-container {
+        background: var(--bg-primary);
+        padding: 32px 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .profile-info {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 24px;
+    }
+
+    .profile-name {
+        font-size: 32px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: var(--text-primary);
+    }
+
+    .profile-details {
+        font-size: 14px;
+        color: var(--text-secondary);
+    }
+
+    .main-container {
+        max-width: 1200px;
+        margin: 24px auto;
+        padding: 0 24px;
+        display: flex;
+        gap: 24px;
+    }
+
+    .sidebar {
+        width: 280px;
+        flex-shrink: 0;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .nav-item {
+        display: flex;
+        align-items: center;
+        padding: 16px;
+        color: var(--text-primary);
+        text-decoration: none;
+        border-radius: 8px;
+        margin: 4px 8px;
+        transition: all 0.2s ease;
+    }
+
+    .nav-item:hover {
+        background-color: var(--bg-secondary);
+        color: var(--primary);
+    }
+
+    .nav-item.active {
+        background-color: #fff3eb;
+        color: var(--primary);
+        font-weight: 500;
+    }
+
+    .nav-item i {
+        margin-right: 12px;
+        font-size: 18px;
+        width: 24px;
+        text-align: center;
+    }
+
+    .content-area {
+        flex-grow: 1;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 24px;
+    }
+
+    .section-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .order-card {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin-bottom: 16px;
+        background: var(--bg-primary);
+        transition: all 0.2s ease;
+    }
+
+    .order-card:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .restaurant-info {
+        display: flex;
+        align-items: center;
+        padding: 20px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .restaurant-image {
+        width: 60px;
+        height: 60px;
+        border-radius: 8px;
+        object-fit: cover;
+        margin-right: 16px;
+    }
+
+    .restaurant-name {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+    }
+
+    .order-info {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+
+    .order-info-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .order-info-item i {
+        font-size: 14px;
+    }
+
+    .order-status {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 500;
+        font-size: 14px;
+    }
+
+    .status-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        color: white;
+    }
+
+    .status-delivered .status-icon {
+        background-color: var(--success);
+    }
+
+    .status-processing .status-icon {
+        background-color: var(--warning);
+    }
+
+    .status-cancelled .status-icon {
+        background-color: var(--danger);
+    }
+
+    .status-text {
+        font-weight: 500;
+    }
+
+    .status-delivered .status-text {
+        color: var(--success);
+    }
+
+    .status-processing .status-text {
+        color: var(--warning);
+    }
+
+    .status-cancelled .status-text {
+        color: var(--danger);
+    }
+
+    .order-meta {
+        padding: 16px 20px;
+        display: flex;
+        justify-content: space-between;
+        background-color: var(--bg-secondary);
+        color: var(--text-secondary);
+        font-size: 13px;
+    }
+
+    .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .order-actions {
+        display: flex;
+        padding: 16px 20px;
+        gap: 12px;
+    }
+
+    .action-button {
+        flex: 1;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+    }
+
+    .reorder-btn {
+        background-color: var(--primary);
+        color: white;
+        border: none;
+    }
+
+    .reorder-btn:hover {
+        background-color: #e67312;
+    }
+
+    .help-btn {
+        border: 1px solid var(--text-secondary);
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+    }
+
+    .help-btn:hover {
+        border-color: var(--text-primary);
+        color: var(--text-primary);
+    }
+
+    .track-btn {
+        background-color: var(--primary);
+        color: white;
+        border: none;
+    }
+
+    .track-btn:hover {
+        background-color: #e67312;
+    }
+
+    /* Modal Styles */
+    .modal-swiggy .modal-content {
+        border-radius: 8px;
+        border: none;
+    }
+
+    .modal-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .modal-body {
+        padding: 20px;
+    }
+
+    .detail-section {
+        margin-bottom: 24px;
+    }
+
+    .detail-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .detail-content {
+        color: var(--text-secondary);
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    .address-details, .payment-details {
+        background: var(--bg-secondary);
+        padding: 16px;
+        border-radius: 8px;
+    }
+
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+
+    .detail-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .timeline {
+        position: relative;
+        margin: 20px 0;
+    }
+
+    .timeline-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding-bottom: 24px;
+        position: relative;
+    }
+
+    .timeline-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: var(--primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 12px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .timeline-content {
+        flex: 1;
+    }
+
+    .timeline-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+    }
+
+    .timeline-subtitle {
+        color: var(--text-secondary);
+        font-size: 13px;
+    }
+
+    .timeline-line {
+        position: absolute;
+        left: 11px;
+        top: 24px;
+        bottom: 0;
+        width: 2px;
+        background: var(--border);
+    }
+
+    .order-items-preview {
+        padding: 16px 20px;
+        background-color: var(--bg-secondary);
+        border-radius: 8px;
+        margin-bottom: 16px;
+    }
+
+    .preview-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .preview-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .preview-item.more {
+        color: var(--primary);
+        cursor: pointer;
+    }
+
+    .support-options {
+        display: flex;
+        gap: 12px;
+    }
+
+    .support-btn {
+        flex: 1;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+        border: 1px solid var(--text-secondary);
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+    }
+
+    .support-btn:hover {
+        border-color: var(--text-primary);
+        color: var(--text-primary);
+    }
+
+    @media (max-width: 768px) {
+        .main-container {
+            flex-direction: column;
+            padding: 16px;
+        }
+
+        .sidebar {
+            width: 100%;
+        }
+
+        .order-actions {
+            flex-direction: column;
+        }
+
+        .action-button {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="profile-container">
+    <div class="profile-info">
+        <div class="profile-name">
+            <i class="fas fa-user-circle"></i>
+            <%= user.name %>
+        </div>
+        <div class="profile-details">
+            <span><i class="fas fa-envelope"></i> <%= user.email %></span>
+            <span class="separator">•</span>
+            <span><i class="fas fa-phone"></i> <%= user.phone %></span>
+        </div>
+    </div>
+</div>
+
+<div class="main-container">
+    <div class="sidebar">
+        <a href="/orders" class="nav-item active">
+            <i class="fas fa-shopping-bag"></i>
+            Orders
+        </a>
+        <a href="/favorites" class="nav-item">
+            <i class="fas fa-heart"></i>
+            Favourites
+        </a>
+        <a href="/payments" class="nav-item">
+            <i class="fas fa-wallet"></i>
+            Payments
+        </a>
+        <a href="/addresses" class="nav-item">
+            <i class="fas fa-map-marker-alt"></i>
+            Addresses
+        </a>
+        <a href="/settings" class="nav-item">
+            <i class="fas fa-cog"></i>
+            Settings
+        </a>
+        <a href="/support" class="nav-item">
+            <i class="fas fa-headset"></i>
+            Support
+        </a>
+    </div>
+
+    <div class="content-area">
+        <h1 class="section-title">
+            <i class="fas fa-history"></i>
+            Past Orders
+        </h1>
+        
+        <% if (orders && orders.length > 0) { %>
+            <% orders.forEach(order => { %>
+                <div class="order-card">
+                    <div class="restaurant-info">
+                        <% if (order.items[0]?.product?.productImage?.length > 0) { %>
+                            <img src="/<%= order.items[0].product.productImage[0] %>" 
+                                 alt="Restaurant" 
+                                 class="restaurant-image">
+                        <% } %>
+                        <div>
+                            <div class="restaurant-name">
+                                <i class="fas fa-receipt"></i>
+                                Order #<%= order._id.toString().slice(-6).toUpperCase() %>
+                            </div>
+                            <div class="order-info">
+                                <div class="order-info-item">
+                                    <i class="fas fa-shopping-cart"></i>
+                                    <%= order.items.reduce((total, item) => total + item.quantity, 0) %> Items
+                                </div>
+                                <div class="order-info-item">
+                                    <i class="fas fa-rupee-sign"></i>
+                                    <%= ((order.totalAmount + (order.deliveryFee || 0)) || 0).toFixed(2) %>
+                                </div>
+                                <div class="order-info-item">
+                                    <i class="fas fa-map-pin"></i>
+                                    <%= order.deliveryAddress?.city || 'N/A' %>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="order-status status-<%= order.status.toLowerCase() %>">
+                            <div class="status-icon">
+                                <i class="fas <%= 
+                                    order.status === 'Delivered' ? 'fa-check' : 
+                                    order.status === 'Processing' ? 'fa-clock' : 
+                                    order.status === 'Cancelled' ? 'fa-times' : 
+                                    'fa-truck' %>"></i>
+                            </div>
+                            <span class="status-text"><%= order.status %></span>
+                        </div>
+                    </div>
+
+                    <div class="order-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-hashtag"></i>
+                            ORDER #<%= order._id.toString().slice(-6).toUpperCase() %>
+                        </div>
+                        <div class="meta-item">
+                            <i class="far fa-calendar-alt"></i>
+                            <%= new Date(order.createdAt).toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                            }) %>
+                        </div>
+                        <div class="meta-item">
+                            <i class="far fa-clock"></i>
+                            <%= new Date(order.createdAt).toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: 'numeric',
+                                hour12: true
+                            }) %>
+                        </div>
+                    </div>
+
+                    <div class="order-items-preview">
+                        <% order.items.slice(0, 2).forEach(item => { %>
+                            <div class="preview-item">
+                                <i class="fas fa-utensils"></i>
+                                <%= item.product?.name %> x <%= item.quantity %>
+                            </div>
+                        <% }); %>
+                        <% if (order.items.length > 2) { %>
+                            <div class="preview-item more">
+                                <i class="fas fa-ellipsis-h"></i>
+                                +<%= order.items.length - 2 %> more items
+                            </div>
+                        <% } %>
+                    </div>
+
+                    <div class="order-actions">
+                        <button class="action-button reorder-btn">
+                            <i class="fas fa-redo"></i>
+                            REORDER
+                        </button>
+                        <button class="action-button track-btn">
+                            <i class="fas fa-map-marked-alt"></i>
+                            TRACK ORDER
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Order Details Modal -->
+                <div class="modal fade modal-swiggy" id="orderModal<%= order._id %>" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-info-circle"></i>
+                                    Order Details
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <!-- Order Items -->
+                                <div class="detail-section">
+                                    <div class="detail-title">
+                                        <i class="fas fa-shopping-basket"></i>
+                                        Order Items
+                                    </div>
+                                    <div class="items-list">
+                                        <% order.items.forEach(item => { %>
+                                            <div class="item-row">
+                                                <div class="item-info">
+                                                    <i class="fas fa-utensils"></i>
+                                                    <%= item.product?.name %>
+                                                    <span class="item-quantity">x<%= item.quantity %></span>
+                                                </div>
+                                                <div class="item-price">
+                                                    <i class="fas fa-rupee-sign"></i>
+                                                    <%= (item.price * item.quantity).toFixed(2) %>
+                                                </div>
+                                            </div>
+                                        <% }); %>
+                                    </div>
+                                </div>
+
+                                <!-- Order Timeline -->
+                                <div class="detail-section">
+                                    <div class="detail-title">
+                                        <i class="fas fa-clock"></i>
+                                        Order Status
+                                    </div>
+                                    <div class="timeline">
+                                        <div class="timeline-item">
+                                            <div class="timeline-icon">
+                                                <i class="fas fa-check"></i>
+                                            </div>
+                                            <div class="timeline-content">
+                                                <div class="timeline-title">
+                                                    <i class="fas fa-shopping-cart"></i>
+                                                    Order Placed
+                                                </div>
+                                                <div class="timeline-subtitle">
+                                                    <i class="far fa-clock"></i>
+                                                    <%= new Date(order.createdAt).toLocaleString('en-US', {
+                                                        hour: 'numeric',
+                                                        minute: 'numeric',
+                                                        hour12: true
+                                                    }) %>
+                                                </div>
+                                            </div>
+                                            <div class="timeline-line"></div>
+                                        </div>
+
+                                        <% if (order.status !== 'Cancelled') { %>
+                                            <div class="timeline-item">
+                                                <div class="timeline-icon">
+                                                    <i class="fas <%= 
+                                                        order.status === 'Delivered' ? 'fa-check' : 
+                                                        'fa-clock' %>"></i>
+                                                </div>
+                                                <div class="timeline-content">
+                                                    <div class="timeline-title">
+                                                        <i class="fas <%= 
+                                                            order.status === 'Processing' ? 'fa-fire' : 
+                                                            order.status === 'Shipped' ? 'fa-truck' : 
+                                                            'fa-check-circle' %>"></i>
+                                                        <%= order.status === 'Processing' ? 'Preparing Your Order' : 
+                                                            order.status === 'Shipped' ? 'Out for Delivery' : 
+                                                            'Delivered' %>
+                                                    </div>
+                                                    <div class="timeline-subtitle">
+                                                        <i class="fas <%= 
+                                                            order.status === 'Delivered' ? 'fa-smile' : 
+                                                            'fa-spinner fa-spin' %>"></i>
+                                                        <%= order.status === 'Delivered' ? 'Your order has been delivered' : 
+                                                            'We\'re working on your order' %>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        <% } else { %>
+                                            <div class="timeline-item">
+                                                <div class="timeline-icon">
+                                                    <i class="fas fa-times"></i>
+                                                </div>
+                                                <div class="timeline-content">
+                                                    <div class="timeline-title">
+                                                        <i class="fas fa-ban"></i>
+                                                        Order Cancelled
+                                                    </div>
+                                                    <div class="timeline-subtitle">
+                                                        <i class="fas fa-info-circle"></i>
+                                                        Order has been cancelled
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        <% } %>
+                                    </div>
+                                </div>
+
+                                <!-- Delivery Address -->
+                                <% if (order.deliveryAddress) { %>
+                                    <div class="detail-section">
+                                        <div class="detail-title">
+                                            <i class="fas fa-map-marker-alt"></i>
+                                            Delivery Address
+                                        </div>
+                                        <div class="address-details">
+                                            <div class="address-row">
+                                                <i class="fas fa-home"></i>
+                                                <%= order.deliveryAddress.street || 'N/A' %>
+                                            </div>
+                                            <div class="address-row">
+                                                <i class="fas fa-city"></i>
+                                                <%= order.deliveryAddress.city || 'N/A' %>
+                                            </div>
+                                            <div class="address-row">
+                                                <i class="fas fa-map"></i>
+                                                <%= order.deliveryAddress.state || 'N/A' %> - 
+                                                <%= order.deliveryAddress.zipCode || 'N/A' %>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <% } %>
+
+                                <!-- Payment Details -->
+                                <div class="detail-section">
+                                    <div class="detail-title">
+                                        <i class="fas fa-credit-card"></i>
+                                        Payment Details
+                                    </div>
+                                    <div class="payment-details">
+                                        <div class="detail-row">
+                                            <span>
+                                                <i class="fas fa-wallet"></i>
+                                                Payment Method
+                                            </span>
+                                            <span>
+                                                <i class="fas <%= 
+                                                    order.paymentMethod.toLowerCase().includes('card') ? 'fa-credit-card' :
+                                                    order.paymentMethod.toLowerCase().includes('upi') ? 'fa-mobile-alt' :
+                                                    'fa-money-bill-wave' %>"></i>
+                                                <%= order.paymentMethod %>
+                                            </span>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span>
+                                                <i class="fas fa-shopping-cart"></i>
+                                                Item Total
+                                            </span>
+                                            <span>
+                                                <i class="fas fa-rupee-sign"></i>
+                                                <%= order.totalAmount.toFixed(2) %>
+                                            </span>
+                                        </div>
+                                        <% if (order.deliveryFee) { %>
+                                            <div class="detail-row">
+                                                <span>
+                                                    <i class="fas fa-truck"></i>
+                                                    Delivery Fee
+                                                </span>
+                                                <span>
+                                                    <i class="fas fa-rupee-sign"></i>
+                                                    <%= order.deliveryFee.toFixed(2) %>
+                                                </span>
+                                            </div>
+                                        <% } %>
+                                        <div class="detail-row grand-total">
+                                            <span>
+                                                <i class="fas fa-file-invoice-dollar"></i>
+                                                Grand Total
+                                            </span>
+                                            <span>
+                                                <i class="fas fa-rupee-sign"></i>
+                                                <%= ((order.totalAmount + (order.deliveryFee || 0)) || 0).toFixed(2) %>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            <% }); %>
+
+            <div class="show-more">
+                <button class="action-button help-btn">
+                    <i class="fas fa-chevron-down"></i>
+                    Show More Orders
+                </button>
+            </div>
+        <% } else { %>
+            <div class="empty-orders">
+                <i class="fas fa-shopping-bag"></i>
+                <h3>No orders yet</h3>
+                <p>Hungry? Order your favorite food now!</p>
+                <a href="/menu" class="action-button reorder-btn">
+                    <i class="fas fa-utensils"></i>
+                    Browse Menu
+                </a>
+            </div>
+        <% } %>
+    </div>
+</div>
+
+<%- include('../partials/user/footer') %>

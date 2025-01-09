@@ -87,16 +87,14 @@
                         <% } %>
                         
 
-                        <form action="/login" method="post" onsubmit="return validateLoginForm();">
+                        <form id="loginForm" action="/login" method="post" onsubmit="return handleLoginSubmit(event)">
                             <div class="form-group">
                                 <label for="email">Email Address</label>
                                 <input type="email" class="form-control" id="email" name="email" required />
-                                <small id="emailError" class="text-danger" style="display: none;">Please enter a valid email address.</small>
                             </div>
                             <div class="form-group">
                                 <label for="password">Password</label>
                                 <input type="password" class="form-control" id="password" name="password" required />
-                                <small id="passwordError" class="text-danger" style="display: none;">Password is required.</small>
                             </div>
                             <div class="form-group text-right">
                                 <a href="/forgot-password" class="forgot-password">Forgot Password?</a>
@@ -104,12 +102,10 @@
                             <button type="submit" class="btn btn-login btn-block">Login</button>
                         </form>
 
-                        <div class="text-center my-3">
-                            <p>Or login using:</p>
-                            <!-- Google Sign-In Button -->
-                            <button style="background-color: #007bff;" onclick="googleSignIn()" class="btn btn-google btn-block">
-                                <i class="fab fa-google"></i> Sign Up with Google
-                            </button>
+                        <div class="mt-4 text-center">
+                          <a href="/auth/google" class="btn btn-danger btn-block">
+                            <i class="fab fa-google"></i> Sign in with Google
+                          </a>
                         </div>
                         <p class="text-center mt-3">Don't have an account? <a href="/register">Register here</a></p>
                     </div>
@@ -118,39 +114,92 @@
         </div>
     </div>
 
+    <!-- Add SweetAlert2 CSS and JS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
-      
-
- 
-        function validateLoginForm() {
-            const email = document.getElementById('email');
-            const password = document.getElementById('password');
-            const emailError = document.getElementById('emailError');
-            const passwordError = document.getElementById('passwordError');
-            let isValid = true;
-
-            // Reset error messages
-            emailError.style.display = 'none';
-            passwordError.style.display = 'none';
+        async function handleLoginSubmit(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
 
             // Email validation
-            if (!email.value) {
-                emailError.textContent = 'Email is required.';
-                emailError.style.display = 'block';
-                isValid = false;
-            } else if (!/\S+@\S+\.\S+/.test(email.value)) {
-                emailError.textContent = 'Please enter a valid email address.';
-                emailError.style.display = 'block';
-                isValid = false;
+            if (!email) {
+                await Swal.fire({
+                    title: '<span style="font-size: 24px; font-weight: 600;">Email Required</span>',
+                    text: 'Please enter your email address',
+                    icon: 'error',
+                    confirmButtonColor: '#007bff'
+                });
+                return false;
+            }
+
+            // Email format validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                await Swal.fire({
+                    title: '<span style="font-size: 24px; font-weight: 600;">Invalid Email</span>',
+                    text: 'Please enter a valid email address',
+                    icon: 'error',
+                    confirmButtonColor: '#007bff'
+                });
+                return false;
             }
 
             // Password validation
-            if (!password.value) {
-                passwordError.style.display = 'block';
-                isValid = false;
+            if (!password) {
+                await Swal.fire({
+                    title: '<span style="font-size: 24px; font-weight: 600;">Password Required</span>',
+                    text: 'Please enter your password',
+                    icon: 'error',
+                    confirmButtonColor: '#007bff'
+                });
+                return false;
             }
 
-            return isValid;
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    await Swal.fire({
+                        title: '<span style="font-size: 24px; font-weight: 600;">Success!</span>',
+                        text: 'Login successful!',
+                        icon: 'success',
+                        confirmButtonColor: '#007bff'
+                    });
+                    window.location.href = data.redirectUrl || '/';
+                } else {
+                    await Swal.fire({
+                        title: '<span style="font-size: 24px; font-weight: 600;">Login Failed</span>',
+                        text: data.message || 'Invalid email or password',
+                        icon: 'error',
+                        confirmButtonColor: '#007bff'
+                    });
+                }
+            } catch (error) {
+                await Swal.fire({
+                    title: '<span style="font-size: 24px; font-weight: 600;">Error</span>',
+                    text: 'An error occurred during login. Please try again.',
+                    icon: 'error',
+                    confirmButtonColor: '#007bff'
+                });
+            }
+
+            return false;
+        }
+
+        function googleSignIn() {
+            window.location.href = '/auth/google';
         }
     </script>
 </body>

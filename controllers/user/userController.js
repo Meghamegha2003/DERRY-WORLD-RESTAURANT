@@ -13,14 +13,19 @@ const generateAndSaveOtp = async (email) => {
     // Delete any existing OTP for this email
     await OTP.deleteOne({ email });
 
-    const otp = Math.floor(100000 + Math.random() * 900000);
+    // Generate a 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Create new OTP record with 15 minutes expiry
     const otpRecord = new OTP({
       email,
-      otp: otp.toString(),
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      otp,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
     });
 
+    // Save the OTP record
     await otpRecord.save();
+
     return otp;
   } catch (error) {
     console.error("Error generating OTP:", error);
@@ -28,58 +33,126 @@ const generateAndSaveOtp = async (email) => {
   }
 };
 
+const generateAndSaveOtpNew = async (email) => {
+  // Generate a 6-digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  
+  // Set expiry time to 15 minutes from now
+  const expiresAt = new Date();
+  expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+
+  // Create new OTP document
+  const newOTP = new OTP({
+    email,
+    otp,
+    expiresAt
+  });
+
+  // Save OTP to database
+  await newOTP.save();
+
+  return otp;
+};
+
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    pass: process.env.EMAIL_PASS
   },
+  tls: {
+    rejectUnauthorized: false
+  },
+  timeout: 10000 // 10 seconds timeout
 });
 
-const pendingRegistrations = new Map();
+// Verify transporter connection
+transporter.verify(function(error, success) {
+  if (error) {
+    console.error('SMTP connection error:', error);
+  } else {
+    console.log('SMTP server is ready to send emails');
+  }
+});
 
 const sendOTP = async (email, otp) => {
   try {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
-      subject: "Your OTP Code",
-      text: `Your OTP code is: ${otp}. It will expire in 15 minutes.`,
+      subject: 'Email Verification - Derry World',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #007bff; text-align: center;">Welcome to Derry World!</h2>
+          <p style="font-size: 16px; line-height: 1.6;">Dear User,</p>
+          <p style="font-size: 16px; line-height: 1.6;">Thank you for registering with Derry World. To complete your registration, please use the following OTP:</p>
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;">
+            <h1 style="color: #007bff; margin: 0; letter-spacing: 5px;">${otp}</h1>
+          </div>
+          <p style="font-size: 16px; line-height: 1.6;">This OTP will expire in 15 minutes for security purposes.</p>
+          <p style="font-size: 14px; color: #6c757d; margin-top: 30px;">If you didn't request this verification, please ignore this email.</p>
+          <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6;">
+            <p style="font-size: 14px; color: #6c757d;"> ${new Date().getFullYear()} Derry World. All rights reserved.</p>
+          </div>
+        </div>
+      `
     };
 
     await transporter.sendMail(mailOptions);
   } catch (error) {
-    console.error("Error sending OTP email:", error);
-    throw new Error("Failed to send OTP email. Please try again.");
+    console.error('Error sending email:', error);
+    throw new Error('Failed to send OTP email. Please try again.');
   }
 };
 
+const sendOTPNew = async (email, otp) => {
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: 'Email Verification - Derry World',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #007bff; text-align: center;">Welcome to Derry World!</h2>
+        <p style="font-size: 16px; line-height: 1.6;">Dear User,</p>
+        <p style="font-size: 16px; line-height: 1.6;">Thank you for registering with Derry World. To complete your registration, please use the following OTP:</p>
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;">
+          <h1 style="color: #007bff; margin: 0; letter-spacing: 5px;">${otp}</h1>
+        </div>
+        <p style="font-size: 16px; line-height: 1.6;">This OTP will expire in 15 minutes for security purposes.</p>
+        <p style="font-size: 14px; color: #6c757d; margin-top: 30px;">If you didn't request this verification, please ignore this email.</p>
+        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6;">
+          <p style="font-size: 14px; color: #6c757d;"> ${new Date().getFullYear()} Derry World. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+const pendingRegistrations = new Map();
+
 const renderLandingPage = async (req, res) => {
   try {
-    console.log('Product Model:', Product); // Debug log
-    
     const categories = await Category.find();
     const categoryFilter = req.query.category || null;
-    
-    let query = {};
-    if (categoryFilter) {
-      query.category = categoryFilter;
-    }
+    const query = categoryFilter ? { "category.name": categoryFilter } : {};
 
-    const products = await Product.find(query)
-      .populate('category')
-      .sort({ createdAt: -1 })
-      .lean();
-
-    console.log('Products found:', products); // Debug log
+    const products = await Product.find(query).populate("category");
 
     const activePage = "home";
-    res.render("home", { 
-      products, 
-      categories, 
-      activePage,
-      user: req.user || null 
-    });
+
+    res.render("home", { products, categories, activePage });
   } catch (error) {
     console.error("Error fetching menu data:", error);
     res.status(500).send("Internal Server Error");
@@ -96,196 +169,281 @@ const renderRegisterPage = (req, res) => {
     activePage: "register",
   });
 };
+
 const resendOTP = async (req, res) => {
-  const { email } = req.body;
+  try {
+    const { email, token } = req.body;
 
-  // Check if an OTP was already generated and if it has expired
-  const otpRecord = await OTP.findOne({ email });
+    if (!email || !token) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and token are required"
+      });
+    }
 
-  // If the OTP exists and it hasn't expired, resend the same OTP
-  if (otpRecord && otpRecord.expiresAt > Date.now()) {
-    return res
-      .status(200)
-      .json({ message: "OTP is still valid. Please check your email." });
+    try {
+      // Verify the token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+      if (!decoded || !decoded.isOtpVerification || decoded.email !== email) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid token"
+        });
+      }
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired token"
+      });
+    }
+
+    // Check if there's a pending registration
+    const pendingUser = pendingRegistrations.get(email);
+    if (!pendingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "No pending registration found for this email"
+      });
+    }
+
+    // Delete any existing OTP for this email
+    await OTP.deleteOne({ email });
+
+    // Generate and save new OTP
+    const otp = await generateAndSaveOtp(email);
+    
+    // Send the new OTP
+    await sendOTP(email, otp);
+
+    // Generate a new token
+    const newToken = jwt.sign(
+      { email, isOtpVerification: true },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "New OTP has been sent to your email",
+      token: newToken
+    });
+  } catch (error) {
+    console.error("Error in resendOTP:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send OTP. Please try again."
+    });
   }
-
-  // If OTP is expired or doesn't exist, generate a new OTP
-  const otp = generateAndSaveOtp();
-  const newOtpRecord = new OTP({
-    email,
-    otp,
-    expiresAt: new Date(Date.now() + 10 * 60 * 1000), // Set new expiration time
-  });
-
-  await newOtpRecord.save();
-  await sendOTP(email, otp); // Send new OTP
-
-  res.status(200).json({ message: "OTP sent successfully!" });
 };
 
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, confirmPassword, phone } = req.body;
+    const { name, email, phone, password } = req.body;
 
-    if (!name || !email || !password || !confirmPassword || !phone) {
-      return res.render("register", {
-        message: "All fields are required",
-        successMessage: "",
-        activePage: "register",
+    // Basic validation
+    if (!name || !email || !phone || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required"
       });
     }
 
-    if (password !== confirmPassword) {
-      return res.render("register", {
-        message: "Passwords do not match",
-        successMessage: "",
-        activePage: "register",
-      });
-    }
-
-    if (password.length < 6) {
-      return res.render("register", {
-        message: "Password must be at least 6 characters long",
-        successMessage: "",
-        activePage: "register",
-      });
-    }
-
+    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.render("register", {
-        message: "Email is already registered",
-        successMessage: "",
-        activePage: "register",
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered"
       });
     }
 
-    // Store user data in temporary storage
+    // Store registration data temporarily (password will be hashed by schema pre-save hook)
     pendingRegistrations.set(email, {
       name,
       email,
       phone,
-      password, // Will be hashed by the pre-save middleware
-      roles: ["user"],
-      status: "Active",
+      password, // Raw password - will be hashed by schema
+      createdAt: new Date()
     });
 
-    const otp = await generateAndSaveOtp(email);
-    await sendOTP(email, otp);
-    console.log(otp);
+    // Generate OTP first before storing data
+    let otp;
+    try {
+      // Delete any existing OTP for this email
+      await OTP.deleteOne({ email });
+      
+      // Generate and save new OTP
+      otp = await generateAndSaveOtp(email);
+    } catch (error) {
+      console.error('Error generating OTP:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to generate OTP. Please try again."
+      });
+    }
 
-    res.render("verifyOtp", {
-      message: "",
-      successMessage: "Please verify your email to complete registration.",
-      email,
-      activePage: "register",
+    // Try to send OTP email
+    try {
+      await sendOTP(email, otp);
+    } catch (error) {
+      // If email fails, clean up the saved OTP
+      await OTP.deleteOne({ email });
+      console.error('Error sending OTP:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send verification email. Please try again or contact support."
+      });
+    }
+
+    // Generate a temporary token for OTP verification
+    const token = jwt.sign(
+      { email, isOtpVerification: true },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }  // Increased from 15m to 1h
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Registration initiated. Please verify your email with OTP.",
+      redirectUrl: `/verify-otp?token=${token}`
     });
   } catch (error) {
     console.error("Error in registerUser:", error);
-    const errorMessage =
-      error.message || "An error occurred during registration";
-    res.render("register", {
-      message: errorMessage,
-      successMessage: "",
-      activePage: "register",
+    return res.status(500).json({
+      success: false,
+      message: "Registration failed. Please try again."
     });
+  }
+};
+
+const renderVerifyOtp = async (req, res) => {
+  try {
+    const token = req.query.token;
+
+    if (!token) {
+      return res.redirect('/register?error=No verification token provided');
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+      if (!decoded || !decoded.isOtpVerification) {
+        return res.redirect('/register?error=Invalid verification token');
+      }
+
+      res.render('verifyOtp', {
+        email: decoded.email,
+        message: '',
+        successMessage: 'Please enter the OTP sent to your email.',
+        activePage: 'register'
+      });
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        // Generate a new token and OTP
+        const email = jwt.decode(token).email;
+        const newOtp = await generateAndSaveOtp(email);
+        
+        // Send new OTP email
+        await sendOTP(email, newOtp);
+        
+        // Generate new token with longer expiration
+        const newToken = jwt.sign(
+          { email, isOtpVerification: true },
+          process.env.JWT_SECRET,
+          { expiresIn: '1h' } // Increased to 1 hour
+        );
+        
+        return res.redirect(`/verify-otp?token=${newToken}&message=New OTP has been sent`);
+      }
+      
+      console.error('Token verification failed:', error);
+      return res.redirect('/register?error=Token verification failed');
+    }
+  } catch (error) {
+    console.error('Error in renderVerifyOtp:', error);
+    res.redirect('/register?error=An error occurred');
   }
 };
 
 const verifyOTP = async (req, res) => {
   try {
-    const { otp, email } = req.body;
-    console.log("Verifying OTP for email:", email);
+    const { email, otp, token } = req.body;
 
-    const otpRecord = await OTP.findOne({
-      email,
-      otp,
-      expiresAt: { $gt: new Date() },
-    });
-
-    if (!otpRecord) {
-      console.log("Invalid or expired OTP for:", email);
-      return res.render("verifyOtp", {
-        message: "Invalid or expired OTP",
-        successMessage: "",
-        email,
-        activePage: "register",
+    if (!email || !otp || !token) {
+      return res.status(400).json({
+        success: false,
+        message: "Email, OTP and token are required"
       });
     }
 
-    // Get pending registration data
+    // Check if there's a pending registration
     const pendingUser = pendingRegistrations.get(email);
-    console.log("Pending registration found:", pendingUser ? "Yes" : "No");
-
     if (!pendingUser) {
-      console.log("No pending registration found for:", email);
-      return res.render("verifyOtp", {
-        message: "Registration data not found. Please register again.",
-        successMessage: "",
-        email,
-        activePage: "register",
+      return res.status(400).json({
+        success: false,
+        message: "No pending registration found"
       });
     }
 
-    try {
-      // Create and save the user
-      const newUser = new User({
-        name: pendingUser.name,
-        email: pendingUser.email,
-        password: pendingUser.password,
-        phone: pendingUser.phone,
-        roles: ["user"],
-        status: "Active",
-        isVerified: true,
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (!decoded || !decoded.isOtpVerification || decoded.email !== email) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid token"
       });
+    }
 
-      console.log("Attempting to save new user:", newUser.email);
-      await newUser.save();
-      console.log("User saved successfully");
+    // Find the OTP record
+    const otpRecord = await OTP.findOne({ email });
+    
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        message: "OTP not found or has expired. Please request a new one."
+      });
+    }
 
-      // Clear temporary data
-      pendingRegistrations.delete(email);
+    // Check if OTP has expired
+    if (otpRecord.expiresAt < Date.now()) {
       await OTP.deleteOne({ email });
-
-      // Double check if user was actually saved
-      const savedUser = await User.findOne({ email });
-      console.log(
-        "Verification - User exists in DB:",
-        savedUser ? "Yes" : "No"
-      );
-
-      if (!savedUser) {
-        console.log("Error: User was not saved properly");
-        throw new Error("Failed to save user");
-      }
-
-      // Redirect to login page with success message
-      return res.redirect(
-        "/login?successMessage=" +
-          encodeURIComponent(
-            "Registration completed successfully! Please login to continue."
-          )
-      );
-    } catch (saveError) {
-      console.error("Error saving user:", saveError);
-      return res.render("verifyOtp", {
-        message: "Error creating user account. Please try again.",
-        successMessage: "",
-        email,
-        activePage: "register",
+      return res.status(400).json({
+        success: false,
+        message: "OTP has expired. Please request a new one."
       });
     }
+
+    // Verify OTP
+    if (otpRecord.otp !== otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP. Please try again."
+      });
+    }
+
+    // Create the user
+    const user = new User(pendingUser);
+    await user.save();
+
+    // Clean up
+    pendingRegistrations.delete(email);
+    await OTP.deleteOne({ email });
+
+    return res.status(200).json({
+      success: true,
+      message: "Registration successful! Please login.",
+      redirectUrl: "/login"
+    });
   } catch (error) {
-    console.error("Error in verifyOtp:", error);
-    res.render("verifyOtp", {
-      message: "An error occurred during verification",
-      successMessage: "",
-      email: req.body.email,
-      activePage: "register",
+    console.error("Error in verifyOTP:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred during verification. Please try again."
     });
   }
 };
-
 
 const loginUser = async (req, res) => {
   try {
@@ -293,7 +451,10 @@ const loginUser = async (req, res) => {
 
     // Validate input
     if (!email || !candidatePassword) {
-      return res.status(400).json({ error: "Email and password are required" });
+      return res.status(400).json({ 
+        success: false, 
+        message: "Email and password are required" 
+      });
     }
 
     // Find user by email, include password
@@ -301,29 +462,35 @@ const loginUser = async (req, res) => {
 
     // Check if user exists
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ 
+        success: false, 
+        message: "Invalid email or password" 
+      });
     }
 
     // Check if user is blocked
     if (user.status === "Blocked") {
-      return res.render("login", {
-        errorMessage: "Your account has been blocked",
-        successMessage: "",
-        activePage: "login",
+      return res.status(403).json({
+        success: false,
+        message: "Your account has been blocked"
       });
     }
 
     // Compare the password
     const isMatch = await user.comparePassword(candidatePassword);
     if (!isMatch) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res.status(401).json({ 
+        success: false, 
+        message: "Invalid email or password" 
+      });
     }
 
     // Check if the user is an admin
     if (user.isAdmin) {
-      return res
-        .status(403)
-        .json({ error: "Admins cannot access the user home page" });
+      return res.status(403).json({ 
+        success: false, 
+        message: "Admins cannot access the user home page" 
+      });
     }
 
     // Generate JWT token
@@ -344,100 +511,253 @@ const loginUser = async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
 
-    // User login successful, redirect to home page
-    res.redirect("/");
+    // Return success response
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      redirectUrl: "/"
+    });
   } catch (err) {
     console.error("Error in loginUser:", err.message);
-    return res.status(500).json({ error: "An error occurred during login" });
+    return res.status(500).json({ 
+      success: false, 
+      message: "An error occurred during login" 
+    });
   }
 };
 
 const renderMenuPage = async (req, res) => {
   try {
-    // Get the category filter from query params
-    const categoryName = req.query.category;
-    
     // Fetch all active categories
-    const categories = await Category.find({ isActive: true }).lean();
+    const categories = await Category.find({ isActive: true });
 
-    // Build the product query
-    let productQuery = { isAvailable: true };
-    
-    // If category is specified, find the category and add it to the query
-    if (categoryName) {
-      const category = await Category.findOne({ name: categoryName });
-      if (category) {
-        productQuery.category = category._id;
-      }
-    }
-
-    // Fetch products with populated category
-    const products = await Product.find(productQuery)
-      .populate('category')
-      .sort({ createdAt: -1 })
-      .lean();
-
-    // Get cart count if user is logged in
+    // Default values for cart
+    let cartItems = [];
     let cartCount = 0;
-    if (req.user) {
-      const cart = await Cart.findOne({ user: req.user._id });
-      if (cart) {
-        cartCount = cart.items.reduce((total, item) => total + item.quantity, 0);
+
+    // Fetch user's cart and calculate total quantity if the user has a cart
+    const userCart = await Cart.findOne({ user: req.user._id });
+    if (userCart) {
+      cartItems = userCart.items.map(item => item.product.toString());
+      cartCount = userCart.items.reduce((total, item) => total + item.quantity, 0);
+    }
+
+    // Get the selected category filter from query parameters
+    const categoryFilter = req.query.category || null;
+
+    let query = { isAvailable: true };
+
+    // If a category filter is selected, resolve its ObjectId
+    if (categoryFilter) {
+      const category = await Category.findOne({ name: categoryFilter, isActive: true });
+      if (category) {
+        query.category = category._id; // Use the ObjectId for filtering
+      } else {
+        // Handle case where category does not exist (optional)
+        query = { isAvailable: false }; // No products will be found if category doesn't exist
       }
     }
 
-    // Render the menu page with data
-    res.render('menu', {
-      products,
-      categories,
-      selectedCategory: categoryName,
-      cartCount,
-      user: req.user,
-      title: 'Menu - Derry World'
+    // Fetch filtered products based on the query
+    const products = await Product.find(query).populate('category');
+
+    // Render the menu page with products, categories, cart info, and selected category
+    res.render('menu', { 
+      products, 
+      categories, 
+      selectedCategory: categoryFilter,
+      cartCount: cartCount,  // Pass cart count to the view
+      activePage: 'menu'     // To highlight active menu item
     });
 
   } catch (error) {
-    console.error('Error in renderMenuPage:', error);
+    console.error('Error fetching menu data:', error);
     res.status(500).send('Internal Server Error');
   }
 };
 
-
-
 const logout = async (req, res) => {
   try {
-    res.clearCookie('jwt');
-    req.logout(() => {
-      res.redirect('/login');
+    // Clear the JWT token cookie
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production"
     });
+
+    // Redirect to login page
+    res.redirect("/login");
   } catch (error) {
-    console.error('Error during logout:', error);
-    res.status(500).json({ message: 'Error during logout' });
+    console.error("Error during logout:", error);
+    res.redirect("/login");
   }
 };
 
-const addToCart = async (req, res) => {
+const renderForgotPassword = (req, res) => {
+  res.render('forgot-password', {
+    message: req.query.message || '',
+    successMessage: req.query.successMessage || '',
+    activePage: 'forgot-password'
+  });
+};
+
+const handleForgotPassword = async (req, res) => {
   try {
-    const { productId, quantity } = req.body;
-    const userId = req.user._id;
+    const { email } = req.body;
+    const user = await User.findOne({ email });
 
-    let cart = await Cart.findOne({ user: userId });
-    if (!cart) {
-      cart = new Cart({ user: userId, items: [] });
+    if (!user) {
+      return res.render('forgot-password', {
+        message: 'No account found with this email address.',
+        successMessage: '',
+        activePage: 'forgot-password'
+      });
     }
 
-    const existingItem = cart.items.find(item => item.product.toString() === productId);
-    if (existingItem) {
-      existingItem.quantity = quantity;
-    } else {
-      cart.items.push({ product: productId, quantity });
-    }
+    // Generate password reset token
+    const resetToken = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
 
-    await cart.save();
-    res.status(200).json({ message: 'Product added to cart successfully' });
+    // Save reset token and expiry to user document
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+    await user.save();
+
+    // Send reset password email
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    const resetUrl = `${req.protocol}://${req.get('host')}/reset-password/${resetToken}`;
+    
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: 'Password Reset Request',
+      html: `
+        <h1>Password Reset Request</h1>
+        <p>You requested a password reset. Click the link below to reset your password:</p>
+        <a href="${resetUrl}">Reset Password</a>
+        <p>This link will expire in 1 hour.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.render('forgot-password', {
+      message: '',
+      successMessage: 'Password reset link has been sent to your email.',
+      activePage: 'forgot-password'
+    });
+
   } catch (error) {
-    console.error('Error adding to cart:', error);
-    res.status(500).json({ message: 'Error adding product to cart' });
+    console.error('Error in handleForgotPassword:', error);
+    res.render('forgot-password', {
+      message: 'An error occurred. Please try again.',
+      successMessage: '',
+      activePage: 'forgot-password'
+    });
+  }
+};
+
+const renderResetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.render('reset-password', {
+        message: 'Password reset token is invalid or has expired.',
+        validToken: false,
+        token: null,
+        activePage: 'reset-password'
+      });
+    }
+
+    res.render('reset-password', {
+      message: '',
+      validToken: true,
+      token,
+      activePage: 'reset-password'
+    });
+  } catch (error) {
+    console.error('Error in renderResetPassword:', error);
+    res.render('reset-password', {
+      message: 'An error occurred. Please try again.',
+      validToken: false,
+      token: null,
+      activePage: 'reset-password'
+    });
+  }
+};
+
+const handleResetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password, confirmPassword } = req.body;
+
+    // Password validation
+    if (!password || !confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Both password fields are required'
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match'
+      });
+    }
+
+    // Password strength validation
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters long'
+      });
+    }
+
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password reset token is invalid or has expired'
+      });
+    }
+
+    // Set the new password - the pre-save hook will hash it
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    
+    await user.save(); // This will trigger the pre-save hook to hash the password
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password has been reset successfully'
+    });
+  } catch (error) {
+    console.error('Error in handleResetPassword:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'An error occurred while resetting password'
+    });
   }
 };
 
@@ -446,9 +766,13 @@ module.exports = {
   renderRegisterPage,
   resendOTP,
   registerUser,
+  renderVerifyOtp,
   verifyOTP,
   loginUser,
-  renderMenuPage,
   logout,
-  addToCart
+  renderMenuPage,
+  renderForgotPassword,
+  handleForgotPassword,
+  renderResetPassword,
+  handleResetPassword
 };

@@ -29,7 +29,7 @@
     <!-- SweetAlert CDN -->
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.14/dist/sweetalert2.min.css"
+      href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css"
     />
     <style>
       .login-container {
@@ -126,18 +126,11 @@
             <div class="login-container">
               <h2 class="text-center">Register</h2>
 
-              <% if (message) { %>
-              <div class="alert alert-danger" role="alert"><%= message %></div>
-              <% } %> <% if (successMessage) { %>
-              <div class="alert alert-success" role="alert">
-                <%= successMessage %>
-              </div>
-              <% } %>
-
               <form
                 id="registerForm"
                 action="/register"
                 method="post"
+                onsubmit="return validateRegisterForm(event)"
                 novalidate
               >
                 <div class="form-group">
@@ -149,9 +142,6 @@
                     name="name"
                     required
                   />
-                  <div class="invalid-feedback">
-                    Please enter a valid name (at least 3 characters).
-                  </div>
                 </div>
                 <div class="form-group">
                   <label for="email">Email</label>
@@ -162,9 +152,6 @@
                     name="email"
                     required
                   />
-                  <div class="invalid-feedback">
-                    Please enter a valid email address.
-                  </div>
                 </div>
                 <div class="form-group">
                   <label for="phone">Phone Number</label>
@@ -173,12 +160,8 @@
                     class="form-control"
                     id="phone"
                     name="phone"
-                    pattern="[0-9]{10}"
                     required
                   />
-                  <div class="invalid-feedback">
-                    Please enter a valid 10-digit phone number.
-                  </div>
                 </div>
                 <div class="form-group">
                   <label for="password">Password</label>
@@ -187,109 +170,174 @@
                     class="form-control"
                     id="password"
                     name="password"
-                    minlength="6"
                     required
                   />
-                  <div class="invalid-feedback">
-                    Password must be at least 6 characters long.
-                  </div>
                 </div>
                 <div class="form-group">
-                  <label for="confirm-password">Confirm Password</label>
+                  <label for="confirmPassword">Confirm Password</label>
                   <input
                     type="password"
                     class="form-control"
-                    id="confirm-password"
+                    id="confirmPassword"
                     name="confirmPassword"
                     required
                   />
-                  <div class="invalid-feedback">Passwords must match.</div>
                 </div>
-                <div class="form-group form-check">
-                  <input
-                    type="checkbox"
-                    class="form-check-input"
-                    id="show-password"
-                  />
-                  <label class="form-check-label" for="show-password"
-                    >Show Password</label
-                  >
-                </div>
-                <button type="submit" class="btn btn-login">Register</button>
-              </form>
 
-              <div class="text-center mt-3">
-                <p>- OR -</p>
-                <button
-                  onclick="location.href='/auth/google'"
-                  class="btn btn-google"
-                >
-                  <i class="fab fa-google"></i> Sign Up with Google
-                </button>
-              </div>
-              <p class="text-center mt-4">
-                Already have an account? <a href="/login">Login here</a>
-              </p>
+                <button type="submit" class="btn btn-login mb-3">Register</button>
+                <div class="text-center">
+                  <p>Already have an account? <a href="/login">Login here</a></p>
+                </div>
+              </form>
             </div>
           </div>
         </div>
       </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-      (function () {
-        const form = document.getElementById('registerForm');
-        const password = document.getElementById('password');
-        const confirmPassword = document.getElementById('confirm-password');
-        const showPassword = document.getElementById('show-password');
-    
-        showPassword.addEventListener('change', function () {
-          const type = showPassword.checked ? 'text' : 'password';
-          password.type = type;
-          confirmPassword.type = type;
-        });
-    
-        form.addEventListener('submit', function (event) {
-          if (!form.checkValidity() || password.value !== confirmPassword.value) {
-            event.preventDefault();
-            event.stopPropagation();
-    
-            if (password.value !== confirmPassword.value) {
-              confirmPassword.setCustomValidity('Passwords do not match.');
-            } else {
-              confirmPassword.setCustomValidity('');
-            }
-          }
-          form.classList.add('was-validated');
-        });
-    
-        '<% if (message) { %>'
-          Swal.fire({
+      async function validateRegisterForm(event) {
+        event.preventDefault();
+        
+        const name = document.getElementById('username').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+
+        // Name validation
+        if (!name || name.length < 3) {
+          await Swal.fire({
+            title: '<span style="font-size: 24px; font-weight: 600;">Invalid Name</span>',
+            text: 'Please enter a valid name (at least 3 characters)',
             icon: 'error',
-            title: 'Oops...',
-            text: '<%= message %>',
+            confirmButtonColor: '#007bff'
           });
-        '<% } %>'
-    
-        '<% if (successMessage) { %>'
-          Swal.fire({
-            icon: 'success',
-            title: 'Success!',
-            text: '<%= successMessage %>',
+          return false;
+        }
+
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!email || !emailRegex.test(email)) {
+          await Swal.fire({
+            title: '<span style="font-size: 24px; font-weight: 600;">Invalid Email</span>',
+            text: 'Please enter a valid email address',
+            icon: 'error',
+            confirmButtonColor: '#007bff'
           });
-       ' <% } %>'
-      })();
+          return false;
+        }
 
-      
+        // Phone validation
+        const phoneRegex = /^[0-9]{10}$/;
+        if (!phone || !phoneRegex.test(phone)) {
+          await Swal.fire({
+            title: '<span style="font-size: 24px; font-weight: 600;">Invalid Phone Number</span>',
+            text: 'Please enter a valid 10-digit phone number',
+            icon: 'error',
+            confirmButtonColor: '#007bff'
+          });
+          return false;
+        }
 
-      
+        // Password validation
+        if (!password || password.length < 8) {
+          await Swal.fire({
+            title: '<span style="font-size: 24px; font-weight: 600;">Password Too Short</span>',
+            text: 'Password must be at least 8 characters long',
+            icon: 'error',
+            confirmButtonColor: '#007bff'
+          });
+          return false;
+        }
+
+        const hasUpper = /[A-Z]/.test(password);
+        const hasLower = /[a-z]/.test(password);
+        const hasNumber = /[0-9]/.test(password);
+        const hasSpecial = /[!@#$%^&*]/.test(password);
+
+        if (!hasUpper || !hasLower || !hasNumber || !hasSpecial) {
+          await Swal.fire({
+            title: '<span style="font-size: 24px; font-weight: 600;">Password Requirements</span>',
+            html: `
+              <div style="text-align: left; padding: 20px; background: #f8f9fa; border-radius: 10px; margin: 15px 0;">
+                <div style="font-size: 16px; color: ${hasUpper ? '#28a745' : '#dc3545'};">
+                  ${hasUpper ? '✓' : '✗'} One uppercase letter
+                </div>
+                <div style="font-size: 16px; color: ${hasLower ? '#28a745' : '#dc3545'};">
+                  ${hasLower ? '✓' : '✗'} One lowercase letter
+                </div>
+                <div style="font-size: 16px; color: ${hasNumber ? '#28a745' : '#dc3545'};">
+                  ${hasNumber ? '✓' : '✗'} One number
+                </div>
+                <div style="font-size: 16px; color: ${hasSpecial ? '#28a745' : '#dc3545'};">
+                  ${hasSpecial ? '✓' : '✗'} One special character (!@#$%^&*)
+                </div>
+              </div>
+            `,
+            icon: 'warning',
+            confirmButtonColor: '#007bff'
+          });
+          return false;
+        }
+
+        // Confirm Password validation
+        if (password !== confirmPassword) {
+          await Swal.fire({
+            title: '<span style="font-size: 24px; font-weight: 600;">Passwords Don\'t Match</span>',
+            text: 'Please ensure both passwords are identical',
+            icon: 'error',
+            confirmButtonColor: '#007bff'
+          });
+          return false;
+        }
+
+        try {
+          const form = event.target;
+          const formData = new FormData(form);
+          const response = await fetch(form.action, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(Object.fromEntries(formData))
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            await Swal.fire({
+              title: '<span style="font-size: 24px; font-weight: 600;">Success!</span>',
+              text: data.message || 'Registration successful! Please verify your email.',
+              icon: 'success',
+              confirmButtonColor: '#007bff'
+            });
+            window.location.href = data.redirectUrl || '/verify-otp';
+          } else {
+            await Swal.fire({
+              title: '<span style="font-size: 24px; font-weight: 600;">Error</span>',
+              text: data.message || 'Registration failed. Please try again.',
+              icon: 'error',
+              confirmButtonColor: '#007bff'
+            });
+          }
+        } catch (error) {
+          await Swal.fire({
+            title: '<span style="font-size: 24px; font-weight: 600;">Error</span>',
+            text: 'An error occurred during registration. Please try again.',
+            icon: 'error',
+            confirmButtonColor: '#007bff'
+          });
+        }
+
+        return false;
+      }
     </script>
-    
+
     <!-- Bootstrap JS and dependencies for dynamic components -->
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.0/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <!-- SweetAlert JS -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.14/dist/sweetalert2.all.min.js"></script>
   </body>
 </html>

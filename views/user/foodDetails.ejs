@@ -166,77 +166,83 @@
           margin-left: 0;
         }
       }
-      /* Main Image Container */
-      .image-container {
-        position: relative;
-        height: 500px;
-        border: 1px solid #ddd;
-        overflow: hidden;
-      }
-      .image-container img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
+      .product-name {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 1.5rem;
+        font-family: 'Open Sans', sans-serif;
+        line-height: 1.2;
+        text-transform: capitalize;
       }
 
-      /* Zoom Box */
-      .zoom-box {
-        position: absolute;
-        top: 0;
-        left: 105%;
-        width: 400px;
-        height: 500px;
-        border: 1px solid #ddd;
-        overflow: hidden;
-        background: #fff;
-        z-index: 1000;
-      }
-      .zoom-box img {
-        position: absolute;
-        width: auto;
-        height: auto;
-        min-width: 100%;
-        min-height: 100%;
+      .description-title,
+      .category-title,
+      .price-title,
+      .rating-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #555;
+        margin-bottom: 0.5rem;
       }
 
-      /* Thumbnails */
-      .thumbnails-row img {
-        width: 80px;
-        height: 80px;
-        object-fit: cover;
-        cursor: pointer;
-        border: 1px solid #ddd;
-        transition: transform 0.3s, border 0.3s;
-      }
-      .thumbnails-row img:hover {
-        transform: scale(1.1);
-        border-color: #007bff;
+      .description-text {
+        font-size: 1.1rem;
+        color: #666;
+        line-height: 1.6;
       }
 
-      .rating-label {
-        cursor: pointer;
+      .category-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background-color: #f8f9fa;
+        border-radius: 20px;
+        color: #555;
+        font-weight: 500;
+        font-size: 1rem;
       }
 
-      .rating-label .fa-star {
-        font-size: 30px;
+      .price-container {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .sales-price {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #dc3545;
+      }
+
+      .regular-price {
+        font-size: 1.4rem;
+        color: #999;
+        text-decoration: line-through;
+      }
+
+      .regular-price-only {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #28a745;
+      }
+
+      .stars {
+        display: flex;
+        align-items: center;
+      }
+
+      .stars .fa-star {
+        font-size: 2rem;
+        margin-right: 5px;
         transition: color 0.2s ease;
       }
 
-      .rating-label .fa-star:hover,
-      .rating-label .fa-star:hover ~ .fa-star {
-        color: #ffc107; /* Gold color on hover */
+      .stars .fa-star.text-warning {
+        color: #ffc107 !important;
       }
 
-      .rating-label input:checked + .fa-star {
-        color: #ffc107; /* Gold color when selected */
-      }
-
-      .rating-label .fa-star.text-muted {
-        color: #dcdcdc; /* Light grey color for unfilled stars */
-      }
-
-      .rating-label .fa-star.text-warning {
-        color: #ffc107; /* Gold color for filled stars */
+      .stars .fa-star.text-muted {
+        color: #dedede !important;
       }
 
       .footer_section {
@@ -283,6 +289,147 @@
 
         .footer_section .col-md-4 {
           margin-bottom: 20px;
+        }
+      }
+      .product-name {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 1.5rem;
+        font-family: 'Open Sans', sans-serif;
+        line-height: 1.2;
+        text-transform: capitalize;
+      }
+
+      .description-title,
+      .category-title,
+      .price-title,
+      .rating-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #555;
+        margin-bottom: 0.5rem;
+      }
+
+      .description-text {
+        font-size: 1.1rem;
+        color: #666;
+        line-height: 1.6;
+      }
+
+      .category-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background-color: #f8f9fa;
+        border-radius: 20px;
+        color: #555;
+        font-weight: 500;
+        font-size: 1rem;
+      }
+
+      .price-container {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .sales-price {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #dc3545;
+      }
+
+      .regular-price {
+        font-size: 1.4rem;
+        color: #999;
+        text-decoration: line-through;
+      }
+
+      .regular-price-only {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #28a745;
+      }
+
+      .stars {
+        display: flex;
+        align-items: center;
+      }
+
+      .stars .fa-star {
+        font-size: 2rem;
+        margin-right: 5px;
+        transition: color 0.2s ease;
+      }
+
+      .stars .fa-star.text-warning {
+        color: #ffc107 !important;
+      }
+
+      .stars .fa-star.text-muted {
+        color: #dedede !important;
+      }
+
+      .buttons-section .btn {
+        padding: 0.75rem 1.5rem;
+        font-size: 1.1rem;
+        font-weight: 500;
+        border-radius: 5px;
+        transition: all 0.3s ease;
+      }
+
+      .buttons-section .btn-primary {
+        background-color: #007bff;
+        border-color: #007bff;
+      }
+
+      .buttons-section .btn-primary:hover {
+        background-color: #0056b3;
+        border-color: #0056b3;
+      }
+
+      .buttons-section .btn-success {
+        background-color: #28a745;
+        border-color: #28a745;
+      }
+
+      .buttons-section .btn-success:hover {
+        background-color: #218838;
+        border-color: #218838;
+      }
+
+      .buttons-section .btn-outline-secondary {
+        color: #6c757d;
+        border-color: #6c757d;
+      }
+
+      .buttons-section .btn-outline-secondary:hover {
+        color: #fff;
+        background-color: #6c757d;
+        border-color: #6c757d;
+      }
+
+      @media (max-width: 768px) {
+        .product-name {
+          font-size: 2rem;
+        }
+        
+        .sales-price,
+        .regular-price-only {
+          font-size: 1.5rem;
+        }
+        
+        .regular-price {
+          font-size: 1.2rem;
+        }
+        
+        .buttons-section .btn {
+          width: 100%;
+          margin-bottom: 0.5rem;
+        }
+        
+        .buttons-section .btn + .btn {
+          margin-left: 0 !important;
         }
       }
     </style>
@@ -407,130 +554,75 @@
 
           <!-- Product Details Section -->
           <div class="col-md-6">
-            <p class="mb-3"><%= product.name %></p>
-            <p class="mb-3"><%= product.description %></p>
-            <h4 class="mb-3">Category: <%= product.category.name %></h4>
+            <h2 class="product-name mb-4"><%= product.name %></h2>
+            
+            <div class="product-description mb-4">
+              <h4 class="description-title mb-2">Description</h4>
+              <p class="description-text"><%= product.description %></p>
+            </div>
+
+            <div class="category-info mb-4">
+              <h4 class="category-title mb-2">Category</h4>
+              <span class="category-badge"><%= product.category.name %></span>
+            </div>
           
             <!-- Price -->
-            <div class="price mb-3">
+            <div class="price-section mb-4">
+              <h4 class="price-title mb-2">Price</h4>
               <% if (product.salesPrice < product.regularPrice) { %>
-              <h5 class="d-inline-block text-danger">
-                ₹<%= product.salesPrice %>
-              </h5>
-              <h6 class="d-inline-block text-muted text-decoration-line-through ms-2">
-                ₹<%= product.regularPrice %>
-              </h6>
+                <div class="price-container">
+                  <span class="sales-price">₹<%= product.salesPrice %></span>
+                  <span class="regular-price">₹<%= product.regularPrice %></span>
+                </div>
               <% } else { %>
-              <h5 class="d-inline-block text-success">
-                ₹<%= product.regularPrice %>
-              </h5>
+                <div class="price-container">
+                  <span class="regular-price-only">₹<%= product.regularPrice %></span>
+                </div>
               <% } %>
             </div>
-          
-            <!-- Quantity Check -->
-            <% if (product.quantity === 0) { %>
-            <p class="text-danger">Out of Stock</p>
-            <% } %>
-          
+
             <!-- Ratings Section -->
-            <div class="rating mb-3">
-              <h6>Average Rating:</h6>
-              <div class="d-flex align-items-center">
-                <div class="stars">
-                  <% for (let i = 0; i < 5; i++) { %>
-                  <i
-                    class="fa <% if (i < Math.round(product.averageRating)) { %>fa-star text-warning<% } else { %>fa-star-o text-muted<% } %>"
-                  ></i>
-                  <% } %>
-                </div>
-                <span class="ms-2">(<%= product.averageRating %> / 5)</span>
+            <div class="rating-section mb-4">
+              <h4 class="rating-title mb-2">Rating</h4>
+              <div class="stars">
+                <% for (let i = 0; i < 5; i++) { %>
+                  <i class="fa fa-star <%= i < Math.round(product.averageRating) ? 'text-warning' : 'text-muted' %>"></i>
+                <% } %>
               </div>
             </div>
-          
-            <!-- Rate Product Section -->
-            <div class="rate-product mt-4">
-              <h6>Rate this Product:</h6>
-              <form
-                id="ratingForm"
-                action="/food/<%= product._id %>/rate"
-                method="POST"
-              >
-                <div class="rating-input d-flex">
-                  <% for (let i = 1; i <= 5; i++) { %>
-                  <label class="rating-label">
-                    <input 
-                      type="radio" 
-                      name="rating" 
-                      value="<%= i %>" 
-                      hidden 
-                      <% if (userRating && userRating.score === i) { %> checked <% } %> 
-                      <% if (product.quantity === 0) { %> disabled <% } %> 
-                    />
-                    <i
-                      class="fa fa-star <% if (userRating && userRating.score >= i) { %>text-warning<% } else { %>text-muted<% } %>"
-                      data-value="<%= i %>"
-                    ></i>
-                  </label>
-                  <% } %>
-                </div>
-                <textarea
-                  class="form-control mt-3"
-                  name="review"
-                  rows="3"
-                  placeholder="Write your review (optional)"
-                  <%= product.quantity === 0 ? "disabled" : "" %>
-                ></textarea>
-                <button 
-                  id="submit-rating" 
-                  type="submit" 
-                  class="btn btn-primary mt-2"
-                  <%= product.quantity === 0 ? "disabled" : "" %>
-                >
-                  Submit Rating
-                </button>
-              </form>
+
+            <!-- Buttons Section -->
+            <div class="buttons-section mt-4">
+              <% if (product.quantity === 0) { %>
+                <button class="btn btn-secondary" disabled>Out of Stock</button>
+              <% } else { %>
+                <% if (cartItems.includes(product._id.toString())) { %>
+                  <a href="/cart" class="btn btn-success">Go to Cart</a>
+                <% } else { %>
+                  <button onclick="addToCart('<%= product._id %>')" class="btn btn-primary">Add to Cart</button>
+                <% } %>
+              <% } %>
+              <button class="btn btn-outline-secondary ms-2" onclick="history.back()">Go Back</button>
             </div>
-          
-            <!-- Add to Cart Button -->
-            <% if (cartItems.includes(product._id.toString())) { %>
-            <a href="/cart" class="btn btn-success" style="margin-top: 17px">
-              Go to Cart
-            </a>
-            <% } else { %>
-            <form action="/add" method="POST">
-              <input
-                type="hidden"
-                name="productId"
-                value="<%= product._id %>"
-              />
-              <button
-                id="add-to-cart"
-                class="btn btn-primary"
-                type="submit"
-                style="margin-top: 12px; width: 127px"
-                <%= product.quantity === 0 ? "disabled" : "" %>
-              >
-                Add to Cart
-              </button>
-            </form>
-            <% } %>
-          
-            <!-- Back Button -->
-            <button
-              class="btn btn-secondary mt-3"
-              onclick="goBack()"
-              style="margin-top: 17px"
-            >
-              Go Back
-            </button>
           </div>
-          
-          
+
         </div>
       </div>
     </section>
 
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-nice-select/1.1.0/js/jquery.nice-select.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script>
+      $(document).ready(function() {
+        $(".owl-carousel").owlCarousel();
+        $('select').niceSelect();
+      });
+    </script>
 
     <script>
       document.addEventListener("DOMContentLoaded", () => {
@@ -564,41 +656,6 @@
         mainImage.src = src;
         zoomedImage.src = src;
       }
-
-      const stars = document.querySelectorAll(".rating-label .fa-star");
-      const ratingInput = document.querySelector('input[name="rating"]');
-
-      stars.forEach((star) => {
-        star.addEventListener("mouseover", () => {
-          const value = star.getAttribute("data-value");
-          highlightStars(value);
-        });
-
-        star.addEventListener("mouseout", () => {
-          const checkedValue = ratingInput.value;
-          highlightStars(checkedValue);
-        });
-
-        star.addEventListener("click", () => {
-          const value = star.getAttribute("data-value");
-          ratingInput.value = value; // Set the radio button value
-          highlightStars(value); // Highlight selected stars
-        });
-      });
-
-      function highlightStars(rating) {
-        stars.forEach((star) => {
-          const value = star.getAttribute("data-value");
-          if (value <= rating) {
-            star.classList.add("text-warning");
-            star.classList.remove("text-muted");
-          } else {
-            star.classList.add("text-muted");
-            star.classList.remove("text-warning");
-          }
-        });
-      }
-
       
       function updateCartDisplay(cart) {
         const cartCount = cart.items.reduce(
@@ -607,12 +664,74 @@
         );
         document.getElementById("cart-count").textContent = cartCount;
       }
-
-
-      
     </script>
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+      async function addToCart(productId) {
+        try {
+          const response = await fetch('/cart/add', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ productId }),
+          });
+          
+          const result = await response.json();
+          
+          // Update cart count regardless of success/failure
+          const cartCountElement = document.querySelector('.cart-count');
+          if (cartCountElement && result.cartCount) {
+            cartCountElement.textContent = result.cartCount;
+          }
+
+          if (response.ok && result.success) {
+            // Change the button to "Go to Cart"
+            const addToCartBtn = document.querySelector('.buttons-section button.btn-primary');
+            if (addToCartBtn) {
+              const goToCartLink = document.createElement('a');
+              goToCartLink.href = '/cart';
+              goToCartLink.className = 'btn btn-success';
+              goToCartLink.textContent = 'Go to Cart';
+              addToCartBtn.replaceWith(goToCartLink);
+            }
+
+            // Show success message
+            Swal.fire({
+              icon: 'success',
+              title: 'Success!',
+              text: result.message,
+              showConfirmButton: false,
+              timer: 1500
+            });
+          } else {
+            // If it's a quantity limit error
+            if (response.status === 400 && result.message.includes('Maximum quantity limit')) {
+              Swal.fire({
+                icon: 'warning',
+                title: 'Quantity Limit Reached',
+                text: 'You can only add up to 5 quantities of this item.',
+                showCancelButton: true,
+                confirmButtonText: 'View Cart',
+                cancelButtonText: 'Continue Shopping'
+              }).then((result) => {
+                if (result.isConfirmed) {
+                  window.location.href = '/cart';
+                }
+              });
+            } else {
+              throw new Error(result.message || 'Failed to add product to cart');
+            }
+          }
+        } catch (error) {
+          console.error('Error adding to cart:', error);
+          Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: error.message || 'Failed to add product to cart. Please try again.'
+          });
+        }
+      }
+    </script>
   </body>
 </html>

@@ -9,20 +9,46 @@ const OrderSchema = new Schema({
   },
   items: [
     {
-      product: { type: Schema.Types.ObjectId, ref: 'Product' },
-      quantity: Number,
-      price: Number,
+      product: {
+        type: Schema.Types.ObjectId,
+        ref: 'Product',
+        required: true
+      },
+      quantity: {
+        type: Number,
+        required: true,
+        min: 1
+      },
+      price: {
+        type: Number,
+        required: true
+      }
     },
   ],
-  totalAmount: { type: Number, required: true },
-  address: { type: Object, required: true },
-  paymentMethod: { type: String, required: true },
+  totalAmount: {
+    type: Number,
+    required: true
+  },
+  deliveryAddress: {
+    street: String,
+    city: String,
+    state: String,
+    zipCode: String
+  },
+  paymentMethod: {
+    type: String,
+    required: true,
+    enum: ['COD', 'Online']
+  },
   status: {
     type: String,
-    enum: ['Pending', 'Shipped', 'Completed', 'Cancelled'],  // Add your desired status values
-    default: 'Pending',  // Default status when an order is created
+    enum: ['Processing', 'Shipped', 'Delivered', 'Cancelled'],
+    default: 'Processing'
   },
-},
- { timestamps: true });
+  deliveryFee: {
+    type: Number,
+    default: 0
+  }
+}, { timestamps: true });
 
 module.exports = mongoose.model('Order', OrderSchema);

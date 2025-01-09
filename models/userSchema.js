@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { Schema } = mongoose;
 
 const userSchema = new Schema({
@@ -89,6 +89,12 @@ const userSchema = new Schema({
         type: Date,
         default: Date.now,
     },
+    isBlocked: {
+        type: Boolean,
+        default: false
+    },
+    resetPasswordToken: String,
+    resetPasswordExpires: Date
 });
 
 // Hash password before saving
@@ -114,7 +120,11 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
         console.log('Stored hashed password:', this.password);
         console.log('Candidate password length:', candidatePassword.length);
         
-        const isMatch = await bcrypt.compare(candidatePassword, this.password);
+        // Ensure both passwords are strings
+        const storedHash = String(this.password);
+        const candidate = String(candidatePassword);
+        
+        const isMatch = await bcrypt.compare(candidate, storedHash);
         console.log('Password match result:', isMatch);
         return isMatch;
     } catch (error) {
