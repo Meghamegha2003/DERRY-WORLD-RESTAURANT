@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify OTP - Derry World</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <!-- SweetAlert2 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <style>
+        .otp-container {
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .otp-input {
+            width: 50px;
+            height: 50px;
+            margin: 0 5px;
+            text-align: center;
+            font-size: 24px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+        }
+        .otp-input:focus {
+            border-color: #ffbe33;
+            outline: none;
+        }
+        .btn-verify {
+            background-color: #ffbe33;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .btn-verify:hover {
+            background-color: #e5a82c;
+        }
+        .resend-link {
+            color: #ffbe33;
+            text-decoration: none;
+            margin-top: 15px;
+            display: inline-block;
+            cursor: pointer;
+        }
+        .resend-link:hover {
+            color: #e5a82c;
+            text-decoration: underline;
+        }
+        .timer {
+            color: #666;
+            margin-top: 10px;
+        }
+        .header_section {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 0;
+        }
+        .navbar-brand {
+            color: #ffbe33 !important;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .hero_area {
+            min-height: 100vh;
+            position: relative;
+            background: #f8f9fa;
+        }
+        .bg-box {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+        .bg-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero_area">
+        <div class="bg-box">
+            <img src="/images/hero-bg.jpg" alt="Background Image" class="img-fluid" />
+        </div>
+        <header class="header_section">
+            <div class="container">
+                <nav class="navbar navbar-expand-lg custom_nav-container">
+                    <a class="navbar-brand" href="/">
+                        <span>Derry World</span>
+                    </a>
+                </nav>
+            </div>
+        </header>
+        <div class="container">
+            <div class="otp-container">
+                <h2 class="text-center mb-4">Verify Your Email</h2>
+                <p class="text-center mb-4">Please enter the OTP sent to your email</p>
+                
+                <form id="otpForm" onsubmit="handleOtpSubmit(event)">
+                    <div class="d-flex justify-content-center mb-4">
+                        <input type="text" class="otp-input" maxlength="1" required>
+                        <input type="text" class="otp-input" maxlength="1" required>
+                        <input type="text" class="otp-input" maxlength="1" required>
+                        <input type="text" class="otp-input" maxlength="1" required>
+                        <input type="text" class="otp-input" maxlength="1" required>
+                        <input type="text" class="otp-input" maxlength="1" required>
+                    </div>
+                    
+                    <button type="submit" class="btn-verify">Verify OTP</button>
+                </form>
+                
+                <div class="text-center mt-3">
+                    <p class="timer" id="timer">Resend OTP in <span id="countdown">60</span>s</p>
+                    <a class="resend-link" id="resendLink" style="display: none;" onclick="handleResendOTP()">
+                        Resend OTP
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <script>
+        // Start countdown timer
+        let timeLeft = 60;
+        const timerElement = document.getElementById('countdown');
+        const timerContainer = document.getElementById('timer');
+        const resendLink = document.getElementById('resendLink');
+
+        function updateTimer() {
+            if (timeLeft > 0) {
+                timeLeft--;
+                timerElement.textContent = timeLeft;
+                setTimeout(updateTimer, 1000);
+            } else {
+                timerContainer.style.display = 'none';
+                resendLink.style.display = 'inline-block';
+            }
+        }
+        updateTimer();
+        
+        // Handle OTP input fields
+        const otpInputs = document.querySelectorAll('.otp-input');
+        otpInputs.forEach((input, index) => {
+            // Only allow numbers
+            input.addEventListener('keypress', (e) => {
+                if (!/[0-9]/.test(e.key)) {
+                    e.preventDefault();
+                }
+            });
+
+            // Handle paste event
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const pastedData = e.clipboardData.getData('text').trim();
+                if (/^\d{6}$/.test(pastedData)) {
+                    // If pasted data is 6 digits, distribute it across inputs
+                    otpInputs.forEach((input, i) => {
+                        input.value = pastedData[i] || '';
+                    });
+                    otpInputs[5].focus();
+                }
+            });
+
+            input.addEventListener('input', (e) => {
+                if (e.target.value) {
+                    if (index < otpInputs.length - 1) {
+                        otpInputs[index + 1].focus();
+                    }
+                }
+            });
+            
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                    otpInputs[index - 1].focus();
+                }
+            });
+        });
+
+        // Handle OTP form submission
+        function handleOtpSubmit(event) {
+            event.preventDefault();
+            
+            // Collect OTP digits
+            const otp = Array.from(otpInputs).map(input => input.value).join('');
+            
+            // Validate OTP format
+            if (!/^\d{6}$/.test(otp)) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Invalid OTP',
+                    text: 'Please enter a valid 6-digit OTP',
+                    confirmButtonColor: '#ffbe33'
+                });
+                return;
+            }
+
+            fetch('/verify-otp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ otp }),
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    // Handle redirect
+                    window.location.href = response.url;
+                }
+            })
+            .then(data => {
+                if (data.success) {
+                    // Show success message and redirect to login
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Registration Successful!',
+                        text: 'Your email has been verified. Please login to continue.',
+                        confirmButtonColor: '#ffbe33',
+                        confirmButtonText: 'Login Now'
+                    });
+                    
+                    window.location.href = '/login';
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Verification Failed',
+                        text: data.message || 'Failed to verify OTP. Please try again.',
+                        confirmButtonColor: '#ffbe33'
+                    });
+                }
+            });
+        }
+
+        async function handleResendOTP() {
+            fetch('/resend-otp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reset timer
+                    timeLeft = 60;
+                    timerContainer.style.display = 'block';
+                    resendLink.style.display = 'none';
+                    updateTimer();
+                    
+                    // Clear OTP inputs
+                    otpInputs.forEach(input => input.value = '');
+                    otpInputs[0].focus();
+                    
+                    // Show success message
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'OTP Resent',
+                        text: 'A new OTP has been sent to your email',
+                        confirmButtonColor: '#ffbe33'
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message || 'Failed to resend OTP. Please try again.',
+                        confirmButtonColor: '#ffbe33'
+                    });
+                }
+            });
+        }
+    </script>
+</body>
+</html>

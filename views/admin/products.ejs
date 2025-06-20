@@ -1,0 +1,163 @@
+<%- include('../partials/admin/header') %>
+
+<!-- Main Content -->
+<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+    <h1 class="mb-3 mb-md-0">Products List</h1>
+    <a href="/admin/products/add" class="btn btn-primary mb-3 mb-md-0">
+      <i class="bi bi-plus-circle"></i> Add Product
+    </a>
+  </div>
+  
+  <div class="table-responsive">
+    <table class="table table-hover table-bordered mt-3">
+      <thead class="table-dark">
+        <tr>
+          <th scope="col">Product Name</th>
+          <th scope="col">Category</th>
+          <th scope="col">Regular Price</th>
+          <th scope="col">Sales Price</th>
+          <th scope="col">Quantity</th>
+          <th scope="col">Created At</th>
+          <th scope="col">Status</th>
+          <th scope="col">Edit</th>
+        </tr>
+      </thead>
+      
+      <tbody>
+        <% products.forEach(product => { %>
+        <tr>
+          <td><%= product.name %></td>
+          <td><%= product.category ? product.category.name : 'N/A' %></td>
+          <td>₹<%= product.regularPrice.toLocaleString('en-IN') %></td>
+          <td>₹<%= product.salesPrice.toLocaleString('en-IN') %></td>
+          <td><%= product.quantity %></td>
+          <td><%= new Date(product.createdAt).toLocaleDateString('en-IN') %></td>
+          <td class="text-center">
+            <button onclick="handleBlockAction(this, '<%- product._id %>', <%= product.isBlocked %>)" 
+                    class="btn btn-sm <%= product.isBlocked ? 'btn-success' : 'btn-danger' %>">
+              <i class="bi <%= product.isBlocked ? 'bi-unlock' : 'bi-lock' %>"></i>
+              <%= product.isBlocked ? 'Unblock' : 'Block' %>
+            </button>
+          </td>
+          <td class="text-center">
+            <a href="/admin/products/edit/<%= product._id %>" class="btn btn-sm btn-info">
+              <i class="bi bi-pencil"></i> Edit
+            </a>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination Controls -->
+  <% if (totalPages > 1) { %>
+    <nav>
+      <ul class="pagination justify-content-center">
+        <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+          <a class="page-link" href="/admin/products?page=<%= currentPage - 1 %>">Previous</a>
+        </li>
+        
+        <% 
+          const maxPagesToShow = 5; 
+          let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+          let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+          
+          if (endPage - startPage + 1 < maxPagesToShow) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+          }
+        %>
+        
+        <% if (startPage > 1) { %>
+          <li class="page-item">
+            <a class="page-link" href="/admin/products?page=1">1</a>
+          </li>
+          <% if (startPage > 2) { %>
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+          <% } %>
+        <% } %>
+        
+        <% for (let i = startPage; i <= endPage; i++) { %>
+          <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+            <a class="page-link" href="/admin/products?page=<%= i %>"><%= i %></a>
+          </li>
+        <% } %>
+        
+        <% if (endPage < totalPages) { %>
+          <% if (endPage < totalPages - 1) { %>
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+          <% } %>
+          <li class="page-item">
+            <a class="page-link" href="/admin/products?page=<%= totalPages %>"><%= totalPages %></a>
+          </li>
+        <% } %>
+        
+        <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+          <a class="page-link" href="/admin/products?page=<%= currentPage + 1 %>">Next</a>
+        </li>
+      </ul>
+    </nav>
+  <% } %>
+</main>
+
+<%- include('../partials/admin/footer') %>
+
+<!-- Add SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<!-- Custom Scripts -->
+<script>
+  async function handleBlockAction(button, productId, isBlocked) {
+    try {
+      const result = await Swal.fire({
+        title: 'Are you sure?',
+        text: `Do you want to ${isBlocked ? 'unblock' : 'block'} this product?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes'
+      });
+
+      if (result.isConfirmed) {
+        const response = await fetch(`/admin/products/toggle-block/${productId}`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Update button appearance immediately
+          const isNowBlocked = !isBlocked;
+          button.className = `btn btn-sm ${isNowBlocked ? 'btn-success' : 'btn-danger'}`;
+          button.innerHTML = `
+            <i class="bi ${isNowBlocked ? 'bi-unlock' : 'bi-lock'}"></i>
+            ${isNowBlocked ? 'Unblock' : 'Block'}
+          `;
+          
+          await Swal.fire({
+            icon: 'success',
+            title: data.message || 'Status updated successfully',
+            showConfirmButton: false,
+            timer: 1500
+          });
+        } else {
+          throw new Error(data.message || 'Failed to update status');
+        }
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      await Swal.fire({
+        icon: 'error',
+        title: error.message || 'Failed to process request',
+        showConfirmButton: true
+      });
+    }
+  }
+</script>

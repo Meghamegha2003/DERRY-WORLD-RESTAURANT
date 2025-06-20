@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="keywords" content="Derry World, Travel, Explore" />
+    <meta name="description" content="Register to Derry World and start exploring today!" />
+    <meta name="author" content="Derry World" />
+    <link rel="shortcut icon" href="/images/favicon.png" type="image/png" />
+    <title>Register - Derry World</title>
+    <!-- Bootstrap CDN -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="stylesheet" href="/css/responsive.css" />
+    <!-- SweetAlert2 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
+    <style>
+      .login-container {
+        background-color: #fff;
+        color: #000;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 40px;
+        max-width: 550px;
+        margin: 50px auto;
+        width: 95%;
+      }
+
+      .login-container h2 {
+        color: #000;
+        margin-bottom: 20px;
+      }
+
+      .login-container label {
+        font-weight: bold;
+      }
+
+      .btn-login {
+        background-color: #ffbe33;
+        color: #000;
+        border: none;
+        padding: 15px;
+        height: 50px;
+        border-radius: 5px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        width: 100%;
+        transition: background-color 0.3s ease;
+      }
+
+      .btn-login:hover {
+        background-color: #e5ab2e;
+      }
+
+      .btn-register {
+        background-color: #ffbe33;
+        color: #000;
+        border: none;
+        padding: 15px;
+        height: 50px;
+        border-radius: 5px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        width: 100%;
+        transition: background-color 0.3s ease;
+      }
+
+      .btn-register:hover {
+        background-color: #e5ab2e;
+      }
+
+      .btn-google {
+        background-color: #fff;
+        border: 1px solid #dadce0;
+        border-radius: 4px;
+        padding: 12px 24px;
+        font-size: 16px;
+        font-weight: 500;
+        color: #3c4043;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        transition: all 0.2s ease;
+        width: 100%;
+        max-width: 450px;
+        margin: 15px auto;
+        text-decoration: none;
+        height: 50px;
+      }
+
+      .btn-google:hover {
+        background-color: #f8f9fa;
+        border-color: #dadce0;
+        box-shadow: 0 1px 3px rgba(60,64,67,0.3);
+        color: #202124;
+      }
+
+      .divider {
+        display: flex;
+        align-items: center;
+        text-align: center;
+        margin: 20px 0;
+      }
+
+      .divider::before,
+      .divider::after {
+        content: '';
+        flex: 1;
+        border-bottom: 1px solid #dadce0;
+      }
+
+      .divider span {
+        padding: 0 10px;
+        color: #5f6368;
+        font-size: 14px;
+      }
+
+      .password-field {
+        position: relative;
+      }
+
+      .password-toggle {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #5f6368;
+      }
+
+      .form-control {
+        padding-right: 40px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hero_area">
+      <div class="bg-box">
+        <img src="/images/hero-bg.jpg" alt="Background Image" class="img-fluid" />
+      </div>
+      <header class="header_section">
+        <div class="container">
+          <nav class="navbar navbar-expand-lg custom_nav-container">
+            <a class="navbar-brand" href="/">
+              <span>Derry World</span>
+            </a>
+          </nav>
+        </div>
+      </header>
+      <div class="container">
+        <div class="row justify-content-center">
+          <div class="col-lg-6 col-md-8 col-sm-12">
+            <div class="login-container">
+              <h2 class="text-center mb-4">Register</h2>
+              <% if (typeof error !== 'undefined' && error) { %>
+                <div class="alert alert-danger" role="alert">
+                  <%= error %>
+                </div>
+              <% } %>
+              <form id="registerForm" onsubmit="handleRegisterSubmit(event)">
+                <div class="form-group mb-3">
+                  <label for="name">Full Name</label>
+                  <input type="text" 
+                         class="form-control" 
+                         id="name" 
+                         name="name" 
+                         value="<%= typeof formData !== 'undefined' ? formData.name : '' %>"
+                         required>
+                </div>
+                <div class="form-group mb-3">
+                  <label for="email">Email address</label>
+                  <input type="email" 
+                         class="form-control" 
+                         id="email" 
+                         name="email" 
+                         value="<%= typeof formData !== 'undefined' ? formData.email : '' %>"
+                         required>
+                </div>
+                <div class="form-group mb-3">
+                  <label for="phone">Phone Number</label>
+                  <input type="tel" 
+                         class="form-control" 
+                         id="phone" 
+                         name="phone" 
+                         value="<%= typeof formData !== 'undefined' ? formData.phone : '' %>"
+                         pattern="[0-9]{10}"
+                         title="Please enter a valid 10-digit phone number"
+                         required>
+                </div>
+                <div class="form-group mb-3">
+                  <label for="password">Password</label>
+                  <div class="password-field">
+                    <input type="password" 
+                           class="form-control" 
+                           id="password" 
+                           name="password" 
+                           minlength="6"
+                           required>
+                    <button type="button" 
+                            class="password-toggle" 
+                            onclick="togglePassword('password', 'passwordToggle')"
+                            aria-label="Toggle password visibility">
+                      <i id="passwordToggle" class="fas fa-eye"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="form-group mb-3">
+                  <label for="confirmPassword">Confirm Password</label>
+                  <div class="password-field">
+                    <input type="password" 
+                           class="form-control" 
+                           id="confirmPassword" 
+                           name="confirmPassword" 
+                           minlength="6"
+                           required>
+                    <button type="button" 
+                            class="password-toggle" 
+                            onclick="togglePassword('confirmPassword', 'confirmPasswordToggle')"
+                            aria-label="Toggle confirm password visibility">
+                      <i id="confirmPasswordToggle" class="fas fa-eye"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="form-group mb-3">
+                  <label for="referralCode">Have a Referral Code? (Optional)</label>
+                  <div class="input-group">
+                    <input type="text" 
+                           class="form-control" 
+                           id="referralCode" 
+                           name="referralCode" 
+                           placeholder="Enter referral code"
+                           pattern="[A-Za-z0-9]{6,10}"
+                           title="Referral code should be 6-10 characters long">
+                    <div class="input-group-append">
+                      <button class="btn btn-outline-secondary" type="button" onclick="verifyReferralCode()">
+                        Verify
+                      </button>
+                    </div>
+                  </div>
+                  <small id="referralStatus" class="form-text"></small>
+                </div>
+
+                <button type="submit" class="btn btn-register w-100">Register</button>
+              </form>
+
+              <div class="divider">
+                <span>OR</span>
+              </div>
+
+              <a href="/user/auth/google" class="btn btn-google">
+                <img src="https://www.google.com/favicon.ico" alt="Google">
+                Sign up with Google
+              </a>
+
+              <div class="text-center mt-4">
+                <p>Already have an account? <a href="/user/login">Login here</a></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Core Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <!-- SweetAlert2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script>
+      async function handleRegisterSubmit(event) {
+        event.preventDefault();
+
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+
+        if (password !== confirmPassword) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Password Mismatch',
+            text: 'Password and confirm password do not match'
+          });
+          return;
+        }
+
+        const formData = {
+          name: document.getElementById('name').value,
+          email: document.getElementById('email').value,
+          phone: document.getElementById('phone').value,
+          password: document.getElementById('password').value,
+          referralCode: document.getElementById('referralCode').value || undefined
+        };
+
+        const response = await fetch('/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          if (data.error === 'Email already registered') {
+            await Swal.fire({
+              icon: 'error',
+              title: 'Email Already Registered',
+              text: 'This email is already registered. Would you like to login instead?',
+              showCancelButton: true,
+              confirmButtonText: 'Login',
+              confirmButtonColor: '#ffbe33',
+              cancelButtonText: 'Try Again',
+              cancelButtonColor: '#d33'
+            }).then((result) => {
+              if (result.isConfirmed) {
+                window.location.href = '/login';
+              }
+            });
+          } else {
+            Swal.fire({
+              icon: 'error',
+              title: 'Registration Failed',
+              text: data.error || 'An error occurred during registration'
+            });
+          }
+          return;
+        }
+
+        if (data.success) {
+          // Save token to localStorage for OTP verification
+          localStorage.setItem('registrationToken', data.token);
+          
+          // Show success message
+          await Swal.fire({
+            icon: 'success',
+            title: 'Success!',
+            text: data.message,
+            showConfirmButton: false,
+            timer: 1500
+          });
+
+        
+          window.location.href = '/verify-otp';
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'Registration Failed',
+            text: data.error || 'An error occurred during registration'
+          });
+        }
+      }
+
+      function togglePassword(inputId, toggleId) {
+        const input = document.getElementById(inputId);
+        const toggle = document.getElementById(toggleId);
+
+        if (input.type === 'password') {
+          input.type = 'text';
+          toggle.classList.remove('fa-eye');
+          toggle.classList.add('fa-eye-slash');
+        } else {
+          input.type = 'password';
+          toggle.classList.remove('fa-eye-slash');
+          toggle.classList.add('fa-eye');
+        }
+      }
+
+      async function verifyReferralCode() {
+        const referralCode = document.getElementById('referralCode').value;
+        const referralStatus = document.getElementById('referralStatus');
+
+        if (!referralCode) {
+          referralStatus.textContent = 'Please enter a referral code';
+          referralStatus.className = 'form-text text-danger';
+          return;
+        }
+
+        const response = await fetch('/user/verify-referral', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ referralCode })
+        });
+
+        if (!response.ok) {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const data = await response.json();
+            console.error('Referral verification error:', data);
+            referralStatus.textContent = data.error;
+            referralStatus.className = 'form-text text-danger';
+          } else {
+            const text = await response.text();
+            console.error('Referral verification error text:', text);
+            referralStatus.textContent = 'Failed to verify referral code';
+            referralStatus.className = 'form-text text-danger';
+          }
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          referralStatus.textContent = `Valid referral code! You'll get ${data.rewards.newUser} and your referrer will get ${data.rewards.referrer}`;
+          referralStatus.className = 'form-text text-success';
+        } else {
+          referralStatus.textContent = data.error;
+          referralStatus.className = 'form-text text-danger';
+        }
+      }
+    </script>
+  </body>
+</html>

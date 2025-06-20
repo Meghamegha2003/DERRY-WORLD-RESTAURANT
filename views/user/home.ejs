@@ -1,0 +1,251 @@
+<%- include('../../views/partials/user/header') %>
+
+<!-- offer section -->
+<section class="offer_section layout_padding-bottom">
+  <div class="offer_container">
+    <div class="container">
+      <div class="heading_container heading_center">
+        <h2>Today's Special Offers</h2>
+      </div>
+      <div class="row">
+        <% if (offers && offers.length > 0) { %>
+          <% offers.forEach(function(offer) { %>
+            <div class="col-md-6 mb-4">
+              <div class="box">
+                <div class="img-box">
+                  <img src="<%= offer.image || 'images/o1.jpg' %>" alt="<%= offer.title %>" />
+                </div>
+                <div class="detail-box">
+                  <h5><%= offer.title %></h5>
+                  <h6><span><%= offer.discountPercentage %>%</span> Off</h6>
+                  <p class="text-muted"><%= offer.description %></p>
+                </div>
+              </div>
+            </div>
+          <% }); %>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- end offer section -->
+
+<!-- food section -->
+<section class="food_section layout_padding-bottom">
+  <div class="container">
+    <div class="heading_container heading_center">
+      <h2>Our Menu</h2>
+    </div>
+
+    <ul class="filters_menu">
+      <li class="active" data-filter="*">All</li>
+      <% if (categories && categories.length > 0) { %>
+        <% categories.filter(c => !c.isBlocked).forEach(function(category) { %>
+          <li data-filter=".<%= category.name.toLowerCase() %>"><%= category.name %></li>
+        <% }); %>
+      <% } %>
+    </ul>
+
+    <div class="filters-content">
+      <div class="row grid">
+        <% if (products && products.length > 0) { %>
+          <% products.filter(p => p.category && !p.category.isBlocked).forEach(function(product) { %>
+            <div class="col-sm-6 col-lg-4 all <%= product.category.name.toLowerCase() %>">
+              <div class="box">
+                <div>
+                  <div class="img-box">
+                    <img src="<%= product.productImage[0] %>" 
+                         alt="<%= product.name %>" 
+                         class="food-item-image"
+                         data-product-id="<%= product._id %>">
+                  </div>
+                  <div class="detail-box">
+                    <h5><%= product.name %></h5>
+                    <p style="display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;"><%= product.description %></p>
+                    <div class="options">
+                      <div class="price-info">
+                        <div class="price-wrapper">
+                          <span class="regular-price strike">₹<%= product.regularPrice %></span>
+<% if (product.offerDetails && product.offerDetails.finalPrice) { %>
+  <span class="price-separator">|</span>
+  <span class="sale-price">₹<%= product.offerDetails.finalPrice %></span>
+<% } else if (product.salesPrice && product.salesPrice < product.regularPrice) { %>
+  <span class="price-separator">|</span>
+  <span class="sale-price">₹<%= product.salesPrice %></span>
+<% } %>
+                        </div>
+                      </div>
+                      <% if (locals.user) { %>
+                        <button class="wishlist-btn <%= product.isInWishlist ? 'active text-danger' : '' %>" 
+                                data-product-id="<%= product._id %>"
+                                onclick="toggleWishlist('<%= product._id %>', this)" 
+                                title="<%= product.isInWishlist ? 'Remove from Wishlist' : 'Add to Wishlist' %>">
+                          <i class="fa<%= product.isInWishlist ? 's' : 'r' %> fa-heart"></i>
+                        </button>
+                      <% } %>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% }); %>
+        <% } %>
+      </div>
+    </div>
+    <div class="btn-box">
+      <a href="/menu"> View More </a>
+    </div>
+  </div>
+</section>
+<!-- end food section -->
+
+<style>
+  .price-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .price-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .sale-price {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #ffbe33;
+    letter-spacing: -0.3px;
+  }
+
+  .regular-price {
+    font-size: 0.85rem;
+    color: #636e72;
+    opacity: 0.7;
+  }
+
+  .regular-price.strike {
+    text-decoration: line-through;
+    text-decoration-color: #dc3545;
+    text-decoration-thickness: 2px;
+  }
+
+  .price-separator {
+    color: #636e72;
+    opacity: 0.7;
+  }
+
+  .options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+  }
+
+  .wishlist-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: 1.2em;
+    transition: transform 0.2s;
+  }
+
+  .wishlist-btn:hover {
+    transform: scale(1.1);
+  }
+
+  .wishlist-btn.active {
+    color: #dc3545;
+  }
+</style>
+
+<%- include('../../views/partials/user/footer') %>
+
+<script>
+async function toggleWishlist(productId, button) {
+    try {
+        const response = await fetch(`/wishlist/toggle/${productId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Toggle heart icon
+            const heartIcon = button.querySelector('i');
+            if (data.action === 'added') {
+                heartIcon.classList.remove('far');
+                heartIcon.classList.add('fas');
+                button.classList.add('active', 'text-danger');
+                button.title = 'Remove from Wishlist';
+                
+                // Show success toast
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Added to Wishlist',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            } else {
+                heartIcon.classList.remove('fas');
+                heartIcon.classList.add('far');
+                button.classList.remove('active', 'text-danger');
+                button.title = 'Add to Wishlist';
+                
+                // Show removed toast
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Removed from Wishlist',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            }
+
+            // Update wishlist count if available
+            if (data.wishlistCount !== undefined) {
+                const wishlistCountElement = document.querySelector('.wishlist-count');
+                if (wishlistCountElement) {
+                    wishlistCountElement.textContent = data.wishlistCount;
+                }
+            }
+        } else {
+            throw new Error(data.message || 'Failed to update wishlist');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        // If unauthorized, redirect to login
+        if (error.status === 401) {
+            window.location.href = '/login';
+            return;
+        }
+        
+        Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: error.message || 'Failed to update wishlist. Please try again.',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3000
+        });
+    }
+}
+
+// Make product images clickable
+document.querySelectorAll('.food-item-image').forEach(img => {
+    img.addEventListener('click', function() {
+        const productId = this.dataset.productId;
+        window.location.href = `/food/${productId}`;
+    });
+    img.style.cursor = 'pointer';
+});
+</script>

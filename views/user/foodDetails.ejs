@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Derry World - <%= product.name %></title>
+    
+    <!-- Let the header include all common CSS and JS -->
+    <style>
+        .food-details {
+            padding: 50px 0;
+            background: #f8f9fa;
+        }
+
+        .product-gallery {
+            background: #fff;
+            padding: 0;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .product-image-container {
+            position: relative;
+            width: 100%;
+            max-width: 450px;
+            margin: 0 auto;
+        }
+
+        .main-image-wrapper {
+            position: relative;
+            width: 100%;
+            padding-top: 100%;
+            background: #fff;
+            border-radius: 10px 10px 0 0;
+            overflow: visible;
+        }
+
+        .main-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 94%;
+            height: 97%;
+            object-fit: contain;
+            cursor: zoom-in;
+            padding: 10px;
+            margin: 10px;
+        }
+
+        .zoom-lens {
+            position: absolute;
+            border: 2px solid #ffbe33;
+            width: 80px;
+            height: 80px;
+            display: none;
+            cursor: crosshair;
+            background: rgba(255, 190, 51, 0.2);
+            pointer-events: none;
+        }
+
+        .zoom-result {
+            position: fixed;
+            top: 50%;
+            right: 50px;
+            transform: translateY(-50%);
+            border: 2px solid #ffbe33;
+            width: 400px;
+            height: 400px;
+            display: none;
+            overflow: hidden;
+            background-color: white;
+            z-index: 1000;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+            pointer-events: none;
+            background-repeat: no-repeat;
+        }
+
+        @media (max-width: 1200px) {
+            .zoom-result {
+                display: none !important;
+            }
+            .main-image {
+                cursor: default;
+            }
+        }
+
+        .thumbnail-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+            padding: 0 10px 10px;
+        }
+
+        .thumbnail {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+            padding: 2px;
+        }
+
+        .thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .thumbnail.active {
+            border-color: #ffbe33;
+        }
+
+        .product-info {
+            background: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+            height: 96%;
+        }
+
+        .product-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2d3436;
+            margin-bottom: 20px;
+        }
+
+        .rating-section {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .stars {
+            display: flex;
+            gap: 5px;
+            margin-right: 15px;
+        }
+
+        .star {
+            color: #ffd700;
+            font-size: 1.2rem;
+        }
+
+        .rating-count {
+            color: #636e72;
+            font-size: 0.9rem;
+        }
+
+        .price-section {
+            margin-bottom: 25px;
+        }
+
+        .current-price {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2d3436;
+            margin-right: 15px;
+        }
+
+        .original-price {
+            color: #b2bec3;
+            text-decoration: line-through;
+        }
+
+        .price-section .original-price {
+            font-size: 1.8rem;
+            margin-left: 10px;
+        }
+
+        .product-card .original-price {
+            font-size: 0.9rem;
+            margin-left: 8px;
+        }
+
+        .description {
+            color: #636e72;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+
+        .offers-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2d3436;
+            margin-bottom: 15px;
+        }
+
+        .offer-item {
+            display: flex;
+            align-items: start;
+            gap: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        .offer-icon {
+            font-size: 1.5rem;
+            color: #ffbe33;
+        }
+
+        .offer-details h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #2d3436;
+            margin-bottom: 5px;
+        }
+
+        .offer-details p {
+            font-size: 0.9rem;
+            color: #636e72;
+            margin: 0;
+        }
+
+        .offer-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #2ecc71;
+            color: white;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            margin-left: 10px;
+        }
+
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 120px;
+        }
+
+        .btn-add-cart {
+            background: #ffbe33;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 360px;
+        }
+
+        .btn-add-cart:hover {
+            background: #e69b00;
+            transform: translateY(-2px);
+        }
+
+        .btn-add-cart:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-add-cart i {
+            margin-right: 8px;
+        }
+
+        .btn-add-cart:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .related-products {
+            margin-top: 50px;
+        }
+
+        .related-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #2d3436;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .product-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            transition: transform 0.3s;
+        }
+
+        .product-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .product-card-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .product-card-body {
+            padding: 15px;
+        }
+
+        .product-card-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #2d3436;
+            margin-bottom: 8px;
+        }
+
+        .product-card-price {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #2d3436;
+        }
+
+        .product-card-original {
+            font-size: 0.9rem;
+            color: #b2bec3;
+            text-decoration: line-through;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <%- include('../partials/user/header-no-bg', { user, cartCount }) %>
+
+    <div class="food-details">
+        <div class="container">
+            <div class="row g-4">
+                <!-- Product Gallery -->
+                <div class="col-lg-6">
+                    <div class="product-gallery">
+                        <div class="product-image-container">
+                            <div class="main-image-wrapper">
+                                <img src="<%= product.productImage && product.productImage.length > 0 ? product.productImage[0] : '/images/default-food.jpg' %>" 
+                                     alt="<%= product.name %>" 
+                                     class="main-image" 
+                                     id="mainImage">
+                            </div>
+                            <div class="zoom-lens"></div>
+                            <div class="zoom-result"></div>
+                            <div class="thumbnail-container">
+                                <% if (product.productImage && product.productImage.length > 0) { %>
+                                    <% for (var index = 0; index < product.productImage.length; index++) { %>
+                                        <% var image = product.productImage[index]; %>
+                                        <% if (image) { %>
+                                            <img src="<%= image %>" 
+                                                 alt="<%= product.name %> thumbnail <%= index + 1 %>" 
+                                                 class="thumbnail <%= index === 0 ? 'active' : '' %>">
+                                        <% } %>
+                                    <% } %>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Product Info -->
+                <div class="col-lg-6">
+                    <div class="product-info">
+                        <h1 class="product-title"><%= product.name %></h1>
+
+                        <% if (product.isBlocked || (product.category && product.category.isBlocked)) { %>
+                            <div style="background: #ffdddd; color: #b71c1c; padding: 16px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ffcccc; text-align: center;">
+                                <strong>This product is no longer available.</strong>
+                                <br>It has been blocked by the admin and cannot be added to your cart or wishlist.
+                            </div>
+                        <% } %>
+
+                        <div class="rating-section">
+                            <div class="stars">
+                                <% for(let i = 1; i <= 5; i++) { %>
+                                    <% if (i <= Math.floor(product.averageRating)) { %>
+                                        <i class="fas fa-star star"></i>
+                                    <% } else if (i - 0.5 <= product.averageRating) { %>
+                                        <i class="fas fa-star-half-alt star"></i>
+                                    <% } else { %>
+                                        <i class="far fa-star star"></i>
+                                    <% } %>
+                                <% } %>
+                            </div>
+                            <% if (product.ratings?.length > 0) { %>
+                                <span class="rating-count">(<%= product.ratings.length %> reviews)</span>
+                            <% } %>
+                        </div>
+
+                        <div class="price-section">
+                            <div class="price-wrapper">
+                                <% if (product.offerDetails && product.offerDetails.bestOffer) { %>
+                                    <span class="regular-price strike">₹<%= product.regularPrice %></span>
+                                    <span class="price-separator">|</span>
+                                    <span class="sale-price">₹<%= product.offerDetails.finalPrice %></span>
+                                <% } else if (product.salesPrice && product.salesPrice < product.regularPrice) { %>
+                                    <span class="regular-price strike">₹<%= product.regularPrice %></span>
+                                    <span class="price-separator">|</span>
+                                    <span class="sale-price">₹<%= product.salesPrice %></span>
+                                <% } else { %>
+                                    <span class="current-price">₹<%= product.regularPrice %></span>
+                                <% } %>
+                            </div>
+                        </div>
+                        <style>
+                            .price-wrapper {
+                                display: flex;
+                                align-items: center;
+                                gap: 0.5rem;
+                            }
+                            .current-price {
+                                font-size: 1.25rem;
+                                font-weight: 700;
+                                color: #ffbe33;
+                                letter-spacing: -0.3px;
+                            }
+                            .original-price.strike {
+                                text-decoration: line-through;
+                                color: #636e72;
+                                opacity: 0.7;
+                                text-decoration-color: #dc3545;
+                                text-decoration-thickness: 2px;
+                            }
+                            .price-separator {
+                                color: #636e72;
+                                opacity: 0.7;
+                            }
+                        </style>
+
+                        <p class="description"><%= product.description %></p>
+
+                        <div class="offers-section" aria-live="polite">
+    <h3 class="section-title mb-3">Best Available Offer</h3>
+    <% if (product.offerDetails && product.offerDetails.bestOffer) { %>
+    <div class="offer-item">
+        <div class="offer-icon">
+            <i class="fas fa-tag"></i>
+        </div>
+        <div class="offer-details">
+            <h4><%= product.offerDetails.bestOffer.name %></h4>
+            <% if (product.offerDetails.bestOffer.discountType === 'percentage') { %>
+                <p>Get <%= product.offerDetails.bestOffer.discountValue %>% off</p>
+            <% } else { %>
+                <p>Get ₹<%= product.offerDetails.bestOffer.discountValue %> off</p>
+            <% } %>
+            <% if (product.offerDetails.bestOffer.maxDiscount) { %>
+                <p class="text-muted">Maximum discount: ₹<%= product.offerDetails.bestOffer.maxDiscount %></p>
+            <% } %>
+            <p class="text-muted">Valid until: <%= product.offerDetails.bestOffer.validUntil.toLocaleDateString() %></p>
+            <% if (product.offerDetails.bestOffer.description) { %>
+                <p><%= product.offerDetails.bestOffer.description %></p>
+            <% } %>
+        </div>
+    </div>
+    <% } else { %>
+        <div class="offer-item">
+            <div class="offer-details">
+                <p>Offer not available</p>
+            </div>
+        </div>
+    <% } %>
+</div>
+
+                        <!-- Add to Cart Button -->
+                        <div class="action-buttons mt-4">
+                            <% if (product.isBlocked || (product.category && product.category.isBlocked)) { %>
+                                <button 
+                                    class="btn-add-cart" 
+                                    data-product-id="<%= product._id %>"
+                                    data-category-blocked="<%= product.category.isBlocked %>"
+                                    onclick="addToCart('<%= product._id %>', event)"
+                                    disabled>
+                                    <i class="fas fa-ban"></i> Unavailable
+                                </button>
+                            <% } else { %>
+                                <% if (product.quantity > 0) { %>
+    <% if (isInCart) { %>
+        <a href="/cart" class="btn-add-cart" style="text-decoration:none;display:inline-block;text-align:center;">
+            <i class="fas fa-shopping-cart"></i> View in Cart
+        </a>
+    <% } else { %>
+        <button 
+            class="btn-add-cart" 
+            data-product-id="<%= product._id %>"
+            onclick="addToCart('<%= product._id %>', event)">
+            <i class="fas fa-shopping-cart"></i> Add to Cart
+        </button>
+    <% } %>
+<% } else { %>
+    <button class="btn-add-cart" disabled style="opacity:0.7;cursor:not-allowed;">
+        <i class="fas fa-shopping-cart"></i> Out of Stock
+    </button>
+<% } %>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Related Products -->
+            <% if (relatedProducts && relatedProducts.length > 0) { %>
+                <div class="related-products">
+                    <h2 class="related-title">You May Also Like</h2>
+                    <div class="row g-4">
+                        <% for (var i = 0; i < relatedProducts.length; i++) { %>
+                            <% var relatedProduct = relatedProducts[i]; %>
+                            <div class="col-md-3">
+                                <a href="/food/<%= relatedProduct._id %>" class="text-decoration-none">
+                                    <div class="product-card">
+                                        <img src="<%= relatedProduct.productImage && relatedProduct.productImage.length > 0 ? relatedProduct.productImage[0] : '/images/default-food.jpg' %>" 
+                                             alt="<%= relatedProduct.name %>" 
+                                             class="product-card-image">
+                                        <div class="product-card-body">
+                                            <h5 class="product-card-title"><%= relatedProduct.name %></h5>
+                                            <div class="d-flex align-items-center">
+                                                <% if (relatedProduct.offerDetails && relatedProduct.offerDetails.finalPrice && relatedProduct.offerDetails.finalPrice < relatedProduct.regularPrice) { %>
+                                                    <span class="product-card-price">₹<%= Math.round(relatedProduct.offerDetails.finalPrice) %></span>
+                                                    <span class="product-card-original">₹<%= Math.round(relatedProduct.regularPrice) %></span>
+                                                <% } else if (relatedProduct.salesPrice && relatedProduct.salesPrice < relatedProduct.regularPrice) { %>
+                                                    <span class="product-card-price">₹<%= Math.round(relatedProduct.salesPrice) %></span>
+                                                    <span class="product-card-original">₹<%= Math.round(relatedProduct.regularPrice) %></span>
+                                                <% } else { %>
+                                                    <span class="product-card-price">₹<%= Math.round(relatedProduct.regularPrice) %></span>
+                                                <% } %>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                        <% } %>
+                    </div>
+                </div>
+            <% } %>
+
+            <!-- Externalizing all client JS to avoid EJS parsing issues -->
+            <script src="/js/foodDetails.js"></script>
+        </div>
+      
+    </div>
+   
+</body>
+<%- include('../partials/user/footer') %>
+</html>

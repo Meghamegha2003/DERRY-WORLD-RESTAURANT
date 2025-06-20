@@ -1,0 +1,54 @@
+<%- include('partials/error-header') %>
+
+<div class="error-content">
+    <div class="container">
+        <div class="text-center">
+            <div class="error-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            
+            <h1 class="error-title">Oops! Something went wrong</h1>
+            
+            <% if (typeof message !== 'undefined') { %>
+                <p class="error-message"><%= message %></p>
+            <% } else { %>
+                <p class="error-message">We encountered an unexpected error while processing your request.<br>Please try again or contact our support team if the problem persists.</p>
+            <% } %>
+            
+            <div class="d-flex justify-content-center gap-3 flex-wrap">
+                <a href="/" class="home-button">
+                    <i class="fas fa-home me-2"></i>
+                    Return Home
+                </a>
+                <a href="/contact" class="home-button" style="background-color: #222831;">
+                    <i class="fas fa-envelope me-2"></i>
+                    Contact Support
+                </a>
+            </div>
+            
+            <% if (typeof error !== 'undefined' && process.env.NODE_ENV === 'development') { %>
+                <div class="error-details mt-4">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-bug me-2" style="color: #ffbe33;"></i>
+                        <strong>Debug Information</strong>
+                    </div>
+                    <pre><%= error.stack %></pre>
+                </div>
+            <% } %>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const content = document.querySelector('.error-content .container');
+        content.style.opacity = '0';
+        content.style.transform = 'translateY(20px)';
+        
+        setTimeout(() => {
+            content.style.transition = 'all 0.6s ease-out';
+            content.style.opacity = '1';
+            content.style.transform = 'translateY(0)';
+        }, 100);
+    });
+</script>

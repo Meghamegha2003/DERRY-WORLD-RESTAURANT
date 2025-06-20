@@ -1,0 +1,360 @@
+<%- include('../partials/user/header-no-bg') %>
+
+<div class="container mt-5 mb-5">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">My Addresses</h2>
+                <button class="btn btn-primary add-address-btn" data-bs-toggle="modal" data-bs-target="#addAddressModal">
+                    <i class="fas fa-plus me-2"></i>Add New Address
+                </button>
+            </div>
+            
+            <!-- Addresses List -->
+            <div class="row g-4" id="addressesList">
+                <% if (addresses && addresses.length > 0) { %>
+                    <% addresses.forEach(address => { %>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 address-card">
+                                <div class="card-body">
+                                    <div class="address-type mb-3">
+                                        <span class="badge bg-primary"><%= address.addressType %></span>
+                                    </div>
+                                    <h5 class="card-title text-primary mb-3"><%= address.fullName %></h5>
+                                    <div class="address-details">
+                                        <p class="mb-2">
+                                            <i class="fas fa-map-marker-alt text-muted me-2"></i>
+                                            <%= address.addressLine1 %>
+                                        </p>
+                                        <% if (address.addressLine2) { %>
+                                        <p class="mb-2">
+                                            <i class="fas fa-map-marker-alt text-muted me-2"></i>
+                                            <%= address.addressLine2 %>
+                                        </p>
+                                        <% } %>
+                                        <p class="mb-2">
+                                            <i class="fas fa-city text-muted me-2"></i>
+                                            <%= address.city %>, <%= address.state %>
+                                        </p>
+                                        <p class="mb-2">
+                                            <i class="fas fa-hashtag text-muted me-2"></i>
+                                            <%= address.pincode %>
+                                        </p>
+                                        <p class="mb-0">
+                                            <i class="fas fa-phone text-muted me-2"></i>
+                                            <%= address.phone %>
+                                        </p>
+                                    </div>
+                                    <div class="address-actions mt-4">
+                                        <button class="btn btn-outline-primary btn-sm edit-address me-2" 
+                                                data-address-id="<%= address._id %>"
+                                                data-fullname="<%= address.fullName %>"
+                                                data-phone="<%= address.phone %>"
+                                                data-address-line1="<%= address.addressLine1 %>"
+                                                data-address-line2="<%= address.addressLine2 || '' %>"
+                                                data-city="<%= address.city %>"
+                                                data-state="<%= address.state %>"
+                                                data-pincode="<%= address.pincode %>"
+                                                data-address-type="<%= address.addressType %>">
+                                            <i class="fas fa-edit me-1"></i> Edit
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm delete-address" 
+                                                data-address-id="<%= address._id %>">
+                                            <i class="fas fa-trash me-1"></i> Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <% }); %>
+                <% } else { %>
+                    <div class="col-12">
+                        <div class="text-center py-5 empty-state">
+                            <i class="fas fa-map-marked-alt fa-4x text-muted mb-4"></i>
+                            <h4 class="text-muted">No Addresses Found</h4>
+                            <p class="text-muted mb-4">You haven't added any addresses yet.</p>
+                            <button type="button" class="btn btn-primary" onclick="showAddAddressModal()">
+                                <i class="fas fa-plus me-2"></i>Add New Address
+                            </button>
+                        </div>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Function to show add address modal
+    async function showAddAddressModal() {
+        try {
+            const { value: formValues } = await Swal.fire({
+                title: 'Add New Address',
+                html: document.getElementById('addAddressForm').outerHTML,
+                showCancelButton: true,
+                confirmButtonText: 'Save',
+                focusConfirm: false,
+                preConfirm: () => {
+                    const form = document.querySelector('.swal2-container #addAddressForm');
+                    if (!form.checkValidity()) {
+                        form.reportValidity();
+                        return false;
+                    }
+                    return {
+                        fullName: form.querySelector('[name=fullName]').value,
+                        phone: form.querySelector('[name=phone]').value,
+                        addressLine1: form.querySelector('[name=addressLine1]').value,
+                        addressLine2: form.querySelector('[name=addressLine2]').value,
+                        city: form.querySelector('[name=city]').value,
+                        state: form.querySelector('[name=state]').value,
+                        pincode: form.querySelector('[name=pincode]').value,
+                        addressType: form.querySelector('[name=addressType]').value
+                    };
+                }
+            });
+
+            if (formValues) {
+                const response = await fetch('/addresses', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formValues)
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    await Swal.fire({
+                        icon: 'success',
+                        title: 'Success!',
+                        text: 'Address added successfully',
+                        showConfirmButton: false,
+                        timer: 1500
+                    });
+                    location.reload();
+                } else {
+                    throw new Error(data.message || 'Failed to add address');
+                }
+            }
+        } catch (error) {
+            console.error('Error adding address:', error);
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: error.message || 'Failed to add address'
+            });
+        }
+    }
+
+    // Function to show edit address modal
+    async function showEditAddressModal(addressId, fullName, phone, addressLine1, addressLine2, city, state, pincode, addressType) {
+        try {
+            const { value: formValues } = await Swal.fire({
+                title: 'Edit Address',
+                html: document.getElementById('addAddressForm').outerHTML,
+                showCancelButton: true,
+                confirmButtonText: 'Update',
+                focusConfirm: false,
+                didOpen: () => {
+                    const form = document.querySelector('.swal2-container #addAddressForm');
+                    form.querySelector('[name=fullName]').value = fullName;
+                    form.querySelector('[name=phone]').value = phone;
+                    form.querySelector('[name=addressLine1]').value = addressLine1;
+                    form.querySelector('[name=addressLine2]').value = addressLine2;
+                    form.querySelector('[name=city]').value = city;
+                    form.querySelector('[name=state]').value = state;
+                    form.querySelector('[name=pincode]').value = pincode;
+                    form.querySelector('[name=addressType]').value = addressType;
+                },
+                preConfirm: () => {
+                    const form = document.querySelector('.swal2-container #addAddressForm');
+                    if (!form.checkValidity()) {
+                        form.reportValidity();
+                        return false;
+                    }
+                    return {
+                        fullName: form.querySelector('[name=fullName]').value,
+                        phone: form.querySelector('[name=phone]').value,
+                        addressLine1: form.querySelector('[name=addressLine1]').value,
+                        addressLine2: form.querySelector('[name=addressLine2]').value,
+                        city: form.querySelector('[name=city]').value,
+                        state: form.querySelector('[name=state]').value,
+                        pincode: form.querySelector('[name=pincode]').value,
+                        addressType: form.querySelector('[name=addressType]').value
+                    };
+                }
+            });
+
+            if (formValues) {
+                const response = await fetch(`/addresses/${addressId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formValues)
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    await Swal.fire({
+                        icon: 'success',
+                        title: 'Success!',
+                        text: 'Address updated successfully',
+                        showConfirmButton: false,
+                        timer: 1500
+                    });
+                    location.reload();
+                } else {
+                    throw new Error(data.message || 'Failed to update address');
+                }
+            }
+        } catch (error) {
+            console.error('Error updating address:', error);
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: error.message || 'Failed to update address'
+            });
+        }
+    }
+
+    // Initialize when document is ready
+    // Function to initialize event handlers
+    function initializeEventHandlers() {
+        
+        // Add address button click handler
+        const addBtn = document.querySelector('.add-address-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', showAddAddressModal);
+        }
+
+        // Edit address button click handler
+        const editBtns = document.querySelectorAll('.edit-address');
+        editBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const addressId = btn.dataset.addressId;
+                const fullName = btn.dataset.fullname;
+                const phone = btn.dataset.phone;
+                const addressLine1 = btn.dataset.addressLine1;
+                const addressLine2 = btn.dataset.addressLine2;
+                const city = btn.dataset.city;
+                const state = btn.dataset.state;
+                const pincode = btn.dataset.pincode;
+                const addressType = btn.dataset.addressType;
+                showEditAddressModal(addressId, fullName, phone, addressLine1, addressLine2, city, state, pincode, addressType);
+            });
+        });
+
+        // Delete address button click handler
+        const deleteBtns = document.querySelectorAll('.delete-address');
+        deleteBtns.forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const addressId = btn.dataset.addressId;
+                try {
+                    const result = await Swal.fire({
+                        title: 'Are you sure?',
+                        text: 'This address will be permanently deleted.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        cancelButtonColor: '#3085d6',
+                        confirmButtonText: 'Yes, delete it!'
+                    });
+
+                    if (result.isConfirmed) {
+                        const response = await fetch(`/addresses/${addressId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        });
+
+                        const data = await response.json();
+                        if (data.success) {
+                            await Swal.fire({
+                                icon: 'success',
+                                title: 'Deleted!',
+                                text: 'Address has been deleted.',
+                                showConfirmButton: false,
+                                timer: 1500
+                            });
+                            location.reload();
+                        } else {
+                            throw new Error(data.message || 'Failed to delete address');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error deleting address:', error);
+                    await Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: error.message || 'Failed to delete address'
+                    });
+                }
+            });
+        });
+    }
+
+    // Initialize event handlers when DOM is loaded
+    document.addEventListener('DOMContentLoaded', initializeEventHandlers);
+</script>
+
+<%- include('../partials/user/address-modal') %>
+
+<style>
+    .swal2-popup {
+        font-size: 0.9rem;
+    }
+    
+    .swal2-popup .swal2-content {
+        padding: 0 1rem;
+    }
+    
+    .swal2-popup form {
+        margin-top: 1rem;
+        text-align: left;
+    }
+    
+    .swal2-popup label {
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+    }
+    
+    .swal2-popup .form-control {
+        margin-bottom: 0.5rem;
+    }
+    
+    .address-card {
+        transition: all 0.3s ease;
+        border: 1px solid #dee2e6;
+    }
+    
+    .address-card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+    }
+    
+    .address-type {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+    }
+    
+    .address-details p {
+        margin-bottom: 0.5rem;
+        color: #6c757d;
+    }
+    
+    .address-actions {
+        border-top: 1px solid #dee2e6;
+        padding-top: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .empty-state {
+        color: #6c757d;
+    }
+</style>
+
+<%- include('../partials/user/address-modal.ejs') %>
+<%- include('../partials/user/footer') %>

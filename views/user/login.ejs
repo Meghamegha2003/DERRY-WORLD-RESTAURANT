@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="keywords" content="Derry World, Travel, Explore" />
+    <meta name="description" content="Welcome to Derry World - Login to explore the best of everything!" />
+    <meta name="author" content="Derry World" />
+    <link rel="shortcut icon" href="/images/favicon.png" type="image/png" />
+    <title>Login - Derry World</title>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="/css/bootstrap.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="stylesheet" href="/css/responsive.css" />
+    
+    <style>
+        .login-container {
+            background-color: #fff;
+            color: #000;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 550px;
+            margin: 50px auto;
+            width: 95%;
+        }
+
+        .login-container h2 {
+            color: #000;
+            margin-bottom: 20px;
+        }
+
+        .login-container label {
+            font-weight: bold;
+        }
+
+        .forgot-password {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .forgot-password:hover {
+            text-decoration: underline;
+        }
+
+        .btn-login {
+            background-color: #ffbe33;
+            color: #000;
+            border: none;
+            padding: 15px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .btn-login:hover {
+            background-color: #e69c00;
+            transform: translateY(-2px);
+        }
+
+        .btn-google {
+            background-color: #fff;
+            color: #000;
+            border: 1px solid #ddd;
+            padding: 15px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-google:hover {
+            background-color: #f8f9fa;
+            border-color: #ddd;
+        }
+
+        .btn-google img {
+            width: 18px;
+            height: 18px;
+            margin-right: 10px;
+        }
+
+        .divider {
+            text-align: center;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            width: 45%;
+            height: 1px;
+            background-color: #ddd;
+        }
+
+        .divider::before {
+            left: 0;
+        }
+
+        .divider::after {
+            right: 0;
+        }
+
+        .divider span {
+            background-color: #fff;
+            padding: 0 10px;
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        .password-field {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 40%; /* Lowered more for better alignment */
+            transform: translateY(-50%);
+            border: none;
+            background: none;
+            cursor: pointer;
+            padding: 10px 0 0 0; /* More top padding to nudge it further down */
+            color: #5f6368;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .password-toggle:hover {
+            color: #202124;
+        }
+
+        .password-toggle i {
+            font-size: 18px;
+        }
+
+        .form-control {
+            padding-right: 40px;
+        }
+
+        .alert {
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translate3d(0, -100%, 0);
+            }
+            to {
+                opacity: 1;
+                transform: translate3d(0, 0, 0);
+            }
+        }
+
+        @keyframes shake {
+            from, to {
+                transform: translate3d(0, 0, 0);
+            }
+            10%, 30%, 50%, 70%, 90% {
+                transform: translate3d(-10px, 0, 0);
+            }
+            20%, 40%, 60%, 80% {
+                transform: translate3d(10px, 0, 0);
+            }
+        }
+
+        .animated {
+            animation-duration: 0.5s;
+            animation-fill-mode: both;
+        }
+
+        .fadeInDown {
+            animation-name: fadeInDown;
+        }
+
+        .shake {
+            animation-name: shake;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero_area">
+        <div class="bg-box">
+            <img src="/images/hero-bg.jpg" alt="Background Image" class="img-fluid" />
+        </div>
+        <header class="header_section">
+            <div class="container">
+                <nav class="navbar navbar-expand-lg custom_nav-container">
+                    <a class="navbar-brand" href="/">
+                        <span>Derry World</span>
+                    </a>
+                </nav>
+            </div>
+        </header>
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-6 col-md-8 col-sm-12">
+                    <div class="login-container">
+                        <h2 class="text-center mb-4">Login</h2>
+                        <% if (typeof error !== 'undefined' && error) { %>
+                            <div class="alert alert-danger" role="alert">
+                                <%= error %>
+                            </div>
+                        <% } %>
+                        <% if (typeof success !== 'undefined' && success) { %>
+                            <div class="alert alert-success" role="alert">
+                                <%= message %>
+                            </div>
+                        <% } %>
+                        <form id="loginForm" class="mt-4">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email address</label>
+                                <input type="email" class="form-control" id="email" name="email" required>
+                            </div>
+                            <div class="mb-3 password-field">
+    <label for="password" class="form-label">Password</label>
+    <input type="password" class="form-control" id="password" name="password" required>
+    <button type="button" class="password-toggle" tabindex="-1" aria-label="Show password" onclick="togglePasswordVisibility()">
+        <i id="eyeIcon" class="fas fa-eye"></i>
+    </button>
+</div>
+<script>
+function togglePasswordVisibility() {
+    const passwordInput = document.getElementById('password');
+    const eyeIcon = document.getElementById('eyeIcon');
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        eyeIcon.classList.remove('fa-eye');
+        eyeIcon.classList.add('fa-eye-slash');
+    } else {
+        passwordInput.type = 'password';
+        eyeIcon.classList.remove('fa-eye-slash');
+        eyeIcon.classList.add('fa-eye');
+    }
+}
+</script>
+                            <div class="mb-3">
+                                <a href="/forgot-password" class="forgot-password">Forgot Password?</a>
+                            </div>
+                            <button type="submit" class="btn btn-login btn-block">Login</button>
+                        </form>
+
+                        <div class="divider">
+                            <span>or</span>
+                        </div>
+
+                        <a href="/auth/google" class="btn btn-google w-100 mb-3">
+                            <img src="https://www.google.com/favicon.ico" alt="Google" class="me-2">
+                            Continue with Google
+                        </a>
+
+                        <p class="text-center mt-3">
+                            Don't have an account? <a href="/register" class="text-primary">Sign up</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <!-- SweetAlert2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            try {
+                const formData = {
+                    email: document.getElementById('email').value,
+                    password: document.getElementById('password').value
+                };
+
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Show success message
+                    await Swal.fire({
+                        icon: 'success',
+                        title: 'Success!',
+                        text: data.message || 'Login successful',
+                        showConfirmButton: false,
+                        timer: 1500,
+                        timerProgressBar: true,
+                        customClass: {
+                            popup: 'animated fadeInDown'
+                        }
+                    });
+                    window.location.href = data.redirectUrl || '/';
+                } else {
+                    // Show error message
+                    await Swal.fire({
+                        icon: 'error',
+                        title: 'Login Failed',
+                        text: data.message,
+                        confirmButtonText: 'Try Again',
+                        confirmButtonColor: '#8B4513',
+                        customClass: {
+                            popup: 'animated shake'
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                await Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: 'Something went wrong! Please try again.',
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#8B4513',
+                    customClass: {
+                        popup: 'animated shake'
+                    }
+                });
+            }
+        });
+
+        // Check for error message in URL parameters when page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const errorMessage = urlParams.get('error');
+            const successMessage = urlParams.get('success');
+
+            if (errorMessage) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: decodeURIComponent(errorMessage),
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#8B4513',
+                    customClass: {
+                        popup: 'animated shake'
+                    }
+                });
+            } else if (successMessage) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success',
+                    text: decodeURIComponent(successMessage),
+                    showConfirmButton: false,
+                    timer: 1500,
+                    timerProgressBar: true,
+                    customClass: {
+                        popup: 'animated fadeInDown'
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

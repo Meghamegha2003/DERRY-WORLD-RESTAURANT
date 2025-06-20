@@ -1,0 +1,467 @@
+<%- include('../../views/partials/admin/header') %>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+  .preview-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .preview-box {
+    position: relative;
+    aspect-ratio: 1;
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    background-color: #f8f9fa;
+    transition: all 0.2s ease;
+  }
+  
+  .preview-box:hover {
+    border-color: #0d6efd;
+    background-color: #f1f5ff;
+  }
+  
+  .preview-box img.preview-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* Remove max-width or max-height for full coverage */
+    max-width: none;
+    max-height: none;
+  }
+  
+  .preview-box .empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d;
+    padding: 10px;
+  }
+  
+  .preview-box .add-icon {
+    font-size: 32px;
+    line-height: 1;
+    margin-bottom: 8px;
+    color: #adb5bd;
+  }
+  
+  .preview-box .add-text {
+    font-size: 14px;
+    text-align: center;
+    line-height: 1.2;
+  }
+  
+  .preview-box .delete-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(220, 53, 69, 0.9);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    z-index: 2;
+    transition: all 0.2s ease;
+  }
+  
+  .preview-box .delete-btn:hover {
+    background: #dc3545;
+    transform: scale(1.1);
+  }
+
+  .img-container {
+    max-width: 100%;
+    height: 500px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .img-container img {
+    max-width: 100%;
+    max-height: 100%;
+    display: block;
+  }
+
+  .cropper-view-box,
+  .cropper-face {
+    border-radius: 0;
+  }
+
+  .cropper-container {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .cropper-wrap-box {
+    background-color: rgba(0, 0, 0, 0.5);
+  }
+
+  .cropper-line,
+  .cropper-point {
+    background-color: #0d6efd;
+  }
+
+  .cropper-view-box {
+    box-shadow: 0 0 0 1px #0d6efd;
+    outline: 0;
+  }
+
+  .cropper-face {
+    background-color: rgba(13, 110, 253, 0.1);
+  }
+
+  .cropper-crop-box {
+    aspect-ratio: 1;
+  }
+
+  .modal-dialog.modal-lg {
+    max-width: 800px;
+    margin: 1.75rem auto;
+  }
+
+  .modal-content {
+    border-radius: 12px;
+    height: auto;
+  }
+
+  .modal-body {
+    padding: 1rem;
+    background-color: #000;
+  }
+
+  /* Ensure placeholder boxes maintain square shape */
+  .preview-box::before {
+    content: "";
+    display: block;
+    padding-top: 100%;
+  }
+
+  .preview-box > * {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Add shadow to images */
+  .preview-box img.preview-image {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+</style>
+
+<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+  <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Edit Product</h1>
+    <a href="/admin/products" class="btn btn-secondary">
+      <i class="bi bi-arrow-left"></i> Back to Products
+    </a>
+  </div>
+
+  <form id="editProductForm" action="/admin/products/edit/<%= product._id %>" method="POST" enctype="multipart/form-data" autocomplete="off">
+    <input type="hidden" name="productId" value="<%= product._id %>">
+    <input type="file" id="hiddenImageInput" name="images" accept="image/*" style="display:none;" multiple>
+    
+    <div class="mb-3">
+      <label for="productName" class="form-label">Product Name</label>
+      <input type="text" class="form-control" id="productName" name="productName" value="<%= product.name %>" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="category" class="form-label">Category</label>
+      <select class="form-select" id="category" name="category" required>
+        <option value="">-- Select Category --</option>
+        <% categories.forEach(category => { %>
+          <option value="<%= category._id %>" 
+            <%= (product.category && product.category._id && category._id.toString() === product.category._id.toString()) || 
+                (product.category && category._id.toString() === product.category.toString()) ? 'selected' : '' %>>
+            <%= category.name %>
+          </option>
+        <% }); %>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="dietaryType" class="form-label">Dietary Type</label>
+      <select class="form-select" id="dietaryType" name="dietaryType" required>
+        <option value="veg" <%= product.dietaryType === 'veg' ? 'selected' : '' %>>Vegetarian</option>
+        <option value="nonveg" <%= product.dietaryType === 'nonveg' ? 'selected' : '' %>>Non-Vegetarian</option>
+        <option value="vegan" <%= product.dietaryType === 'vegan' ? 'selected' : '' %>>Vegan</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="regularPrice" class="form-label">Regular Price</label>
+      <input type="number" class="form-control" id="regularPrice" name="regularPrice" value="<%= product.regularPrice %>" required min="0">
+    </div>
+
+    <div class="mb-3">
+      <label for="salesPrice" class="form-label">Sales Price</label>
+      <input type="number" class="form-control" id="salesPrice" name="salesPrice" value="<%= product.salesPrice %>" required min="0">
+    </div>
+
+    <div class="mb-3">
+      <label for="quantity" class="form-label">Quantity</label>
+      <input type="number" class="form-control" id="quantity" name="quantity" value="<%= product.quantity %>" required min="0">
+    </div>
+
+    <div class="mb-3">
+      <label for="description" class="form-label">Description</label>
+      <textarea class="form-control" id="description" name="description" rows="3" required><%= product.description %></textarea>
+    </div>
+
+   <div class="mb-3">
+     <label class="form-label">Product Images</label>
+     <div class="preview-grid">
+       <% for(let i = 0; i < 4; i++) { %>
+         <div class="preview-box" data-index="<%= i %>" onclick="handleImageClick(event, <%= i %>)">
+           <% if (product && product.productImage && product.productImage[i]) { %>
+             <img src="<%= product.productImage[i] %>" 
+                  alt="Product Image <%= i + 1 %>" 
+                  class="preview-image"
+                  onerror="this.onerror=null; this.src='/images/default-product.jpg';">
+             <button type="button" class="delete-btn" onclick="deleteImage(event, <%= i %>)">&times;</button>
+             <input type="hidden" name="existingImages[]" value="<%= product.productImage[i] %>">
+           <% } else { %>
+             <div class="empty">
+               <span class="add-icon">+</span>
+               <span class="add-text">Click to add image</span>
+             </div>
+           <% } %>
+         </div>
+       <% } %>
+     </div>
+     <div class="text-muted small mt-2">
+       <i class="fas fa-info-circle me-1"></i>
+       Click on a box to add an image. Maximum 4 images allowed. Each image should be less than 5MB.
+     </div>
+   </div>
+
+    <div class="mb-3">
+      <button type="submit" class="btn btn-primary">Update Product</button>
+      <a href="/admin/products" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</main>
+
+<!-- Cropper Modal -->
+<div class="modal fade" id="cropperModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Image Editor</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="img-container">
+          <img id="cropperImage" src="" alt="Image to crop">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-crop" id="cropButton">Apply Crop</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let cropper = null;
+  let currentImageIndex = null;
+  let croppedImages = new Array(4).fill(null);
+
+  function handleImageClick(event, index) {
+    event.preventDefault();
+    if (event.target.classList.contains('delete-btn')) return;
+    
+    currentImageIndex = index;
+    document.getElementById('hiddenImageInput').click();
+  }
+
+  document.getElementById('hiddenImageInput').onchange = handleImageSelect;
+
+  function handleImageSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const cropperImage = document.getElementById('cropperImage');
+      cropperImage.src = e.target.result;
+      
+      const modal = new bootstrap.Modal(document.getElementById('cropperModal'));
+      modal.show();
+      
+      if (cropper) {
+        cropper.destroy();
+      }
+      
+      cropper = new Cropper(cropperImage, {
+        aspectRatio: 1,
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 0.8,
+        restore: false,
+        guides: true,
+        center: true,
+        highlight: true,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+        responsive: true,
+        checkOrientation: true,
+        background: true,
+        modal: true,
+        ready: function() {
+          const containerData = cropper.getContainerData();
+          const size = Math.min(containerData.width, containerData.height) * 0.8;
+          cropper.setCropBoxData({
+            width: size,
+            height: size
+          });
+        }
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  document.getElementById('cropButton').addEventListener('click', function() {
+    if (!cropper || currentImageIndex === null) return;
+    
+    const canvas = cropper.getCroppedCanvas({
+      width: 600,
+      height: 600,
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'high',
+    });
+
+    const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    
+    const previewBox = document.querySelector(`.preview-box[data-index="${currentImageIndex}"]`);
+    let previewImage = previewBox.querySelector('.preview-image');
+    
+    if (!previewImage) {
+      previewImage = document.createElement('img');
+      previewImage.classList.add('preview-image');
+      previewBox.innerHTML = '';
+      previewBox.appendChild(previewImage);
+      
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'delete-btn';
+      deleteBtn.innerHTML = '&times;';
+      deleteBtn.onclick = (e) => deleteImage(e, currentImageIndex);
+      previewBox.appendChild(deleteBtn);
+    }
+    
+    previewImage.src = croppedDataUrl;
+    croppedImages[currentImageIndex] = croppedDataUrl;
+
+    const modal = bootstrap.Modal.getInstance(document.getElementById('cropperModal'));
+    modal.hide();
+    
+    cropper.destroy();
+    cropper = null;
+  });
+
+  function deleteImage(event, index) {
+    event.stopPropagation();
+    const previewBox = document.querySelector(`.preview-box[data-index="${index}"]`);
+    previewBox.innerHTML = `
+      <div class="empty">
+        <span class="add-icon">+</span>
+        <span class="add-text">Click to add image</span>
+      </div>
+    `;
+    croppedImages[index] = null;
+  }
+
+  document.getElementById('editProductForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+    
+    // Remove all existingImages[] fields to avoid duplicates
+    [...formData.keys()].forEach(key => {
+      if (key === 'existingImages[]') {
+        formData.delete(key);
+      }
+    });
+
+    // Always submit exactly 4 image slots, using cropped/new images if present, otherwise fallback to existing
+    for (let i = 0; i < 4; i++) {
+      if (croppedImages[i]) {
+        // New/cropped image
+        const dataUrl = croppedImages[i];
+        const byteString = atob(dataUrl.split(',')[1]);
+        const mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0];
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let j = 0; j < byteString.length; j++) {
+          ia[j] = byteString.charCodeAt(j);
+        }
+        const blob = new Blob([ab], { type: mimeString });
+        formData.append('images', blob, `image${i}.jpg`);
+      } else {
+        // If no new image, submit the existing one (if present)
+        const existingInput = document.querySelector(`.preview-box[data-index="${i}"] input[type=hidden][name='existingImages[]']`);
+        if (existingInput && existingInput.value) {
+          formData.append('existingImages[]', existingInput.value);
+        }
+      }
+    }
+
+    try {
+      const response = await fetch(this.action, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        Swal.fire({
+          title: 'Success!',
+          text: 'Product updated successfully',
+          icon: 'success',
+          confirmButtonText: 'OK'
+        }).then(() => {
+          window.location.href = '/admin/products';
+        });
+      } else {
+        throw new Error('Failed to update product');
+      }
+    } catch (error) {
+      Swal.fire({
+        title: 'Error!',
+        text: error.message,
+        icon: 'error',
+        confirmButtonText: 'OK'
+      });
+    }
+  });
+</script>
+
+<%- include('../../views/partials/admin/footer') %>

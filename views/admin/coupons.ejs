@@ -1,0 +1,655 @@
+<%- include('../partials/admin/header') %>
+<script>
+  // Global stub for coupon code uniqueness
+  window.checkCouponCodeExists = window.checkCouponCodeExists || function(code, id) {
+    return Promise.resolve(false);
+  };
+</script>
+
+<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Coupon Management</h1>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCouponModal">
+            <i class="bi bi-plus-circle"></i> Add New Coupon
+        </button>
+    </div>
+
+    <!-- Coupons Table -->
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered mt-3">
+            <thead class="table-dark">
+                <tr>
+                    <th>Code</th>
+                    <th>Description</th>
+                    <th>Discount</th>
+                    <th>Min Purchase</th>
+                    <th>Usage</th>
+                    <th>Validity</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% coupons.forEach(coupon => { %>
+                    <tr>
+                        <td><%= coupon.code %></td>
+                        <td><%= coupon.description %></td>
+                        <td>
+                            <% if (coupon.discountValue !== undefined) { %>
+                                <%= coupon.discountType === 'percentage' ? coupon.discountValue + '%' : '₹' + coupon.discountValue %>
+                            <% } else { %>
+                                N/A
+                            <% } %>
+                        </td>
+                        <td>₹<%= coupon.minPurchase || 0 %></td>
+                        <td><%= coupon.usedCount || 0 %>/<%= coupon.usageLimit || 'Unlimited' %></td>
+                        <td>
+                            <% 
+                            const now = new Date();
+                            let validFromDate = new Date(coupon.validFrom);
+                            let validUntilDate = new Date(coupon.validUntil);
+                            
+                            // Check if dates are valid
+                            if (isNaN(validFromDate.getTime())) validFromDate = now;
+                            if (isNaN(validUntilDate.getTime())) validUntilDate = now;
+                            %>
+                            
+                            <% if (!coupon.isActive) { %>
+                                <span class="badge bg-secondary">Disabled</span>
+                            <% } else if (now < validFromDate) { %>
+                                <span class="badge bg-info">Upcoming</span>
+                            <% } else if (now > validUntilDate) { %>
+                                <span class="badge bg-danger">Expired</span>
+                            <% } else if (coupon.usedCount >= coupon.usageLimit) { %>
+                                <span class="badge bg-warning">Limit Reached</span>
+                            <% } else { %>
+                                <span class="badge bg-success">Active</span>
+                            <% } %>
+                            <br>
+                            <small class="text-muted">
+                                Valid: <%= validFromDate.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }) %> to <%= validUntilDate.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }) %>
+                            </small>
+                        </td>
+                        <td class="text-center">
+                            <% 
+                                const isDisabled = now > validUntilDate || coupon.usedCount >= coupon.usageLimit;
+                                const buttonClass = coupon.isActive ? 'btn-danger' : 'btn-success';
+                            %>
+                            <button onclick="toggleCouponStatus('<%= coupon._id %>', <%= coupon.isActive %>)" 
+                                    class="btn btn-sm <%= buttonClass %>" 
+                                    <%= isDisabled ? 'disabled' : '' %>>
+                                <i class="bi bi-power"></i> <%= coupon.isActive ? 'Disable' : 'Enable' %>
+                            </button>
+                           
+                        </td>
+                        <td> 
+                            <button class="btn btn-sm btn-warning ms-1"
+                            onclick="editCoupon('<%= JSON.stringify(coupon) %>')">
+                            <i class="bi bi-pencil"></i> Edit
+                    </button>
+                </td>
+                    </tr>
+                <% }); %>
+            </tbody>
+        </table>
+    </div>
+</main>
+
+<!-- Add Coupon Modal -->
+<div class="modal fade" id="addCouponModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Add New Coupon</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="addCouponForm" class="needs-validation" novalidate>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="code" class="form-label">Coupon Code *</label>
+                            <input type="text" class="form-control" id="code" name="code" required 
+                                   pattern="^[A-Za-z0-9]{3,}$" 
+                                   title="Coupon code must be at least 3 characters long and contain only letters and numbers">
+                            <div class="invalid-feedback">
+                                Please enter a valid coupon code (minimum 3 characters, letters and numbers only)
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="discountType" class="form-label">Discount Type *</label>
+                            <select class="form-select" id="discountType" name="discountType" required>
+                                <option value="">Select Type</option>
+                                <option value="percentage">Percentage</option>
+                                <option value="fixed">Fixed Amount</option>
+                            </select>
+                            <div class="invalid-feedback">Please select a discount type</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="discountValue" class="form-label">Discount Value *</label>
+                            <input type="number" class="form-control" id="discountValue" name="discountValue" 
+                                   required min="1">
+                            <div class="invalid-feedback">Please enter a valid discount value</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="minPurchase" class="form-label">Minimum Purchase Amount *</label>
+                            <input type="number" class="form-control" id="minPurchase" name="minPurchase" 
+                                   required min="0">
+                            <div class="invalid-feedback">Please enter a valid minimum purchase amount</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="usageLimit" class="form-label">Usage Limit *</label>
+                            <input type="number" class="form-control" id="usageLimit" name="usageLimit" 
+                                   required min="1">
+                            <div class="invalid-feedback">Please enter a valid usage limit</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="validFrom" class="form-label">Valid From *</label>
+                            <input type="date" class="form-control" id="validFrom" name="validFrom" required>
+                            <div class="invalid-feedback">Please select a start date</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="validUntil" class="form-label">Valid Until *</label>
+                            <input type="date" class="form-control" id="validUntil" name="validUntil" required>
+                            <div class="invalid-feedback">Please select an expiry date</div>
+                        </div>
+                        <div class="col-12">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Create Coupon
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Coupon Modal -->
+<div class="modal fade" id="editCouponModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">Edit Coupon</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editCouponForm" class="needs-validation" novalidate>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <input type="hidden" name="couponId" required>
+                        <div class="col-md-6">
+                            <label for="code" class="form-label">Coupon Code *</label>
+                            <input type="text" class="form-control" name="code" required minlength="3" maxlength="10">
+                            <div class="invalid-feedback">Please enter a valid coupon code (3-10 characters)</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="discountType" class="form-label">Discount Type *</label>
+                            <select class="form-select" name="discountType" required>
+                                <option value="">Choose...</option>
+                                <option value="percentage">Percentage</option>
+                                <option value="fixed">Fixed Amount</option>
+                            </select>
+                            <div class="invalid-feedback">Please select a discount type</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="discountValue" class="form-label">Discount Value *</label>
+                            <input type="number" class="form-control" name="discountValue" required min="1">
+                            <div class="invalid-feedback">Please enter a valid discount value</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="minPurchase" class="form-label">Minimum Purchase Amount *</label>
+                            <input type="number" class="form-control" name="minPurchase" required min="0">
+                            <div class="invalid-feedback">Please enter a valid minimum purchase amount</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="usageLimit" class="form-label">Usage Limit *</label>
+                            <input type="number" class="form-control" name="usageLimit" required min="1">
+                            <div class="invalid-feedback">Please enter a valid usage limit</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="validFrom" class="form-label">Valid From *</label>
+                            <input type="date" class="form-control" name="validFrom" required>
+                            <div class="invalid-feedback">Please select a start date</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="validUntil" class="form-label">Valid Until *</label>
+                            <input type="date" class="form-control" name="validUntil" required>
+                            <div class="invalid-feedback">Please select an expiry date</div>
+                        </div>
+                        <div class="col-12">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" name="description" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Update Coupon</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Required Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Add SweetAlert2 Script -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="/js/admin/coupons.js"></script>
+
+<!-- Admin coupons JS -->
+<!-- Initialize coupon data -->
+<script>
+    // Ensure checkCouponCodeExists is defined (inline stub)
+    if (typeof checkCouponCodeExists !== 'function') {
+        var checkCouponCodeExists = function(code) { return Promise.resolve(false); };
+    }
+    // Store coupon data globally
+    window.COUPON_DATA = JSON.parse('<%- JSON.stringify(coupons) %>');
+    
+    // Handle edit coupon click
+    async function editCoupon(couponData) {
+        try {
+            const coupon = JSON.parse(couponData);
+            const form = document.getElementById('editCouponForm');
+            
+            // Set form values
+            form.querySelector('input[name="couponId"]').value = coupon._id;
+            form.querySelector('input[name="code"]').value = coupon.code;
+            form.querySelector('textarea[name="description"]').value = coupon.description || '';
+            form.querySelector('select[name="discountType"]').value = coupon.discountType;
+            form.querySelector('input[name="discountValue"]').value = coupon.discountValue;
+            form.querySelector('input[name="minPurchase"]').value = coupon.minPurchase;
+            form.querySelector('input[name="usageLimit"]').value = coupon.usageLimit;
+
+            // Format dates for date inputs
+            const formatDate = (dateString) => {
+                const date = new Date(dateString);
+                return date.toISOString().split('T')[0];
+            };
+
+            form.querySelector('input[name="validFrom"]').value = formatDate(coupon.validFrom);
+            form.querySelector('input[name="validUntil"]').value = formatDate(coupon.validUntil);
+
+            // Show edit modal
+            const editModal = new bootstrap.Modal(document.getElementById('editCouponModal'));
+            editModal.show();
+        } catch (error) {
+            console.error('Error preparing edit form:', error);
+            Swal.fire({
+                title: 'Error!',
+                text: 'Failed to load coupon data',
+                icon: 'error',
+                confirmButtonColor: '#dc3545'
+            });
+        }
+    }
+
+    // Handle edit form submission
+    document.addEventListener('DOMContentLoaded', function() {
+        // Inline stub for checkCouponCodeExists in this scope
+        if (typeof checkCouponCodeExists !== 'function') {
+            function checkCouponCodeExists(code) { return Promise.resolve(false); }
+        }
+        const editCouponForm = document.getElementById('editCouponForm');
+        if (editCouponForm) {
+            // Add event listener for code input to check duplicates
+            const editCodeInput = editCouponForm.querySelector('input[name="code"]');
+            editCodeInput.addEventListener('blur', async function() {
+                const code = this.value.trim();
+                const couponId = editCouponForm.querySelector('input[name="couponId"]').value;
+                if (code) {
+                    const exists = await checkCouponCodeExists(code, couponId);
+                    if (exists) {
+                        this.setCustomValidity('This coupon code already exists');
+                        Swal.fire({
+                            title: 'Warning!',
+                            text: 'This coupon code already exists. Please choose a different code.',
+                            icon: 'warning',
+                            confirmButtonColor: '#dc3545'
+                        });
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                }
+            });
+
+            editCouponForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                if (!this.checkValidity()) {
+                    e.stopPropagation();
+                    this.classList.add('was-validated');
+                    return;
+                }
+
+                try {
+                    const formData = new FormData(this);
+                    const data = Object.fromEntries(formData.entries());
+                    const couponId = data.couponId;
+
+                    // Check for duplicate code one last time
+                    const exists = await checkCouponCodeExists(data.code.trim(), couponId);
+                    if (exists) {
+                        Swal.fire({
+                            title: 'Error!',
+                            text: 'This coupon code already exists. Please choose a different code.',
+                            icon: 'error',
+                            confirmButtonColor: '#dc3545'
+                        });
+                        return;
+                    }
+
+                    // Show loading state
+                    Swal.fire({
+                        title: 'Updating Coupon...',
+                        text: 'Please wait',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+
+                    const response = await fetch(`/admin/coupons/${couponId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            code: data.code.trim(),
+                            description: data.description || '',
+                            discountType: data.discountType,
+                            discountValue: Number(data.discountValue),
+                            minPurchase: Number(data.minPurchase),
+                            usageLimit: Number(data.usageLimit),
+                            validFrom: data.validFrom,
+                            validUntil: data.validUntil
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (!result.success) {
+                        throw new Error(result.message || 'Failed to update coupon');
+                    }
+
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editCouponModal'));
+                    modal.hide();
+
+                    // Reset form
+                    this.reset();
+                    this.classList.remove('was-validated');
+
+                    // Show success message
+                    await Swal.fire({
+                        title: 'Success!',
+                        text: 'Coupon updated successfully',
+                        icon: 'success',
+                        timer: 1500,
+                        timerProgressBar: true,
+                        showConfirmButton: false
+                    });
+
+                    // Refresh page
+                    window.location.reload();
+
+                } catch (error) {
+                    console.error('Error:', error);
+                    Swal.fire({
+                        title: 'Error!',
+                        text: error.message || 'Failed to update coupon',
+                        icon: 'error',
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            });
+        }
+    });
+
+    // Handle toggle coupon status
+    async function toggleCouponStatus(couponId, currentStatus) {
+        try {
+            // Get coupon details to check if it can be toggled
+            const coupon = COUPON_DATA.find(c => c._id === couponId);
+            if (!coupon) {
+                throw new Error('Coupon not found');
+            }
+
+            const now = new Date();
+            const expiryDate = new Date(coupon.expiryDate);
+            
+            // Check if coupon can be enabled
+            if (!currentStatus) { // trying to enable
+                if (now > expiryDate) {
+                    throw new Error('Cannot enable expired coupon');
+                }
+                if (coupon.usedCount >= coupon.usageLimit) {
+                    throw new Error('Cannot enable coupon that has reached its usage limit');
+                }
+            }
+
+            // Show confirmation dialog
+            const result = await Swal.fire({
+                title: `${currentStatus ? 'Disable' : 'Enable'} Coupon?`,
+                text: `Are you sure you want to ${currentStatus ? 'disable' : 'enable'} this coupon?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: currentStatus ? '#dc3545' : '#198754',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: `Yes, ${currentStatus ? 'disable' : 'enable'} it!`
+            });
+
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            // Show loading state
+            Swal.fire({
+                title: `${currentStatus ? 'Disabling' : 'Enabling'} Coupon...`,
+                text: 'Please wait',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            const response = await fetch(`/admin/coupons/${couponId}/toggle`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.redirected || response.url.includes('/admin/login')) {
+                window.location.href = '/admin/login';
+                return;
+            }
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.message || `Failed to ${currentStatus ? 'disable' : 'enable'} coupon`);
+            }
+
+            // Show success message
+            await Swal.fire({
+                title: 'Success!',
+                text: `Coupon ${currentStatus ? 'disabled' : 'enabled'} successfully`,
+                icon: 'success',
+                timer: 1500,
+                timerProgressBar: true,
+                showConfirmButton: false
+            });
+
+            // Refresh page
+            window.location.reload();
+
+        } catch (error) {
+            console.error('Error:', error);
+            Swal.fire({
+                title: 'Error!',
+                text: error.message || 'Failed to update coupon status',
+                icon: 'error',
+                confirmButtonColor: '#dc3545'
+            });
+        }
+    }
+
+    // Initialize date inputs
+    document.addEventListener('DOMContentLoaded', function() {
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Initialize date inputs for both add and edit forms
+        ['validFrom', 'validUntil'].forEach(id => {
+            const input = document.querySelector(`input[name="${id}"]`);
+            if (input) {
+                input.min = today;
+            }
+        });
+
+        // Add event listener to validFrom to update validUntil min date
+        const validFromInput = document.querySelector('input[name="validFrom"]');
+        const validUntilInput = document.querySelector('input[name="validUntil"]');
+        if (validFromInput && validUntilInput) {
+            validFromInput.addEventListener('change', function() {
+                validUntilInput.min = this.value;
+            });
+        }
+
+        // Function to check if coupon code exists
+        async function checkCouponCodeExists(code, excludeId = null) {
+            try {
+                const response = await fetch(`/admin/coupons/check-code?code=${encodeURIComponent(code)}${excludeId ? `&excludeId=${excludeId}` : ''}`);
+                const data = await response.json();
+                return data.exists;
+            } catch (error) {
+                console.error('Error checking coupon code:', error);
+                return false;
+            }
+        }
+
+        // Handle add coupon form submission
+        const addCouponForm = document.getElementById('addCouponForm');
+        if (addCouponForm) {
+            const codeInput = addCouponForm.querySelector('input[name="code"]');
+            
+            // Add event listener for code input to check duplicates
+            codeInput.addEventListener('blur', async function() {
+                const code = this.value.trim();
+                if (code) {
+                    const exists = await checkCouponCodeExists(code);
+                    if (exists) {
+                        this.setCustomValidity('This coupon code already exists');
+                        Swal.fire({
+                            title: 'Warning!',
+                            text: 'This coupon code already exists. Please choose a different code.',
+                            icon: 'warning',
+                            confirmButtonColor: '#dc3545'
+                        });
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                }
+            });
+
+            addCouponForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                if (!this.checkValidity()) {
+                    e.stopPropagation();
+                    this.classList.add('was-validated');
+                    return;
+                }
+
+                try {
+                    const formData = new FormData(this);
+                    const data = Object.fromEntries(formData.entries());
+                    
+                    // Check for duplicate code one last time
+                    const exists = await checkCouponCodeExists(data.code.trim());
+                    if (exists) {
+                        Swal.fire({
+                            title: 'Error!',
+                            text: 'This coupon code already exists. Please choose a different code.',
+                            icon: 'error',
+                            confirmButtonColor: '#dc3545'
+                        });
+                        return;
+                    }
+
+                    // Show loading state
+                    Swal.fire({
+                        title: 'Creating Coupon...',
+                        text: 'Please wait',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+
+                    const response = await fetch('/admin/coupons', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            code: data.code.trim(),
+                            description: data.description || '',
+                            discountType: data.discountType,
+                            discountValue: Number(data.discountValue),
+                            minPurchase: Number(data.minPurchase),
+                            usageLimit: Number(data.usageLimit),
+                            validFrom: data.validFrom,
+                            validUntil: data.validUntil
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (!result.success) {
+                        throw new Error(result.message || 'Failed to create coupon');
+                    }
+
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('addCouponModal'));
+                    modal.hide();
+
+                    // Reset form
+                    this.reset();
+                    this.classList.remove('was-validated');
+
+                    // Show success message
+                    await Swal.fire({
+                        title: 'Success!',
+                        text: 'Coupon created successfully',
+                        icon: 'success',
+                        timer: 1500,
+                        timerProgressBar: true,
+                        showConfirmButton: false
+                    });
+
+                    // Refresh page
+                    window.location.reload();
+
+                } catch (error) {
+                    console.error('Error:', error);
+                    Swal.fire({
+                        title: 'Error!',
+                        text: error.message || 'Failed to create coupon',
+                        icon: 'error',
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            });
+        }
+    });
+</script>
+
+<%- include('../partials/admin/footer') %>

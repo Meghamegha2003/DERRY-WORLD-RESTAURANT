@@ -1,0 +1,166 @@
+<!-- Add Address Modal -->
+<div class="modal fade" id="addressModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addressModalTitle">Add New Address</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addressForm" onsubmit="submitAddress(); return false;">
+                    <input type="hidden" name="addressId" id="addressId">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Full Name *</label>
+                        <input type="text" class="form-control" name="fullName" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Phone Number *</label>
+                        <input type="tel" class="form-control" name="phone" pattern="[0-9]{10}" required>
+                        <small class="text-muted">10 digits number</small>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Address Line 1 *</label>
+                        <input type="text" class="form-control" name="addressLine1" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Address Line 2</label>
+                        <input type="text" class="form-control" name="addressLine2">
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">City *</label>
+                        <input type="text" class="form-control" name="city" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">State *</label>
+                        <input type="text" class="form-control" name="state" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">PIN Code *</label>
+                        <input type="text" class="form-control" name="pincode" pattern="[0-9]{6}" required>
+                        <small class="text-muted">6 digits PIN code</small>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Address Type *</label>
+                        <select class="form-select" name="addressType" required>
+                            <option value="">Select Address Type</option>
+                            <option value="Home">Home</option>
+                            <option value="Work">Work</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="modal-footer px-0 pb-0">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary" id="saveAddressBtn">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let isSubmitting = false;
+    let addressModal;
+
+    // Initialize modal when document is ready
+    $(document).ready(function() {
+        addressModal = new bootstrap.Modal(document.getElementById('addressModal'));
+    });
+
+    function showAddAddressModal() {
+        $('#addressModalTitle').text('Add New Address');
+        $('#addressForm')[0].reset();
+        $('#addressId').val('');
+        addressModal.show();
+    }
+
+    function showEditAddressModal(addressId, fullName, phone, addressLine1, addressLine2, city, state, pincode, addressType) {
+        $('#addressModalTitle').text('Edit Address');
+        const $form = $('#addressForm');
+        $form[0].reset();
+        
+        // Set form values
+        $('#addressId').val(addressId);
+        $form.find('[name="fullName"]').val(fullName);
+        $form.find('[name="phone"]').val(phone);
+        $form.find('[name="addressLine1"]').val(addressLine1);
+        $form.find('[name="addressLine2"]').val(addressLine2 || '');
+        $form.find('[name="city"]').val(city);
+        $form.find('[name="state"]').val(state);
+        $form.find('[name="pincode"]').val(pincode);
+        $form.find('[name="addressType"]').val(addressType);
+
+        addressModal.show();
+    }
+
+    async function submitAddress() {
+        try {
+            // Prevent multiple submissions
+            if (isSubmitting) return;
+
+            const form = document.getElementById('addressForm');
+            const saveBtn = document.getElementById('saveAddressBtn');
+            
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            // Disable save button and set submitting flag
+            isSubmitting = true;
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+
+
+            const formData = new FormData(form);
+            const addressData = Object.fromEntries(formData.entries());
+            const addressId = addressData.addressId;
+            delete addressData.addressId;
+
+            const isEdit = addressId !== '';
+            const url = isEdit ? `/addresses/${addressId}` : '/addresses';
+            const method = isEdit ? 'PATCH' : 'POST';
+
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(addressData)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Hide the modal
+                addressModal.hide();
+
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: isEdit ? 'Address updated successfully' : 'Address added successfully',
+                    showConfirmButton: false,
+                    timer: 1500
+                });
+                
+                window.location.reload();
+            } else {
+                throw new Error(data.message || (isEdit ? 'Failed to update address' : 'Failed to add address'));
+            }
+        } catch (error) {
+            console.error('Error with address:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error!',
+                text: error.message || 'Failed to process address. Please try again.',
+                confirmButtonColor: '#e74c3c'
+            });
+
+            // Re-enable save button and reset submitting flag on error
+            const saveBtn = document.getElementById('saveAddressBtn');
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = 'Save';
+            isSubmitting = false;
+        }
+    }
+</script>

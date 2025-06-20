@@ -1,0 +1,223 @@
+<%- include('../partials/admin/header') %>
+
+<!-- Main Content -->
+<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+    <h1 class="mb-3 mb-md-0">Customer List</h1>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary mb-3 mb-md-0" onclick="exportCustomerData()">
+        <i class="bi bi-download"></i> Export Data
+      </button>
+    </div>
+  </div>
+  
+  <div class="table-responsive">
+    <table class="table table-striped table-hover table-bordered mt-3">
+      <thead class="table-dark">
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col">Email</th>
+          <th scope="col">Phone</th>
+          <th scope="col">Joined Date</th>
+          <th scope="col">Status</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      
+      <tbody>
+        <% customers.forEach(customer => { %>
+        <tr>
+          <td><%= customer.name %></td>
+          <td><%= customer.email %></td>
+          <td><%= customer.phone || 'N/A' %></td>
+          <td>
+            <% 
+              let joinedDate = 'N/A';
+              try {
+                if (customer.createdAt) {
+                  joinedDate = new Date(customer.createdAt).toLocaleDateString('en-IN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                  });
+                }
+              } catch(e) { 
+                console.error('Error formatting date:', e);
+              } 
+            %>
+            <%= joinedDate %>
+          </td>
+          <td class="text-center">
+            <span class="badge <%= customer.isActive ? 'bg-success' : 'bg-danger' %>">
+              <%= customer.isActive ? 'Active' : 'Blocked' %>
+            </span>
+          </td>
+          <td class="text-center">
+            <button onclick="handleCustomerAction(this, '<%=customer._id%>', <%=customer.isActive%>)" 
+                    class="btn btn-sm <%=customer.isActive ? 'btn-danger' : 'btn-success'%>">
+              <%=customer.isActive ? 'Block' : 'Unblock'%>
+            </button>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination Controls -->
+  <% if (typeof totalPages !== 'undefined' && totalPages > 1) { %>
+    <nav>
+      <ul class="pagination justify-content-center">
+        <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+          <a class="page-link" href="/admin/customers?page=<%= currentPage - 1 %>">Previous</a>
+        </li>
+        
+        <% 
+          const maxPagesToShow = 5; 
+          let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+          let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+          
+          if (endPage - startPage + 1 < maxPagesToShow) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+          }
+        %>
+        
+        <% if (startPage > 1) { %>
+          <li class="page-item">
+            <a class="page-link" href="/admin/customers?page=1">1</a>
+          </li>
+          <% if (startPage > 2) { %>
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+          <% } %>
+        <% } %>
+        
+        <% for (let i = startPage; i <= endPage; i++) { %>
+          <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+            <a class="page-link" href="/admin/customers?page=<%= i %>"><%= i %></a>
+          </li>
+        <% } %>
+        
+        <% if (endPage < totalPages) { %>
+          <% if (endPage < totalPages - 1) { %>
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+          <% } %>
+          <li class="page-item">
+            <a class="page-link" href="/admin/customers?page=<%= totalPages %>"><%= totalPages %></a>
+          </li>
+        <% } %>
+        
+        <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+          <a class="page-link" href="/admin/customers?page=<%= currentPage + 1 %>">Next</a>
+        </li>
+      </ul>
+    </nav>
+  <% } %>
+</main>
+
+<%- include('../partials/admin/footer') %>
+
+<!-- Add SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<!-- Custom Scripts -->
+<script>
+  async function handleCustomerAction(button, customerId, isActive) {
+    try {
+      const action = isActive ? 'block' : 'unblock';
+      const result = await Swal.fire({
+        title: 'Are you sure?',
+        text: `Do you want to ${action} this customer?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: `Yes, ${action} customer`
+      });
+
+      if (result.isConfirmed) {
+        const response = await fetch(`/admin/customers/${customerId}/${action}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || `Failed to ${action} customer`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          await Swal.fire({
+            icon: 'success',
+            title: 'Success!',
+            text: `Customer ${action}ed successfully`,
+            showConfirmButton: false,
+            timer: 1500
+          });
+          window.location.reload();
+        } else {
+          throw new Error(data.message || `Failed to ${action} customer`);
+        }
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error!',
+        text: error.message || 'An error occurred'
+      });
+    }
+  }
+
+  async function exportCustomerData() {
+    try {
+      const response = await fetch('/admin/customers/export', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin'
+      });
+
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'customers.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Export Successful',
+        text: 'Customer data has been exported successfully.',
+        showConfirmButton: false,
+        timer: 1500
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Export Failed',
+        text: error.message || 'Failed to export customer data'
+      });
+    }
+  }
+</script>
+
+<style>
+  .table thead th {
+    color: #fff;
+    font-weight: 600;
+    border-bottom: 2px solid #dee2e6;
+  }
+</style>

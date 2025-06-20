@@ -1,0 +1,275 @@
+<%- include('../partials/user/header-no-bg.ejs') %>
+
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="card-title mb-4">Profile Information</h2>
+                    <div class="profile-info">
+                        <div class="mb-3">
+                            <label class="text-muted">Name</label>
+                            <p class="h5"><%= user.name %></p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="text-muted">Email</label>
+                            <p class="h5"><%= user.email %></p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="text-muted">Phone</label>
+                            <p class="h5"><%= user.phone || 'Not provided' %></p>
+                        </div>
+                        <div class="mt-4 d-flex gap-3">
+                            <a href="#" class="btn btn-warning" data-toggle="modal" data-target="#editProfileModal">
+                                <i class="fas fa-edit"></i> Edit Profile
+                            </a>
+                            <a href="#" class="btn btn-outline-warning" data-toggle="modal" data-target="#changePasswordModal">
+                                <i class="fas fa-key"></i> Change Password
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Profile Modal -->
+<div class="modal fade" id="editProfileModal" tabindex="-1" role="dialog" aria-labelledby="editProfileModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editProfileModalLabel">Edit Profile</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="editProfileForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="name">Name</label>
+                        <input type="text" class="form-control" id="name" name="name" value="<%= user.name %>" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" class="form-control" id="email" name="email" value="<%= user.email %>" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Phone</label>
+                        <input type="tel" class="form-control" id="phone" name="phone" value="<%= user.phone || '' %>" pattern="[0-9]{10}">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-warning">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1" role="dialog" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="changePasswordModalLabel">Change Password</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="changePasswordForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="currentPassword">Current Password</label>
+                        <div class="input-group">
+  <input type="password" class="form-control" id="currentPassword" name="currentPassword" required>
+  <div class="input-group-append">
+    <span class="input-group-text password-toggle" data-target="#currentPassword" style="cursor:pointer;"><i class="fa fa-eye"></i></span>
+  </div>
+</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="newPassword">New Password</label>
+                        <div class="input-group">
+  <input type="password" class="form-control" id="newPassword" name="newPassword" required minlength="6">
+  <div class="input-group-append">
+    <span class="input-group-text password-toggle" data-target="#newPassword" style="cursor:pointer;"><i class="fa fa-eye"></i></span>
+  </div>
+</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm New Password</label>
+                        <div class="input-group">
+  <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" required minlength="6">
+  <div class="input-group-append">
+    <span class="input-group-text password-toggle" data-target="#confirmPassword" style="cursor:pointer;"><i class="fa fa-eye"></i></span>
+  </div>
+</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-warning">Change Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+}
+
+.card-title {
+    color: #222831;
+    font-weight: 600;
+}
+
+.profile-info label {
+    font-size: 0.9rem;
+    margin-bottom: 0.2rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.gap-3 {
+    gap: 1rem;
+}
+</style>
+
+<!-- SweetAlert2 CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+<!-- SweetAlert2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<!-- Font Awesome for eye icon -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+<!-- jQuery (required for Bootstrap 4) -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- Bootstrap 4 JS -->
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<!-- Bootstrap 4 CSS (if not already included in your header) -->
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
+
+<%- include('../partials/user/footer.ejs') %>
+
+<script>
+$(document).ready(function() {
+    // Password eye toggle
+    $('.password-toggle').on('click', function() {
+        var target = $($(this).data('target'));
+        var inputType = target.attr('type');
+        if (inputType === 'password') {
+            target.attr('type', 'text');
+            $(this).find('i').removeClass('fa-eye').addClass('fa-eye-slash');
+        } else {
+            target.attr('type', 'password');
+            $(this).find('i').removeClass('fa-eye-slash').addClass('fa-eye');
+        }
+    });
+
+    // Initialize Bootstrap modals
+    $('.modal').modal({
+        show: false
+    });
+
+    // Edit Profile Form Submit Handler
+    $('#editProfileForm').on('submit', async function(event) {
+        event.preventDefault();
+        
+        const formData = new FormData(this);
+        const response = await fetch('/profile', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: formData.get('name'),
+                email: formData.get('email'),
+                phone: formData.get('phone')
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            Swal.fire({
+                title: 'Success!',
+                text: 'Profile updated successfully',
+                icon: 'success',
+                confirmButtonColor: '#ffbe33'
+            }).then(() => {
+                $('#editProfileModal').modal('hide');
+                location.reload();
+            });
+        } else {
+            Swal.fire({
+                title: 'Error!',
+                text: data.message || 'Failed to update profile',
+                icon: 'error',
+                confirmButtonColor: '#ffbe33'
+            });
+        }
+    });
+
+    // Change Password Form Submit Handler
+    $('#changePasswordForm').on('submit', async function(event) {
+        event.preventDefault();
+        
+        const newPassword = $('#newPassword').val();
+        const confirmPassword = $('#confirmPassword').val();
+
+        if (newPassword !== confirmPassword) {
+            Swal.fire({
+                title: 'Error!',
+                text: 'New passwords do not match',
+                icon: 'error',
+                confirmButtonColor: '#ffbe33'
+            });
+            return;
+        }
+
+        const formData = new FormData(this);
+        const response = await fetch('/change-password', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                currentPassword: formData.get('currentPassword'),
+                newPassword: formData.get('newPassword'),
+                confirmPassword: formData.get('confirmPassword')
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            Swal.fire({
+                title: 'Success!',
+                text: data.message || 'Password changed successfully',
+                icon: 'success',
+                confirmButtonColor: '#ffbe33'
+            }).then(() => {
+                $('#changePasswordModal').modal('hide');
+                $('#changePasswordForm')[0].reset();
+                if ((data.message || '').toLowerCase().includes('log in again')) {
+                    window.location.href = '/login';
+                }
+            });
+        } else {
+            Swal.fire({
+                title: 'Error!',
+                text: data.message || 'Failed to change password',
+                icon: 'error',
+                confirmButtonColor: '#ffbe33'
+            });
+        }
+    });
+});
+</script>

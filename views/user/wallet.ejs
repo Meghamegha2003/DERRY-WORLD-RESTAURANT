@@ -1,0 +1,496 @@
+<%- include('../partials/user/header-no-bg.ejs', { user, cartCount, title }) %>
+
+<div class="wallet-page">
+    <div class="container my-5" style="max-width: 1200px;">
+        <div class="row">
+            <div class="col-lg-10 mx-auto">
+                <% if (typeof error !== 'undefined' && error) { %>
+                    <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        <%= error %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+
+                <!-- DEBUG: Show referral.code value -->
+                <% if (referral && referral.code) { %>
+                  <div style='color: green; font-weight: bold;'>DEBUG: Referral code = <%= referral.code %></div>
+                <% } else { %>
+                  <div style='color: red; font-weight: bold;'>DEBUG: Referral code is empty</div>
+                <% } %>
+
+                <!-- Referral Card -->
+                <div class="referral-card mb-4" style="max-width: 1000px; margin: 0 auto;">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0">Refer & Earn</h5>
+                                <div class="referral-icon">
+                                    <i class="fas fa-gift fa-2x text-primary"></i>
+                                </div>
+                            </div>
+                            
+                            <p class="text-muted mb-3">
+                                Share your referral code with friends and earn ₹<%= referral.referrerBonus %> when they join!
+                                They'll get ₹<%= referral.referredBonus %> as a welcome bonus.
+                            </p>
+                            
+                            <div class="referral-stats row g-2 mb-3">
+                                <div class="col-6">
+                                    <div class="stat-card p-2 rounded bg-light">
+                                        <small class="text-muted d-block">Total Referrals</small>
+                                        <strong><%= referral.count %></strong>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="stat-card p-2 rounded bg-light">
+                                        <small class="text-muted d-block">Total Earnings</small>
+                                        <strong>₹<%= referral.earnings.toFixed(2) %></strong>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="referral-code-container p-2 bg-light rounded">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <small class="text-muted d-block">Your Referral Code</small>
+                                        <strong class="referral-code"><%= referral.code %></strong>
+                                    </div>
+                                    <button class="btn btn-outline-primary btn-sm" onclick="copyReferralCode()">
+                                        <i class="fas fa-copy"></i> Copy
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Wallet Balance Card -->
+                <div class="wallet-balance-card mb-4" style="max-width: 1000px; margin: 0 auto;">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="text-muted mb-1">Available Balance</h5>
+                                    <h2 id="walletBalance" class="mb-0">₹<%= (wallet.balance || 0).toFixed(2) %></h2>
+                                </div>
+                                <div class="wallet-icon">
+                                    <i class="fas fa-wallet fa-2x text-success"></i>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-success" onclick="openAddMoneyModal()">
+                                <i class="fas fa-plus-circle me-2"></i>Add Money
+                            </button>
+
+                            <!-- Add Money Modal -->
+                            <div class="modal fade" id="addMoneyModal" tabindex="-1" aria-labelledby="addMoneyModalLabel" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="addMoneyModalLabel">Add Money to Wallet</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label for="amount" class="form-label">Amount (₹)</label>
+                                                <input type="number" class="form-control" id="amount" min="1" step="1" required>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="button" class="btn btn-success" onclick="initiatePayment()">Proceed to Pay</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Transactions List -->
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Transaction History</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <% let txList = (wallet.transactions.items || wallet.transactions || []); %>
+<% if (txList.length > 0) { %>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 20%">Date</th>
+                    <th style="width: 40%">Description</th>
+                    <th style="width: 20%">Amount</th>
+                    <th style="width: 20%">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% txList.forEach(transaction => { %>
+                                            <tr>
+                                                <td><%= transaction?.date ? new Date(transaction.date).toLocaleDateString('en-IN', { 
+                                                    day: 'numeric', 
+                                                    month: 'short',
+                                                    year: 'numeric'
+                                                }) : '-' %></td>
+                                                <td>
+                                                    <%= transaction?.description || '-' %>
+                                                </td>
+                                                <td class="<%= transaction?.type === 'credit' ? 'text-success' : 'text-danger' %>">
+                                                    <%= transaction?.type === 'credit' ? '+' : '-' %>₹<%= transaction?.amount?.toFixed(2) || '0.00' %>
+                                                </td>
+                                                <td>
+                                                    <span class="badge <%= transaction?.status === 'completed' ? 'bg-success' : (transaction?.status === 'pending' ? 'bg-warning' : 'bg-danger') %>">
+                                                        <%= transaction?.status?.charAt(0).toUpperCase() + transaction?.status?.slice(1) || 'Unknown' %>
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        <% }); %>
+                                    </tbody>
+                                </table>
+
+                                <!-- Pagination -->
+                                <% if (wallet.transactions.totalPages > 1) { %>
+                                    <nav aria-label="Transaction history pagination" class="d-flex justify-content-center my-4">
+                                        <ul class="pagination">
+                                            <% if (wallet.transactions.hasPrevPage) { %>
+                                                <li class="page-item">
+                                                    <a class="page-link" href="/wallet?page=<%= wallet.transactions.currentPage - 1 %>" aria-label="Previous">
+                                                        <span aria-hidden="true">&laquo;</span>
+                                                    </a>
+                                                </li>
+                                            <% } %>
+
+                                            <% for(let i = 1; i <= wallet.transactions.totalPages; i++) { %>
+                                                <li class="page-item <%= wallet.transactions.currentPage === i ? 'active' : '' %>">
+                                                    <a class="page-link" href="/wallet?page=<%= i %>"><%= i %></a>
+                                                </li>
+                                            <% } %>
+
+                                            <% if (wallet.transactions.hasNextPage) { %>
+                                                <li class="page-item">
+                                                    <a class="page-link" href="/wallet?page=<%= wallet.transactions.currentPage + 1 %>" aria-label="Next">
+                                                        <span aria-hidden="true">&raquo;</span>
+                                                    </a>
+                                                </li>
+                                            <% } %>
+                                        </ul>
+                                    </nav>
+                                <% } %>
+                            </div>
+                        <% } else { %>
+                            <div class="text-center py-5">
+                                <div class="mb-3">
+                                    <i class="fas fa-history fa-3x text-muted"></i>
+                                </div>
+                                <h5 class="text-muted">No transactions yet</h5>
+                                <p class="text-muted mb-0">Your transaction history will appear here</p>
+                            </div>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Load Razorpay script -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+<script>
+    // Initialize modal
+    let addMoneyModal;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        addMoneyModal = new bootstrap.Modal(document.getElementById('addMoneyModal'));
+    });
+
+    function openAddMoneyModal() {
+        if (addMoneyModal) {
+            addMoneyModal.show();
+        } else {
+            addMoneyModal = new bootstrap.Modal(document.getElementById('addMoneyModal'));
+            addMoneyModal.show();
+        }
+    }
+
+    async function initiatePayment() {
+        const amount = document.getElementById('amount').value;
+        if (!amount || amount < 1) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Please enter a valid amount'
+            });
+            return;
+        }
+
+        // Close the modal if it's open
+        if (addMoneyModal) {
+            addMoneyModal.hide();
+        }
+
+        // Make API call to create Razorpay order
+        const response = await fetch('/wallet/add-money', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ amount })
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: data.message || 'Failed to initialize payment'
+            });
+            return;
+        }
+
+        const options = {
+            key: '<%= razorpayKey %>', // Use the key from server
+            amount: data.order.amount,
+            currency: data.order.currency,
+            name: 'Derry World',
+            description: 'Add money to wallet',
+            order_id: data.order.id,
+            handler: async function(response) {
+                // Verify payment
+                const verifyResponse = await fetch('/wallet/verify-payment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        razorpay_payment_id: response.razorpay_payment_id,
+                        razorpay_order_id: response.razorpay_order_id,
+                        razorpay_signature: response.razorpay_signature
+                    })
+                });
+
+                const verifyData = await verifyResponse.json();
+                if (verifyData.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Payment Successful',
+                        text: 'Money has been added to your wallet',
+                        showConfirmButton: false,
+                        timer: 2000
+                    }).then(() => {
+                        window.location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Payment Verification Failed',
+                        text: verifyData.message || 'Failed to verify payment. Please contact support if money was deducted.'
+                    });
+                }
+            },
+            prefill: {
+                name: '<%= user.name %>',
+                email: '<%= user.email %>',
+                contact: '<%= user.phone %>'
+            },
+            theme: {
+                color: '#28a745'
+            }
+        };
+
+        // Check if Razorpay key is available
+        if (!options.key) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Payment system is not properly configured'
+            });
+            return;
+        }
+
+        const razorpayInstance = new Razorpay(options);
+        razorpayInstance.open();
+        
+        // Hide the modal after opening Razorpay
+        if (addMoneyModal) {
+            addMoneyModal.hide();
+        }
+    }
+
+    // Clear amount input when modal is hidden
+    document.getElementById('addMoneyModal').addEventListener('hidden.bs.modal', function () {
+        document.getElementById('amount').value = '';
+    });
+</script>
+
+<style>
+    .wallet-page {
+        background-color: #f8f9fa;
+        min-height: 100vh;
+        padding: 2rem 0;
+    }
+
+    .container {
+        max-width: 1200px;
+    }
+
+    .wallet-balance-card {
+        transition: transform 0.2s;
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+
+    .wallet-icon {
+        background-color: #e8f5e9;
+        padding: 1rem;
+        border-radius: 50%;
+    }
+
+    .pagination {
+        margin-bottom: 0;
+    }
+
+    .page-link {
+        color: #28a745;
+        border-color: #dee2e6;
+    }
+
+    .page-item.active .page-link {
+        background-color: #28a745;
+        border-color: #28a745;
+        color: white;
+    }
+
+    .page-link:hover {
+        color: #1e7e34;
+        background-color: #e9ecef;
+        border-color: #dee2e6;
+    }
+
+    .page-item.disabled .page-link {
+        color: #6c757d;
+        pointer-events: none;
+        background-color: #fff;
+        border-color: #dee2e6;
+    }
+
+    @media (max-width: 768px) {
+        .pagination {
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .page-item {
+            margin: 2px;
+        }
+    }
+    .referral-card {
+        transition: transform 0.2s;
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+
+    .referral-icon {
+        background-color: #e3f2fd;
+        padding: 1rem;
+        border-radius: 50%;
+    }
+
+    .stat-card {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        transition: all 0.2s;
+    }
+
+    .stat-card:hover {
+        background-color: #e9ecef;
+    }
+
+    .referral-code {
+        font-family: monospace;
+        font-size: 1.2rem;
+        letter-spacing: 1px;
+    }
+
+    .referral-code-container {
+        border: 1px dashed #dee2e6;
+    }
+
+    .table {
+        font-size: 0.95rem;
+    }
+
+    .table th {
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .table td {
+        vertical-align: middle;
+        padding: 1rem 0.75rem;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    .table-responsive {
+        border-radius: 0.25rem;
+        box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    }
+</style>
+
+<script>
+function copyReferralCode() {
+    const code = '<%= referral.code %>';
+    navigator.clipboard.writeText(code).then(() => {
+        Swal.fire({
+            toast: true,
+            position: 'top',
+            icon: 'success',
+            title: 'Referral code copied!',
+            showConfirmButton: false,
+            timer: 2000
+        });
+    }).catch(() => {
+        Swal.fire({
+            toast: true,
+            position: 'top',
+            icon: 'error',
+            title: 'Failed to copy code',
+            showConfirmButton: false,
+            timer: 2000
+        });
+    });
+}
+</script>
+
+<!-- Socket.io client for real-time wallet updates -->
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('[Wallet] Initializing socket...');
+        const socket = io();
+        socket.on('connect', () => {
+            console.log('[Wallet] Connected via socket:', socket.id);
+            socket.emit('storeUserId', '<%= user._id %>');
+        });
+        socket.on('socketStored', (data) => {
+            console.log('[Wallet] socketStored ack:', data);
+        });
+        socket.on('walletUpdated', (data) => {
+            if (data.userId === '<%= user._id %>') {
+                const balElem = document.getElementById('walletBalance');
+                if (balElem) balElem.textContent = '₹' + data.balance.toFixed(2);
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Wallet Updated',
+                    text: `Your wallet balance has been updated to ₹${data.balance.toFixed(2)}`
+                });
+            }
+        });
+    });
+</script>
+
+<%- include('../partials/user/footer.ejs') %>

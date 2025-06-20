@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Order Details - Derry World</title>
+    <link rel="stylesheet" type="text/css" href="/css/bootstrap.css" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/css/style.css" rel="stylesheet" />
+    <link href="/css/responsive.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .order-details-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .page-title {
+            position: relative;
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px 0;
+        }
+
+        .page-title h1 {
+            font-size: 32px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .order-id {
+            color: #666;
+            font-size: 18px;
+        }
+
+        .order-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 992px) {
+            .order-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .order-info-card {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .card-header h2 {
+            margin: 0;
+            font-size: 20px;
+            color: #333;
+        }
+
+        .card-content {
+            padding: 20px;
+        }
+
+        .order-status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        .pending { background: #fff3cd; color: #856404; }
+        .processing { background: #cce5ff; color: #004085; }
+        .shipped { background: #d1ecf1; color: #0c5460; }
+        .delivered { background: #d4edda; color: #155724; }
+        .cancelled { background: #f8d7da; color: #721c24; }
+
+        /* HORIZONTAL ORDER STATUS TRACKER */
+        .order-status-tracker {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin: 18px 0 8px 0;
+        }
+        .status-step {
+            flex: 1;
+            min-width: 90px;
+            text-align: center;
+            position: relative;
+        }
+        .status-icon {
+            width: 38px;
+            height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            margin-bottom: 4px;
+            font-size: 1.3rem;
+            border: 2px solid #dee2e6;
+            background: #f8f9fa;
+            transition: background 0.2s, color 0.2s;
+        }
+        .status-step .status-icon.bg-primary {
+            background: #ffbe33;
+            border-color: #ffbe33;
+            color: #fff;
+        }
+        .status-step.active .status-icon.bg-primary {
+            box-shadow: 0 0 0 4px rgba(255,190,51,0.18), 0 2px 8px rgba(255,190,51,0.16);
+            outline: 2px solid #ffbe33;
+            outline-offset: 2px;
+        }
+        .status-step.active .status-label {
+            color: #ffbe33 !important;
+            font-weight: 700;
+            text-shadow: 0 1px 6px rgba(255,190,51,0.12);
+        }
+        .status-step .status-icon.bg-success {
+            background: #28a745;
+            border-color: #28a745;
+            color: #fff;
+        }
+        .status-step .status-icon.bg-danger {
+            background: #dc3545;
+            border-color: #dc3545;
+            color: #fff;
+        }
+        .status-step .status-icon.bg-light {
+            background: #f8f9fa;
+            border-color: #dee2e6;
+            color: #adb5bd;
+        }
+        .tracker-line {
+            height: 4px;
+            flex: 1;
+            background: #dee2e6;
+            margin: 0 2px;
+            border-radius: 2px;
+        }
+        .status-step .status-label {
+            margin-top: 2px;
+            font-size: 0.92rem;
+        }
+        .status-step .status-label.fw-bold.text-primary {
+            color: #0d6efd;
+            font-weight: 600;
+        }
+        .status-label.status-highlight {
+            color: #ffbe33 !important;
+            font-weight: 700;
+            text-shadow: 0 1px 6px rgba(255,190,51,0.16);
+        }
+        .status-step .status-label.text-success {
+            color: #28a745;
+        }
+        .status-step .status-label.text-danger {
+            color: #dc3545;
+            font-weight: 600;
+        }
+        .status-step .status-label.text-secondary {
+            color: #adb5bd;
+        }
+        @media (max-width: 600px) {
+            .order-status-tracker {
+                flex-direction: column;
+                gap: 0.7rem;
+            }
+            .tracker-line {
+                width: 4px;
+                height: 28px;
+                min-width: unset;
+                min-height: 20px;
+            }
+        }
+        /* Remove old timeline styles to avoid conflicts */
+        /* .timeline {
+            position: relative;
+            margin: 20px 0;
+        } */
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 16px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #ddd;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-left: 45px;
+            padding-bottom: 20px;
+        }
+
+        .timeline-item:last-child {
+            padding-bottom: 0;
+        }
+
+        .timeline-icon {
+            position: absolute;
+            left: 0;
+            width: 35px;
+            height: 35px;
+            background: #fff;
+            border: 2px solid #ffbe33;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffbe33;
+        }
+
+        .timeline-content {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-left: 10px;
+        }
+
+        .timeline-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .timeline-date {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .order-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .order-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .item-image {
+            width: 80px;
+            height: 80px;
+            border-radius: 8px;
+            object-fit: cover;
+            margin-right: 20px;
+        }
+
+        .item-details {
+            flex-grow: 1;
+        }
+
+        .item-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .item-meta {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .address-info {
+            margin-bottom: 20px;
+        }
+
+        .address-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .address-text {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .price-summary {
+            position: sticky;
+            top: 20px;
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            color: #333;
+        }
+
+        .price-row.discount {
+            color: #28a745;
+        }
+
+        .price-row.total {
+            border-top: 1px solid #ddd;
+            margin-top: 10px;
+            padding-top: 15px;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .free {
+            color: #28a745;
+            font-weight: 500;
+        }
+
+        .payment-info {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #333;
+        }
+
+        .payment-info i {
+            color: #28a745;
+        }
+
+        .price-details {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            padding: 20px;
+            margin-top: 20px;
+            margin-bottom: 1.5rem;
+        }
+
+        .price-details h3 {
+            margin-bottom: 15px;
+            font-size: 18px;
+            color: #333;
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            color: #666;
+        }
+
+        .price-row.total {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .coupon-info {
+            background: #fff8e6;
+            border: 1px dashed #ffbe33;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 10px 0;
+        }
+
+        .coupon-code {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #856404;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .coupon-code i {
+            color: #ffbe33;
+        }
+
+        .coupon-discount {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #155724;
+            font-size: 14px;
+        }
+
+        .discount-amount {
+            color: #28a745;
+            font-weight: 500;
+        }
+
+        .discount-amount small {
+            color: #666;
+            font-size: 12px;
+            margin-left: 4px;
+        }
+
+        .free-delivery {
+            color: #28a745;
+        }
+
+        .free-delivery span:last-child {
+            font-weight: 500;
+        }
+
+        .payment-info {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .payment-method {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #666;
+        }
+
+        .payment-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .payment-status.paid {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .payment-status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .payment-status.refunded {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .rating-section {
+            display: inline-flex;
+            align-items: center;
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .rating-section .stars {
+            display: inline-flex;
+            gap: 2px;
+        }
+
+        .rating-star {
+            cursor: pointer;
+            color: #e4e5e9;
+            font-size: 1.2rem;
+            padding: 0 2px;
+            transition: all 0.2s ease;
+        }
+
+        .rating-star:hover,
+        .rating-star:hover ~ .rating-star {
+            color: #ffd700;
+        }
+
+        .rating-star.active,
+        .rating-display .fas.fa-star {
+            color: #ffd700;
+        }
+
+        .rating-display {
+            display: inline-flex;
+            align-items: center;
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-top: 10px;
+            gap: 2px;
+        }
+
+        .rating-display .fas.fa-star {
+            color: #ffd700;
+            font-size: 1.2rem;
+        }
+
+        .rating-display .far.fa-star {
+            color: #e4e5e9;
+            font-size: 1.2rem;
+        }
+
+        .rated-label {
+            font-size: 0.85rem;
+            color: #666;
+            margin-left: 8px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn-cancel-item {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .btn-return-item {
+            background-color: #ffc107;
+            color: #000;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .btn-cancel-item:hover {
+            background-color: #c82333;
+        }
+
+        .btn-return-item:hover {
+            background-color: #e0a800;
+        }
+
+        .item-status {
+            font-size: 14px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            display: inline-block;
+            margin-top: 5px;
+        }
+
+        .status-cancelled {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-returned {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .order-details-container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .page-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .navigation-btn {
+            margin-right: 20px;
+        }
+
+        .order-id {
+            font-size: 18px;
+            font-weight: 500;
+            color: #666;
+        }
+
+        .order-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        .order-main {
+            background-color: #fff;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+
+        .order-info-card {
+            margin-bottom: 20px;
+            background-color: #fff;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+
+        .card-header {
+            margin-bottom: 10px;
+        }
+
+        .card-content {
+            padding: 20px;
+        }
+
+        .order-status {
+            margin-bottom: 10px;
+        }
+
+        .timeline {
+            margin-top: 20px;
+        }
+
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .timeline-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 50%;
+            background-color: #f9f9f9;
+            margin-right: 10px;
+        }
+
+        .timeline-content {
+            flex-grow: 1;
+        }
+
+        .timeline-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .timeline-date {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .order-summary {
+            background-color: #fff;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+
+        .price-summary {
+            margin-bottom: 20px;
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .price-row.total {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .price-row.discount {
+            color: #666;
+        }
+
+        .price-row .free {
+            color: #28a745;
+        }
+
+        .total-savings {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+
+        .total-savings i {
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <%- include('../partials/user/header-no-bg', { user, cartCount }) %>
+
+    <div class="order-details-container">
+        <div class="page-title">
+            <div class="navigation-btn">
+                <a href="/orders" class="btn btn-outline">
+                    <i class="fas fa-arrow-left"></i> Back to Orders
+                </a>
+            </div>
+            <h1>Order Details</h1>
+            <div class="order-id">#<%= order._id.toString().slice(-8).toUpperCase() %></div>
+        </div>
+
+        <div class="order-grid">
+            <div class="order-main">
+
+
+                <div class="order-info-card">
+                    <div class="card-header">
+                        <h2>Purchased Items</h2>
+                    </div>
+                    <div class="card-content">
+                        <% order.items.forEach(item => { %>
+                            <div class="order-item">
+                                <img src="<%= item.product.productImage ? item.product.productImage[0] : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y4ZjlmYSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiNhZGI1YmQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4=' %>" 
+                                     alt="<%= item.product.name %>"
+                                     class="item-image">
+                                <div class="item-details">
+                                    <div class="item-name"><%= item.product.name.toUpperCase() %></div>
+                                    <div class="item-price">
+                                        <% if (item.offerDetails && item.offerDetails.hasOffer) { %>
+                                            <div class="price-info">
+                                                <span class="original-price">₹<%= item.regularPrice.toFixed(2) %></span>
+                                                <span class="final-price">₹<%= item.price.toFixed(2) %></span>
+                                            </div>
+                                        <% } else { %>
+                                            <div class="price-info">
+                                                <% if (item.product.salesPrice && item.product.salesPrice < item.regularPrice) { %>
+                                                    <span class="original-price">₹<%= item.regularPrice.toFixed(2) %></span>
+                                                    <span class="final-price">₹<%= item.product.salesPrice.toFixed(2) %></span>
+                                                    
+                                                    
+                                                <% } else { %>
+                                                    <span class="final-price">₹<%= item.regularPrice.toFixed(2) %></span>
+                                                <% } %>
+                                            </div>
+                                        <% } %>
+                                        <div class="quantity">Quantity: <%= item.quantity %></div>
+                                        <div class="item-total">
+                                            Line Total: ₹<%= (item.quantity * (
+                                                item.offerDetails && item.offerDetails.hasOffer ? item.price : 
+                                                (item.product.salesPrice && item.product.salesPrice < item.regularPrice ? item.product.salesPrice : item.regularPrice)
+                                            )).toFixed(2) %>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <% }); %>
+                    </div>
+                </div>
+
+                <!-- Order Status Tracker (Horizontal) -->
+                <div class="order-info-card">
+                    <div class="card-header">
+                        <h2>Order Status</h2>
+                    </div>
+                    <div class="card-content">
+                        <div class="order-status-tracker d-flex align-items-center justify-content-between" style="gap: 0.5rem;">
+                            <% const allSteps = [
+                                { status: 'Pending', icon: 'shopping-cart', date: order.createdAt },
+                                { status: 'Processing', icon: 'box', date: order.processingDate },
+                                { status: 'Shipped', icon: 'truck', date: order.shippedDate },
+                                { status: 'Delivered', icon: 'check-circle', date: order.deliveredDate },
+                                
+                            ];
+                            // Dynamically add only the correct final step
+                            if (order.orderStatus === 'Return Requested') {
+                                allSteps.push({ status: 'Return Requested', icon: 'question-circle', date: order.returnRequestedDate, highlight: 'orange' });
+                            } else if (order.orderStatus === 'Return Approved') {
+                                allSteps.push({ status: 'Return Approved', icon: 'thumbs-up', date: order.returnApprovedDate, highlight: 'orange', badge: 'fa-check', badgeColor: 'success' });
+                            } else if (order.orderStatus === 'Return Rejected') {
+                                allSteps.push({ status: 'Return Rejected', icon: 'thumbs-down', date: order.returnRejectedDate, highlight: 'red', badge: 'fa-times', badgeColor: 'danger' });
+                            } else if (order.orderStatus === 'Returned') {
+                                allSteps.push({ status: 'Returned', icon: 'rotate-left', date: order.returnedDate, reason: order.returnReason, highlight: 'orange', badge: 'fa-check', badgeColor: 'success' });
+                            } else if (order.orderStatus === 'Return Cancelled') {
+                                allSteps.push({ status: 'Return Cancelled', icon: 'ban', date: order.returnCancelledDate, reason: order.returnCancelReason, highlight: 'red', badge: 'fa-times', badgeColor: 'danger' });
+                            } else if (order.orderStatus === 'Cancelled') {
+                                allSteps.push({ status: 'Cancelled', icon: 'times', date: order.cancelledDate, reason: order.cancellationReason, highlight: 'red', badge: 'fa-times', badgeColor: 'danger' });
+                            }
+                            let foundActive = false;
+                            allSteps.forEach((item, idx) => {
+                                const isActive = !foundActive && order.orderStatus === item.status;
+                                const isComplete = item.date && allSteps.findIndex(s => s.status === order.orderStatus) > idx;
+                                if (isActive) foundActive = true;
+                            %>
+                                <div class="status-step text-center<%= isActive ? ' active' : '' %>" style="flex:1; min-width:90px;">
+                                    <div class="status-icon mb-1 <%= 
+                                        isActive ? 'bg-primary text-white border border-warning shadow-lg' : 
+                                        idx < allSteps.findIndex(s => s.status === order.orderStatus) ? 'bg-success text-white' : 
+                                        'bg-light text-secondary' 
+                                    %>" style="width:<%= isActive ? '50px' : '38px' %>;height:<%= isActive ? '50px' : '38px' %>;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;margin-bottom:4px;font-size:<%= isActive ? '1.6rem' : '1.3rem' %>;box-shadow:<%= isActive ? '0 0 16px 2px rgba(255,190,51,0.19)' : (idx < allSteps.findIndex(s => s.status === order.orderStatus) ? '0 0 8px 1px rgba(40,167,69,0.10)' : 'none') %>;transition:all 0.2s;position:relative;">
+                                        <i class="fas fa-<%= item.icon %>"></i>
+                                        
+                                    </div>
+                                    <div class="status-label small"><%= item.status %>
+                                        <% if ((item.status === 'Returned' || item.status === 'Return Cancelled' || item.status === 'Cancelled') && item.date) { %>
+                                            <span class="d-block small text-muted">
+                                                <%= new Date(item.date).toLocaleString() %>
+                                            </span>
+                                            <% if (item.reason) { %>
+                                                <span class="d-block small <%= item.highlight === 'red' ? 'text-danger' : 'text-success' %>">Reason: <%= item.reason %></span>
+                                            <% } %>
+                                        <% } %>
+                                    </div>
+                                </div>
+                                <% if (idx < allSteps.length-1) { %>
+                                    <div class="tracker-line" style="height:4px;flex:1;background:<%= isComplete ? '#28a745' : '#dee2e6' %>;margin:0 2px;border-radius:2px;"></div>
+                                <% } %>
+                            <% }); %>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="order-summary">
+                <div class="order-info-card price-summary">
+                    <div class="card-header">
+                        <h2>Price Details</h2>
+                    </div>
+                    <div class="card-content">
+                        <div class="price-row">
+                            <span>Items Total</span>
+                            <span>₹<%= order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2) %></span>
+                        </div>
+                        
+                        <% if (order.couponDiscount && order.couponDiscount > 0) { %>
+                            <div class="price-row discount">
+                                <span>Coupon Applied</span>
+                                <span>-₹<%= order.couponDiscount.toFixed(2) %></span>
+                            </div>
+                        <% } %>
+
+                        <div class="price-row">
+                            <span>Delivery Fee</span>
+                            <% if (order.deliveryCharge > 0) { %>
+                                <span>₹<%= order.deliveryCharge.toFixed(2) %></span>
+                            <% } else { %>
+                                <span class="free">FREE</span>
+                            <% } %>
+                        </div>
+
+                        <div class="price-row total">
+                            <span>Total Amount</span>
+                            <span>
+                              ₹<%=
+                                (
+                                  order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+                                  - (order.couponDiscount || 0)
+                                  + (order.deliveryCharge || 0)
+                                ).toFixed(2)
+                              %>
+                            </span>
+                        </div>
+
+                        <% if (order.totalSavings > 0) { %>
+                            <div class="total-savings">
+                                <i class="fas fa-piggy-bank"></i>
+                                You Saved ₹<%= order.totalSavings.toFixed(2) %>
+                            </div>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function cancelOrderItem(orderId, itemId) {
+            try {
+                const result = await Swal.fire({
+                    title: 'Cancel Item',
+                    text: 'Please provide a reason for cancellation',
+                    input: 'text',
+                    inputPlaceholder: 'Enter reason here...',
+                    showCancelButton: true,
+                    confirmButtonText: 'Cancel Item',
+                    cancelButtonText: 'Keep Item',
+                    inputValidator: (value) => {
+                        if (!value) {
+                            return 'Please enter a reason for cancellation';
+                        }
+                    }
+                });
+
+                if (result.isConfirmed) {
+                    const response = await fetch(`/orders/${orderId}/items/${itemId}/cancel`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ reason: result.value })
+                    });
+
+                    if (response.ok) {
+                        Swal.fire('Success', 'Item has been cancelled successfully', 'success')
+                            .then(() => window.location.reload());
+                    } else {
+                        const data = await response.json();
+                        throw new Error(data.message || 'Failed to cancel item');
+                    }
+                }
+            } catch (error) {
+                Swal.fire('Error', error.message || 'Failed to cancel item', 'error');
+            }
+        }
+
+        async function returnOrderItem(orderId, itemId) {
+            try {
+                const result = await Swal.fire({
+                    title: 'Return Item',
+                    text: 'Please provide a reason for return',
+                    input: 'text',
+                    inputPlaceholder: 'Enter reason here...',
+                    showCancelButton: true,
+                    confirmButtonText: 'Return Item',
+                    cancelButtonText: 'Keep Item',
+                    inputValidator: (value) => {
+                        if (!value) {
+                            return 'Please enter a reason for return';
+                        }
+                    }
+                });
+
+                if (result.isConfirmed) {
+                    const response = await fetch(`/orders/${orderId}/items/${itemId}/return`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ reason: result.value })
+                    });
+
+                    if (response.ok) {
+                        Swal.fire('Success', 'Return request has been submitted successfully', 'success')
+                            .then(() => window.location.reload());
+                    } else {
+                        const data = await response.json();
+                        throw new Error(data.message || 'Failed to submit return request');
+                    }
+                }
+            } catch (error) {
+                Swal.fire('Error', error.message || 'Failed to submit return request', 'error');
+            }
+        }
+    </script>
+
+    <script>
+        async function cancelOrder(orderId) {
+            try {
+                const { value: reason } = await Swal.fire({
+                    title: 'Cancel Order',
+                    input: 'select',
+                    inputOptions: {
+                        'Changed my mind': 'Changed my mind',
+                        'Found better price elsewhere': 'Found better price elsewhere',
+                        'Ordered by mistake': 'Ordered by mistake',
+                        'Other': 'Other'
+                    },
+                    inputPlaceholder: 'Select a reason',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    confirmButtonText: 'Cancel Order',
+                    cancelButtonText: 'Keep Order',
+                    inputValidator: (value) => {
+                        if (!value) {
+                            return 'Please select a reason';
+                        }
+                    }
+                });
+
+                if (reason) {
+                    const response = await fetch(`/orders/${orderId}/cancel`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ reason })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Order Cancelled',
+                            text: 'Your order has been cancelled successfully.',
+                            showConfirmButton: false,
+                            timer: 1500
+                        }).then(() => {
+                            window.location.reload();
+                        });
+                    } else {
+                        throw new Error(data.message || 'Failed to cancel order');
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.message || 'Failed to cancel order'
+                });
+            }
+        }
+    </script>
+
+    <script>
+        async function submitRating(productId, rating, container) {
+            try {
+                const orderId = container.getAttribute('data-order');
+                const statusElement = container.nextElementSibling;
+                statusElement.textContent = 'Submitting...';
+
+                const response = await fetch('/orders/submit-rating', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        orderId,
+                        productId,
+                        rating
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to submit rating');
+                }
+
+                // Update UI to show filled stars
+                const stars = container.querySelectorAll('.rating-star');
+                stars.forEach((star, index) => {
+                    if (index < rating) {
+                        star.classList.remove('far');
+                        star.classList.add('fas');
+                    } else {
+                        star.classList.remove('fas');
+                        star.classList.add('far');
+                    }
+                });
+
+                // Show success message
+                await Swal.fire({
+                    title: 'Thank you!',
+                    text: 'Your rating has been submitted successfully',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+
+                // Reload page to show updated rating
+                location.reload();
+            } catch (error) {
+                console.error('Error submitting rating:', error);
+                const errorMessage = error.message || 'Failed to submit rating';
+                
+                Swal.fire({
+                    title: 'Error!',
+                    text: errorMessage,
+                    icon: 'error'
+                });
+
+                // Reset stars
+                const stars = container.querySelectorAll('.rating-star');
+                stars.forEach(star => {
+                    star.classList.remove('fas');
+                    star.classList.add('far');
+                });
+                container.setAttribute('data-rating', '0');
+                
+                // Show error in status
+                const statusElement = container.nextElementSibling;
+                statusElement.textContent = errorMessage;
+                statusElement.style.color = '#dc3545';
+            }
+        }
+
+        // Initialize star rating functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const ratingContainers = document.querySelectorAll('.stars');
+            
+            ratingContainers.forEach(container => {
+                const stars = container.querySelectorAll('.rating-star');
+                
+                stars.forEach(star => {
+                    // Hover effect
+                    star.addEventListener('mouseenter', () => {
+                        const rating = parseInt(star.getAttribute('data-rating'));
+                        updateStars(container, rating);
+                    });
+
+                    // Click to rate
+                    star.addEventListener('click', () => {
+                        const rating = parseInt(star.getAttribute('data-rating'));
+                        const productId = star.getAttribute('data-product');
+                        container.setAttribute('data-rating', rating);
+                        submitRating(productId, rating, container);
+                    });
+                });
+
+                // Reset stars on mouse leave
+                container.addEventListener('mouseleave', () => {
+                    const currentRating = parseInt(container.getAttribute('data-rating')) || 0;
+                    updateStars(container, currentRating);
+                });
+            });
+        });
+
+        function updateStars(container, rating) {
+            const stars = container.querySelectorAll('.rating-star');
+            stars.forEach((star, index) => {
+                if (index < rating) {
+                    star.classList.remove('far');
+                    star.classList.add('fas');
+                } else {
+                    star.classList.remove('fas');
+                    star.classList.add('far');
+                }
+            });
+        }
+    </script>
+
+    <%- include('../partials/user/footer') %>
+</body>
+</html>

@@ -1,0 +1,255 @@
+<%- include('../partials/admin/header') %>
+<style>
+.order-status-badges-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+.order-status-badge {
+  margin-bottom: 4px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.95em;
+}
+.dashboard-filter-group {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+.dashboard-filter-group .btn {
+  min-width: 48px;
+  font-size: 1.05rem;
+  padding: 0.5rem 1.1rem;
+  border-radius: 0;
+}
+.dashboard-filter-group .btn.active {
+  background: #FFD600;
+  color: #222;
+  font-weight: 600;
+  border-bottom: 3px solid #FF6384;
+}
+@media (max-width: 600px) {
+  .dashboard-filter-group {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+</style>
+<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+  <div class="dashboard-filter-group" id="dashboardFilterGroup">
+    <button type="button" class="btn btn-outline-secondary active" data-period="daily" title="Show data for Today">
+      <i class="bi bi-calendar-day"></i> Daily
+    </button>
+    <button type="button" class="btn btn-outline-secondary" data-period="weekly" title="Show data for This Week">
+      <i class="bi bi-calendar-week"></i> Weekly
+    </button>
+    <button type="button" class="btn btn-outline-secondary" data-period="monthly" title="Show data for This Month">
+      <i class="bi bi-calendar-month"></i> Monthly
+    </button>
+    <button type="button" class="btn btn-outline-secondary" data-period="yearly" title="Show data for This Year">
+      <i class="bi bi-calendar3"></i> Yearly
+    </button>
+  </div>
+  <h1 class="dashboard-title">Dashboard</h1>
+  <div class="row mb-4">
+    <div class="col-md-4">
+      <div class="dashboard-card p-4 mb-3">
+        <div class="dashboard-subtitle">Total Income</div>
+        <div class="numbers" id="totalIncome">$0</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="dashboard-card p-4 mb-3">
+        <div class="dashboard-subtitle">Income (7 days)</div>
+        <div class="numbers text-success" id="income">$0</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="dashboard-card p-4 mb-3">
+        <div class="dashboard-subtitle">Expense (Returns)</div>
+        <div class="numbers text-danger" id="expense">$0</div>
+      </div>
+    </div>
+  </div>
+  <div class="row mb-4">
+    <div class="col-md-4">
+      <div class="dashboard-widget text-center">
+        <div class="dashboard-subtitle mb-2">Performance</div>
+        <canvas id="performanceChart" height="120"></canvas>
+        <div class="mt-2"><span id="performancePercent">+0%</span></div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="dashboard-widget">
+        <div class="dashboard-subtitle mb-2">Order Status</div>
+        <div id="orderStatusBadges" class="order-status-badges-wrap"></div>
+        <div><span class="order-status-badge bg-primary">Total: <span id="completeCount">0</span></span></div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="dashboard-widget text-center">
+        <div class="dashboard-subtitle mb-2">Withdraw</div>
+        <button class="btn btn-warning px-4">Withdraw</button>
+      </div>
+    </div>
+  </div>
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <div class="chart-container">
+        <canvas id="incomeExpenseChart"></canvas>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="chart-container">
+        <div class="dashboard-subtitle mb-2">Popular Food</div>
+        <canvas id="popularFoodChart"></canvas>
+        <ul id="popularFoodList" class="mt-3"></ul>
+      </div>
+    </div>
+  </div>
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="chart-container">
+        <div class="dashboard-subtitle mb-2">Order Rate</div>
+        <canvas id="orderRateChart"></canvas>
+        <div id="orderRateMsg" class="text-muted mt-2"></div>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+let performanceChartInstance = null;
+let incomeExpenseChartInstance = null;
+let orderRateChartInstance = null;
+let popularFoodChartInstance = null;
+
+let currentPeriod = 'daily';
+
+function setActivePeriodButton(period) {
+  document.querySelectorAll('#dashboardFilterGroup .btn').forEach(btn => {
+    if (btn.getAttribute('data-period') === period) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+
+function fetchDashboardData() {
+  fetch('/admin/dashboard-data?period=' + currentPeriod)
+    .then(res => res.json())
+    .then(response => {
+      if (!response.success) return;
+      const stats = response.data.stats || {};
+      const ordersByStatus = response.data.ordersByStatus || [];
+      const revenueData = response.data.revenueData || [];
+      const popularFood = stats.popularFood || [];
+      const ordersPerDay = response.data.ordersPerDay || [];
+
+      document.getElementById('totalIncome').textContent = '₹' + (stats.totalIncome || 0).toLocaleString();
+      document.getElementById('income').textContent = '₹' + (stats.income || 0).toLocaleString();
+      document.getElementById('expense').textContent = '₹' + (stats.expense || 0).toLocaleString();
+
+      function getStatusColor(status) {
+        switch((status||'').toLowerCase()) {
+          case 'delivered': return 'bg-success';
+          case 'cancelled': return 'bg-danger';
+          case 'pending': return 'bg-warning text-dark';
+          case 'processing': return 'bg-info';
+          case 'return approved': return 'bg-secondary';
+          case 'shipped': return 'bg-primary';
+          default: return 'bg-light text-dark';
+        }
+      }
+      const statusBadges = ordersByStatus.map(s =>
+        `<span class="order-status-badge ${getStatusColor(s._id)}">${s._id}: <span>${s.count}</span></span>`
+      ).join(' ');
+      document.getElementById('orderStatusBadges').innerHTML = statusBadges;
+      document.getElementById('completeCount').textContent = ordersByStatus.reduce((acc,s)=>acc+s.count,0) || 0;
+
+      let perfPercent = 0;
+      if (revenueData.length >= 14) {
+        const last7 = revenueData.slice(-7).reduce((sum, d) => sum + (d.revenue || 0), 0);
+        const prev7 = revenueData.slice(-14, -7).reduce((sum, d) => sum + (d.revenue || 0), 0);
+        if (prev7 > 0) perfPercent = (((last7 - prev7) / prev7) * 100).toFixed(1);
+      } else if (revenueData.length >= 2) {
+        const last = revenueData[revenueData.length-1].revenue || 0;
+        const prev = revenueData[revenueData.length-2].revenue || 0;
+        if (prev > 0) perfPercent = (((last - prev) / prev) * 100).toFixed(1);
+      } else {
+        perfPercent = 0;
+      }
+      if (performanceChartInstance) performanceChartInstance.destroy();
+      performanceChartInstance = new Chart(document.getElementById('performanceChart'), {
+        type: 'doughnut',
+        data: { labels: ['Performance',''], datasets: [{ data: [Math.abs(perfPercent), 100-Math.abs(perfPercent)], backgroundColor: ['#FFD600','#eee'] }] },
+        options: { cutout: '80%', plugins: { legend: { display: false } } }
+      });
+      document.getElementById('performancePercent').textContent = (perfPercent>=0?'+':'') + perfPercent + '%';
+
+      const chartLabels = revenueData.map(d=>d._id);
+      const chartIncome = revenueData.map(d=>d.revenue);
+      const chartExpense = chartIncome.map(()=>stats.expense||0);
+      if (incomeExpenseChartInstance) incomeExpenseChartInstance.destroy();
+      incomeExpenseChartInstance = new Chart(document.getElementById('incomeExpenseChart'), {
+        type: 'bar',
+        data: {
+          labels: chartLabels,
+          datasets: [
+            { label: 'Income', data: chartIncome, backgroundColor: '#FFD600' },
+            { label: 'Expense', data: chartExpense, backgroundColor: '#FF6384' }
+          ]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'top' } } }
+      });
+
+      const orderRateLabels = ordersPerDay.map(d => d._id);
+      const orderRateData = ordersPerDay.map(d => d.count);
+      if (orderRateChartInstance) orderRateChartInstance.destroy();
+      if (orderRateData.length > 1) {
+        orderRateChartInstance = new Chart(document.getElementById('orderRateChart'), {
+          type: 'line',
+          data: {
+            labels: orderRateLabels,
+            datasets: [{ label: 'Orders', data: orderRateData, borderColor: '#FFD600', backgroundColor: 'rgba(255,214,0,0.2)', fill: true }]
+          },
+          options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+        document.getElementById('orderRateMsg').textContent = '';
+      } else {
+        document.getElementById('orderRateMsg').textContent = 'Not enough data to show trend.';
+      }
+
+      if (popularFoodChartInstance) popularFoodChartInstance.destroy();
+      popularFoodChartInstance = new Chart(document.getElementById('popularFoodChart'), {
+        type: 'doughnut',
+        data: {
+          labels: popularFood.map(f=>f.name),
+          datasets: [{ data: popularFood.map(f=>f.quantity), backgroundColor: ['#FFD600','#FF6384','#36A2EB'] }]
+        },
+        options: { plugins: { legend: { position: 'bottom' } } }
+      });
+      document.getElementById('popularFoodList').innerHTML = popularFood.map(f=>`<li>${f.name} - ${f.quantity}</li>`).join('');
+    });
+}
+
+document.querySelectorAll('#dashboardFilterGroup .btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const period = this.getAttribute('data-period');
+    if (period !== currentPeriod) {
+      currentPeriod = period;
+      setActivePeriodButton(period);
+      fetchDashboardData();
+    }
+  });
+});
+// Initial load
+fetchDashboardData();
+</script>
+<!-- Bootstrap Icons CDN (for calendar icons) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">

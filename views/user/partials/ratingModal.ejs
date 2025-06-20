@@ -1,0 +1,112 @@
+<!-- Rating Modal -->
+<div class="modal fade" id="ratingModal" tabindex="-1" aria-labelledby="ratingModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="ratingModalLabel">Rate & Review Product</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="ratingForm">
+          <input type="hidden" id="ratingProductId">
+          <input type="hidden" id="ratingOrderId">
+          <div class="mb-3 text-center">
+            <span id="starContainer">
+              <i class="fa-regular fa-star rating-star" data-value="1"></i>
+              <i class="fa-regular fa-star rating-star" data-value="2"></i>
+              <i class="fa-regular fa-star rating-star" data-value="3"></i>
+              <i class="fa-regular fa-star rating-star" data-value="4"></i>
+              <i class="fa-regular fa-star rating-star" data-value="5"></i>
+            </span>
+          </div>
+          <div class="mb-3">
+            <textarea class="form-control" id="reviewText" rows="3" placeholder="Write your review (optional)"></textarea>
+          </div>
+          <div id="ratingStatus" class="mb-2 text-center small"></div>
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary">Submit Review</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  let selectedRating = 0;
+  function openRatingModal(productId, orderId) {
+    selectedRating = 0;
+    document.getElementById('ratingProductId').value = productId;
+    document.getElementById('ratingOrderId').value = orderId;
+    document.getElementById('reviewText').value = '';
+    document.getElementById('ratingStatus').textContent = '';
+    document.querySelectorAll('.rating-star').forEach(star => {
+      star.classList.remove('fa-solid');
+      star.classList.add('fa-regular');
+    });
+    const modal = new bootstrap.Modal(document.getElementById('ratingModal'));
+    modal.show();
+  }
+  document.querySelectorAll('.rating-star').forEach(star => {
+    star.addEventListener('mouseenter', function() {
+      const val = parseInt(this.getAttribute('data-value'));
+      document.querySelectorAll('.rating-star').forEach((s, i) => {
+        if (i < val) {
+          s.classList.add('fa-solid');
+          s.classList.remove('fa-regular');
+        } else {
+          s.classList.remove('fa-solid');
+          s.classList.add('fa-regular');
+        }
+      });
+    });
+    star.addEventListener('mouseleave', function() {
+      document.querySelectorAll('.rating-star').forEach((s, i) => {
+        if (i < selectedRating) {
+          s.classList.add('fa-solid');
+          s.classList.remove('fa-regular');
+        } else {
+          s.classList.remove('fa-solid');
+          s.classList.add('fa-regular');
+        }
+      });
+    });
+    star.addEventListener('click', function() {
+      selectedRating = parseInt(this.getAttribute('data-value'));
+      document.querySelectorAll('.rating-star').forEach((s, i) => {
+        if (i < selectedRating) {
+          s.classList.add('fa-solid');
+          s.classList.remove('fa-regular');
+        } else {
+          s.classList.remove('fa-solid');
+          s.classList.add('fa-regular');
+        }
+      });
+    });
+  });
+  document.getElementById('ratingForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const productId = document.getElementById('ratingProductId').value;
+    const orderId = document.getElementById('ratingOrderId').value;
+    const review = document.getElementById('reviewText').value;
+    if (selectedRating < 1 || selectedRating > 5) {
+      document.getElementById('ratingStatus').textContent = 'Please select a rating.';
+      return;
+    }
+    try {
+      const response = await fetch('/orders/submit-rating', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId, orderId, rating: selectedRating, review })
+      });
+      const data = await response.json();
+      if (data.success) {
+        document.getElementById('ratingStatus').textContent = 'Thank you! Your review has been submitted.';
+        setTimeout(() => { window.location.reload(); }, 1200);
+      } else {
+        document.getElementById('ratingStatus').textContent = data.message || 'Failed to submit rating.';
+      }
+    } catch (err) {
+      document.getElementById('ratingStatus').textContent = 'Network error. Please try again.';
+    }
+  });
+</script>

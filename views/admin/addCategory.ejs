@@ -1,0 +1,93 @@
+<%- include('../partials/admin/header') %>
+
+<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
+  <h1 class="mb-4">Add Category</h1>
+
+  <form id="addCategoryForm" action="/admin/categories/add" method="POST" onsubmit="return validateCategoryForm('addCategoryForm')">
+    <div class="mb-3">
+      <label for="name" class="form-label">Category Name</label>
+      <input type="text" id="name" name="name" class="form-control" required>
+    </div>
+    <div class="mb-3">
+      <label for="description" class="form-label">Category Description</label>
+      <textarea id="description" name="description" class="form-control" required></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Category</button>
+    <a href="/admin/categories" class="btn btn-secondary ms-2">Cancel</a>
+  </form>
+</main>
+
+<!-- Add SweetAlert2 Script -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+// Form validation
+function validateCategoryForm(formId) {
+    const form = document.getElementById(formId);
+    const nameInput = form.querySelector('input[name="name"]');
+    const descInput = form.querySelector('textarea[name="description"]');
+    
+    if (!nameInput.value.trim()) {
+        Swal.fire({
+            title: 'Validation Error',
+            text: 'Category name is required',
+            icon: 'error',
+            confirmButtonColor: '#dc3545'
+        });
+        return false;
+    }
+
+    if (!descInput.value.trim()) {
+        Swal.fire({
+            title: 'Validation Error',
+            text: 'Category description is required',
+            icon: 'error',
+            confirmButtonColor: '#dc3545'
+        });
+        return false;
+    }
+    
+    // Show loading state
+    Swal.fire({
+        title: 'Adding Category...',
+        text: 'Please wait while we process your request',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+    
+    return true;
+}
+
+// Show alerts for success/error messages
+window.onload = function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const error = urlParams.get('error');
+    
+    if (success) {
+        Swal.fire({
+            title: 'Success!',
+            text: decodeURIComponent(success),
+            icon: 'success',
+            timer: 3000,
+            timerProgressBar: true,
+            showConfirmButton: false
+        }).then(() => {
+            window.location.href = '/admin/categories';
+        });
+    } else if (error) {
+        Swal.fire({
+            title: 'Error!',
+            text: decodeURIComponent(error),
+            icon: 'error',
+            confirmButtonColor: '#dc3545'
+        });
+    }
+}
+</script>
+
+<%- include('../partials/admin/footer') %>

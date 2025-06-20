@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <% if (locals.user) { %>
+    <meta name="user-id" content="<%= user._id %>" />
+    <% } %>
+    <link rel="shortcut icon" href="/images/favicon.png" type="" />
+    <title>Derry World</title>
+
+    <link rel="stylesheet" type="text/css" href="/css/bootstrap.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/jquery-nice-select/1.1.0/css/nice-select.min.css"
+    />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="/css/style.css" rel="stylesheet" />
+    <link href="/css/responsive.css" rel="stylesheet" />
+    
+    <!-- jQuery first -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Popper.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+    <!-- SweetAlert2 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      // Connect to Socket.IO with configuration
+      console.log('[DEBUG] Initializing socket.io connection...');
+      const socket = io({
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+      });
+
+      // Track connection state
+      let isConnected = false;
+      let userId = null;
+
+      <% if (locals.user) { %>
+        userId = '<%= user._id %>';
+      <% } %>
+
+      // Function to emit userId
+      function emitUserId() {
+        if (userId && isConnected) {
+          console.log('[DEBUG] Emitting storeUserId event:', userId);
+          socket.emit('storeUserId', userId);
+        }
+      }
+
+      socket.on('connect', () => {
+        console.log('[DEBUG] Socket.io connected with ID:', socket.id);
+        isConnected = true;
+        emitUserId();
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('[DEBUG] Socket.io connection error:', error);
+        isConnected = false;
+      });
+
+      socket.on('socketStored', (data) => {
+        console.log('[DEBUG] Server acknowledged socket storage:', data);
+      });
+
+      // Listen for block events
+      socket.on('userBlocked', async (data) => {
+        console.log('[DEBUG] Received userBlocked event:', data);
+
+        try {
+          // Check if this block event is for the current user
+          <% if (locals.user) { %>
+            if (!data.userId || data.userId === '<%= user._id %>') {
+              console.log('[DEBUG] Block event matches current user');
+              
+              // Show blocked message
+              await Swal.fire({
+                icon: 'error',
+                title: 'Account Blocked',
+                text: data.message,
+                confirmButtonText: 'OK',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                didOpen: () => {
+                  // Prevent any navigation away from this dialog
+                  window.onbeforeunload = (e) => {
+                    e.preventDefault();
+                    e.returnValue = '';
+                    return '';
+                  };
+                }
+              });
+
+              console.log('[DEBUG] Clearing user token and session...');
+
+              // Clear all cookies
+              document.cookie.split(';').forEach(function(c) {
+                document.cookie = c.trim().split('=')[0] + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+              });
+
+              // Clear localStorage
+              localStorage.clear();
+              
+              // Clear sessionStorage
+              sessionStorage.clear();
+
+              // Disconnect socket
+              socket.disconnect();
+
+              console.log('[DEBUG] Redirecting to login...');
+              
+              // Remove navigation prevention
+              window.onbeforeunload = null;
+
+              // Force reload to login page
+              window.location.replace('/login');
+            }
+          <% } %>
+        } catch (error) {
+          console.error('[DEBUG] Error handling block event:', error);
+          // Force reload even if there's an error
+          window.location.replace('/login');
+        }
+      });
+
+      socket.on('disconnect', (reason) => {
+        console.log('[DEBUG] Socket.io disconnected:', reason);
+        isConnected = false;
+      });
+
+      // Attempt to reconnect if connection is lost
+      socket.on('reconnect', (attemptNumber) => {
+        console.log('[DEBUG] Socket.io reconnected after', attemptNumber, 'attempts');
+        isConnected = true;
+        emitUserId();
+      });
+
+      socket.on('reconnect_error', (error) => {
+        console.error('[DEBUG] Socket.io reconnection error:', error);
+      });
+
+      socket.on('reconnect_failed', () => {
+        console.error('[DEBUG] Socket.io reconnection failed after all attempts');
+      });
+    </script>
+    
+    <script>
+    async function handleLogout(event) {
+      event.preventDefault();
+      
+      try {
+        const response = await fetch('/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          credentials: 'same-origin'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Show success message
+          await Swal.fire({
+            icon: 'success',
+            title: 'Success!',
+            text: 'Logged out successfully',
+            showConfirmButton: false,
+            timer: 1500,
+            timerProgressBar: true
+          });
+          
+          // Redirect to login page
+          window.location.href = '/login';
+        } else {
+          throw new Error(data.message || 'Logout failed');
+        }
+      } catch (error) {
+        console.error('Logout error:', error);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: error.message || 'Something went wrong during logout'
+        });
+      }
+    }
+    </script>
+    
+    <style>
+      .header_section {
+        background: #222831;
+      }
+
+      .cart_link {
+        position: relative !important;
+        display: inline-block !important;
+        margin-left: 15px;
+      }
+
+      .cart_link svg {
+        width: 24px !important;
+        height: 24px !important;
+        fill: #ffffff !important;
+      }
+
+      .cart-count {
+        position: absolute !important;
+        top: -8px !important;
+        right: -8px !important;
+        background-color: #ffbe33 !important;
+        color: #ffffff !important;
+        border-radius: 50% !important;
+        width: 18px !important;
+        height: 18px !important;
+        font-size: 12px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+
+      .user-dropdown {
+        margin-left: 15px;
+      }
+
+      .user-dropdown .dropdown-toggle {
+        color: #ffffff;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+      }
+
+      .user-dropdown .dropdown-toggle:hover,
+      .user-dropdown .dropdown-toggle:focus {
+        color: #ffbe33;
+      }
+
+      .user-dropdown .dropdown-menu {
+        background: #222831;
+        border: 1px solid #ffbe33;
+        margin-top: 10px;
+      }
+
+      .user-dropdown .dropdown-item {
+        color: #ffffff;
+        padding: 8px 20px;
+      }
+
+      .user-dropdown .dropdown-item:hover {
+        background: #ffbe33;
+        color: #222831;
+      }
+
+      .auth-links {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+
+      .auth-links a {
+        color: #ffffff;
+        text-decoration: none;
+        padding: 8px 20px;
+        border-radius: 25px;
+        transition: all 0.3s ease;
+      }
+
+      .auth-links a:hover {
+        color: #ffbe33;
+      }
+
+      .auth-links a.register {
+        color: #ffffff;
+      }
+
+      .auth-links a.register:hover {
+        color: #ffbe33;
+      }
+    </style>
+  </head>
+
+  <body class="<%= locals.path === '/' ? '' : 'sub_page' %>">
+    <div class="hero_area">
+      <div class="bg-box">
+        <img src="images/hero-bg.jpg" alt="">
+      </div>
+      <header class="header_section">
+        <div class="container">
+          <nav class="navbar navbar-expand-lg custom_nav-container">
+            <a class="navbar-brand" href="/">
+              <span>Derry World</span>
+            </a>
+
+            <button
+              class="navbar-toggler"
+              type="button"
+              data-toggle="collapse"
+              data-target="#navbarSupportedContent"
+              aria-controls="navbarSupportedContent"
+              aria-expanded="false"
+              aria-label="Toggle navigation"
+            >
+              <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+              <ul class="navbar-nav mx-auto">
+                <li class="nav-item <%= locals.path === '/' ? 'active' : '' %>">
+                  <a class="nav-link" href="/">Home</a>
+                </li>
+                <li class="nav-item <%= locals.path === '/menu' ? 'active' : '' %>">
+                  <a class="nav-link" href="/menu">Menu</a>
+                </li>
+                <li class="nav-item <%= locals.path === '/about' ? 'active' : '' %>">
+                  <a class="nav-link" href="/about">About</a>
+                </li>
+                <li class="nav-item <%= locals.path === '/contact' ? 'active' : '' %>">
+                  <a class="nav-link" href="/contact">Contact</a>
+                </li>
+              </ul>
+              <div class="user_option">
+                <% if (locals.user) { %>
+                  <div class="user-dropdown dropdown">
+                    <a class="dropdown-toggle" href="#" role="button" data-toggle="dropdown">
+                      <i class="fa fa-user me-2"></i>
+                      <%= user.name %>
+                    </a>
+                    <div class="dropdown-menu">
+                      <a class="dropdown-item" href="/profile">Profile</a>
+                      <a class="dropdown-item" href="/orders">Orders</a>
+                      <a class="dropdown-item" href="/wishlist">Wishlist</a>
+                      <a class="dropdown-item" href="/addresses">Addresses</a>
+                      <a class="dropdown-item" href="/wallet">Wallet</a>
+                      <div class="dropdown-divider"></div>
+                      <a class="dropdown-item" href="#" onclick="handleLogout(event)">Logout</a>
+                    </div>
+                  </div>
+                  <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
+                  <a href="/cart" class="cart_link">
+                    <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 456.029 456.029" xml:space="preserve">
+                      <g><g><path d="M345.6,338.862c-29.184,0-53.248,23.552-53.248,53.248c0,29.184,23.552,53.248,53.248,53.248c29.184,0,53.248-23.552,53.248-53.248C398.336,362.926,374.784,338.862,345.6,338.862z" /></g></g>
+                      <g><g><path d="M439.296,84.91c-1.024,0-2.56-0.512-4.096-0.512H112.64l-5.12-34.304C104.448,27.566,84.992,10.67,61.952,10.67H20.48C9.216,10.67,0,19.886,0,31.15c0,11.264,9.216,20.48,20.48,20.48h41.472c2.56,0,4.608,2.048,5.12,4.608l31.744,216.064c4.096,27.136,27.648,47.616,55.296,47.616h212.992c26.624,0,49.664-18.944,55.296-45.056l33.28-166.4C457.728,97.71,450.56,86.958,439.296,84.91z" /></g></g>
+                      <g><g><path d="M215.04,389.55c-1.024-28.16-24.576-50.688-52.736-50.688c-29.696,1.536-52.224,26.112-51.2,55.296c1.024,28.16,24.064,50.688,52.224,50.688h1.024C193.536,443.31,216.576,418.734,215.04,389.55z" /></g></g>
+                    </svg>
+                    <% if (locals.cartCount !== undefined) { %>
+                      <span class="cart-count"><%= cartCount %></span>
+                    <% } %>
+                  </a>
+                <% } else { %>
+                  <div class="auth-links">
+                    <a href="/login" class="login">Login</a>
+                    <a href="/register" class="register">Register</a>
+                  </div>
+                <% } %>
+              </div>
+            </div>
+          </nav>
+        </div>
+      </header>
+      <script src="/js/userLogout.js"></script>
+      <!-- slider section -->
+<section class="slider_section ">
+  <div id="customCarousel1" class="carousel slide" data-ride="carousel">
+    <div class="carousel-inner">
+      <div class="carousel-item active">
+        <div class="container ">
+          <div class="row">
+            <div class="col-md-7 col-lg-6 ">
+              <div class="detail-box">
+                <h1>
+                  Fast Food Restaurant
+                </h1>
+                <p>
+                  Doloremque, itaque aperiam facilis rerum, commodi, temporibus sapiente ad mollitia laborum quam quisquam esse error unde. Tempora ex doloremque, labore, sunt repellat dolore, iste magni quos nihil ducimus libero ipsam.
+                </p>
+                <div class="btn-box">
+                  <a href="" class="btn1">
+                    Order Now
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="carousel-item ">
+        <div class="container ">
+          <div class="row">
+            <div class="col-md-7 col-lg-6 ">
+              <div class="detail-box">
+                <h1>
+                  Fast Food Restaurant
+                </h1>
+                <p>
+                  Doloremque, itaque aperiam facilis rerum, commodi, temporibus sapiente ad mollitia laborum quam quisquam esse error unde. Tempora ex doloremque, labore, sunt repellat dolore, iste magni quos nihil ducimus libero ipsam.
+                </p>
+                <div class="btn-box">
+                  <a href="" class="btn1">
+                    Order Now
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="carousel-item">
+        <div class="container ">
+          <div class="row">
+            <div class="col-md-7 col-lg-6 ">
+              <div class="detail-box">
+                <h1>
+                  Fast Food Restaurant
+                </h1>
+                <p>
+                  Doloremque, itaque aperiam facilis rerum, commodi, temporibus sapiente ad mollitia laborum quam quisquam esse error unde. Tempora ex doloremque, labore, sunt repellat dolore, iste magni quos nihil ducimus libero ipsam.
+                </p>
+                <div class="btn-box">
+                  <a href="" class="btn1">
+                    Order Now
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="container">
+      <ol class="carousel-indicators">
+        <li data-target="#customCarousel1" data-slide-to="0" class="active"></li>
+        <li data-target="#customCarousel1" data-slide-to="1"></li>
+        <li data-target="#customCarousel1" data-slide-to="2"></li>
+      </ol>
+    </div>
+  </div>
+
+</section>
+<!-- end slider section -->
+    </div>
+
+    <!-- Initialize Bootstrap components -->
+    <script>
+      $(document).ready(function() {
+        // Initialize all dropdowns
+        $('.dropdown-toggle').dropdown();
+
+        // Function to update cart count
+        function updateCartCount(count) {
+          $('.cart-count').text(count);
+        }
+
+        // Listen for cart updates
+        $(document).on('cartUpdated', function(e, data) {
+          if (data && typeof data.cartCount !== 'undefined') {
+            updateCartCount(data.cartCount);
+          }
+        });
+      });
+    </script>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // Initialize all dropdowns
+        var dropdownElementList = [].slice.call(document.querySelectorAll('[data-bs-toggle="dropdown"]'))
+        var dropdownList = dropdownElementList.map(function (dropdownToggleEl) {
+          return new bootstrap.Dropdown(dropdownToggleEl)
+        });
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,184 @@
+/* Admin Dashboard Styles */
+body {
+    font-size: .875rem;
+    background-color: #f8f9fc;
+}
+
+.feather {
+    width: 16px;
+    height: 16px;
+    vertical-align: text-bottom;
+}
+
+/* Sidebar */
+.sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    padding: 48px 0 0;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+    background-color: #343a40;
+}
+
+.sidebar-sticky {
+    position: relative;
+    top: 0;
+    height: calc(100vh - 48px);
+    padding-top: .5rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.sidebar .nav-link {
+    font-weight: 500;
+    color: #fff;
+    padding: 0.5rem 1rem;
+    transition: all 0.3s ease;
+}
+
+.sidebar .nav-link:hover {
+    color: #ffc107;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar .nav-link.active {
+    color: #ffc107;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar .nav-link i {
+    margin-right: 0.5rem;
+    color: inherit;
+}
+
+/* Navbar */
+.navbar-brand {
+    padding-top: .75rem;
+    padding-bottom: .75rem;
+    font-size: 1rem;
+    background-color: rgba(0,0,0,.25);
+    box-shadow: inset -1px 0 0 rgba(0,0,0,.25);
+}
+
+.navbar .navbar-toggler {
+    top: .25rem;
+    right: 1rem;
+}
+
+/* Content */
+.main {
+    padding: 1.5rem;
+}
+
+/* Page Headers */
+.border-bottom {
+    border-bottom-color: #fff !important;
+}
+
+/* Cards */
+.card {
+    border: none;
+    border-radius: 0.35rem;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+}
+
+.card-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #fff;
+}
+
+.card-header h6 {
+    font-weight: 700;
+    color: #4e73df;
+}
+
+/* Statistics Cards */
+.border-left-primary { border-left: 4px solid #4e73df !important; }
+.border-left-success { border-left: 4px solid #1cc88a !important; }
+.border-left-info { border-left: 4px solid #36b9cc !important; }
+.border-left-warning { border-left: 4px solid #f6c23e !important; }
+
+.text-xs {
+    font-size: 0.7rem;
+}
+
+.text-gray-300 { color: #dddfeb !important; }
+.text-gray-800 { color: #5a5c69 !important; }
+
+/* Tables */
+.table-responsive {
+    margin-bottom: 1rem;
+}
+
+.table th {
+    font-weight: 600;
+    background-color: var(--bs-body-color);
+    border-color: #e3e6f0;
+    color: #fff;
+}
+
+.table td {
+    vertical-align: middle;
+    border-color: #e3e6f0;
+}
+
+/* Buttons */
+.btn-icon-split {
+    padding: 0;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: stretch;
+    justify-content: center;
+}
+
+.btn-icon-split .icon {
+    background: rgba(0,0,0,.15);
+    display: inline-block;
+    padding: .375rem .75rem;
+}
+
+.btn-icon-split .text {
+    display: inline-block;
+    padding: .375rem .75rem;
+}
+
+/* Utilities */
+.shadow-sm { box-shadow: 0 .125rem .25rem rgba(0,0,0,.075)!important; }
+.shadow { box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important; }
+.shadow-lg { box-shadow: 0 1rem 3rem rgba(0,0,0,.175)!important; }
+
+/* Responsive */
+@media (max-width: 767.98px) {
+    .sidebar {
+        top: 5rem;
+    }
+    
+    .navbar-brand {
+        padding-left: .5rem;
+        padding-right: .5rem;
+    }
+    
+    .navbar-toggler {
+        display: block;
+    }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 0.4rem;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 0.2rem;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
