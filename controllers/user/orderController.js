@@ -32,9 +32,7 @@ const getUserOrders = async (req, res) => {
     // Debug: Log current session user and all order user IDs
     const allOrders = await Order.find({});
 
-    // Ensure ObjectId query for user
     let userId = req.user._id;
-    // If userId is a string, convert to ObjectId
     if (typeof userId === "string") {
       userId = new mongoose.Types.ObjectId(userId);
     }
@@ -952,9 +950,9 @@ const requestReturn = async (req, res) => {
       });
     }
 
-    // Check if return period is valid (e.g., within 7 days of delivery)
+    // Check if return period is valid \
     const deliveryDate = order.deliveryDate;
-    const returnPeriod = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+    const returnPeriod = 7 * 24 * 60 * 60 * 1000; 
 
     if (!deliveryDate) {
       console.warn(

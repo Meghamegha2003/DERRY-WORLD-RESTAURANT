@@ -9,7 +9,6 @@ const { getBestOffer } = require('../../helpers/offerHelper');
 const { calculateOrderTotals } = require('./checkoutController');
 const mongoose = require('mongoose');
 
-// Initialize Razorpay with error handling
 let razorpay;
 try {
     const key_id = process.env.RAZORPAY_KEY_ID;

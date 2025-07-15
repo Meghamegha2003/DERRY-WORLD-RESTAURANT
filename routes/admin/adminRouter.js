@@ -12,18 +12,8 @@ router.use((req, res, next) => {
     next();
 });
 
-// Debug middleware
-// router.use((req, res, next) => {
-//     console.log('[DEBUG] Admin route:', {
-//         path: req.path,
-//         method: req.method,
-//         originalUrl: req.originalUrl,
-//         isXHR: req.xhr || req.headers.accept?.includes('application/json')
-//     });
-//     next();
-// });
 
-// Public admin routes (no authentication required)
+
 router.get('/login', preventAuthPages, adminController.loginPage);
 router.post('/login', preventAuthPages, adminController.loginAdmin);
 router.get('/logout', adminAuth, adminController.logoutAdmin);
@@ -33,13 +23,8 @@ router.post('/logout', adminAuth, adminController.logoutAdmin);
 router.get('/', adminAuth, adminController.loadDashboard);
 router.get('/dashboard', adminAuth, adminController.loadDashboard);
 router.get('/dashboard-data', adminAuth, adminController.getDashboardData);
-router.get('/search', adminAuth, adminController.generalSearch);
+// router.get('/search', adminAuth, adminController.generalSearch);
 
-// Minimal PDF test route for debugging PDFKit/streaming issues
-router.get('/test-pdf', adminAuth, adminController.testPDF);
-
-// Minimal Excel export for debugging
-router.get('/test-excel', adminAuth, adminController.testExcelExport);
 
 // Customer Routes
 router.get('/customers', adminAuth, adminController.customerList);
@@ -57,7 +42,6 @@ router.get('/export/sales/excel', adminAuth, adminController.exportSalesReportEx
 router.get('/reports/sales', adminAuth, adminController.getSalesReport);
 router.get('/sales-report', adminAuth, adminController.getSalesReport);
 
-// Alias route for /admin/sales-report/export-pdf, protected by adminAuth
 router.get('/sales-report/export-pdf', adminAuth, adminController.exportSalesReportPDF);
 
 module.exports = router;

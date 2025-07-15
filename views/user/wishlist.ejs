@@ -37,9 +37,29 @@
 <% } else if (item.salesPrice && item.salesPrice < item.regularPrice) { %>
   <span class="sale-price">₹<%= item.salesPrice.toFixed(2) %></span>
 <% } %>
+
+<!-- Add to Cart or Out of Stock button -->
+<div class="d-flex justify-content-between align-items-center">
+  <% if (item.quantity === 0) { %>
+    <button class="btn btn-sm btn-secondary" disabled>
+       Soldout 
+    </button>
+  <% } else { %>
+    <button
+      class="btn btn-sm btn-cart-toggle <%= item.isInCart ? 'btn-success' : 'btn-outline-success' %>"
+      data-product-id="<%= item._id %>"
+      <%= item.isInCart ? 'disabled' : '' %>
+    >
+      <i class="fas <%= item.isInCart ? 'fa-check' : 'fa-shopping-cart' %> me-1"></i>
+      <%= item.isInCart ? 'Added' : 'Add' %>
+    </button>
+  <% } %>
+</div>
+
                                     </div>
                                 </div>
                             </div>
+                            
                         </div>
                     </div>
                 <% }); %>
@@ -62,6 +82,7 @@
 
 
 <style>
+    
 .wishlist-page {
     background-color: #f8f9fa;
     min-height: calc(100vh - 80px);
@@ -293,6 +314,53 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
+
+    document.addEventListener("DOMContentLoaded", function () {
+    const cartButtons = document.querySelectorAll(".btn-cart-toggle");
+
+    cartButtons.forEach((button) => {
+      if (!button.disabled) {
+        button.addEventListener("click", async function () {
+          const productId = button.getAttribute("data-product-id");
+          button.disabled = true;
+          button.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i> Adding...`;
+
+          try {
+            const res = await fetch(`/cart/add/${productId}`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+              Swal.fire({
+                icon: 'success',
+                title: 'Added to Cart',
+                toast: true,
+                timer: 500,
+                showConfirmButton: false,
+                position: 'top-end'
+              });
+
+              setTimeout(() => {
+                location.reload();
+              }, 500);
+            } else {
+              button.innerHTML = `<i class="fas fa-exclamation-circle me-1"></i> Failed`;
+              button.disabled = false;
+            }
+          } catch (err) {
+            console.error(err);
+            button.innerHTML = `<i class="fas fa-exclamation-circle me-1"></i> Error`;
+            button.disabled = false;
+          }
+        });
+      }
+    });
+  });
 async function removeFromWishlist(productId) {
     const result = await Swal.fire({
         title: 'Remove from Wishlist?',

@@ -20,16 +20,17 @@ const renderWishlist = async (req, res) => {
             });
         }
 
-        // Get user's cart and count unique products
+        // 🛒 Get user's cart and cart product count
         let cartCount = 0;
         const cart = await Cart.findOne({ user: req.user._id });
         cartCount = getUniqueProductCount(cart);
 
+        // 🔍 Load user with wishlist + product details
         const user = await User.findById(req.user._id)
             .populate({
                 path: 'wishlist.product',
                 match: { isListed: true, isBlocked: false },
-                populate: { path: 'category' } // Populate category for offer calculations
+                populate: { path: 'category' }
             });
 
         if (!user) {
@@ -39,12 +40,12 @@ const renderWishlist = async (req, res) => {
             });
         }
 
-        // Initialize empty wishlist array if it doesn't exist
+        // 🧹 Clean undefined wishlist
         if (!Array.isArray(user.wishlist)) {
             user.wishlist = [];
         }
 
-        // Get unique product IDs to prevent duplicates
+        // ✅ Remove duplicate products from wishlist
         const uniqueProductIds = new Set();
         const uniqueWishlistItems = user.wishlist.filter(item => {
             if (!item || !item.product) return false;
@@ -54,18 +55,16 @@ const renderWishlist = async (req, res) => {
             return true;
         });
 
-        // Update wishlist if duplicates were found
+        // 💾 Save deduplicated wishlist if needed
         if (uniqueWishlistItems.length !== user.wishlist.length) {
             user.wishlist = uniqueWishlistItems;
             await user.save();
         }
 
-        // Get product data for each wishlist item
+        // 🏷️ Process each product with offer details
         const validWishlistItems = uniqueWishlistItems.map(async (item) => {
             try {
-                // Get product with offer details
                 const productData = await OfferService.getProductWithOffer(item.product._id);
-                // Exclude products or categories that are blocked or unlisted
                 if (!productData || !productData.isListed || productData.isBlocked || productData.category?.isBlocked) {
                     return null;
                 }
@@ -79,12 +78,12 @@ const renderWishlist = async (req, res) => {
             }
         });
 
-        // Wait for all product data to be fetched
+        // 📦 Wait for all product data to finish loading
         const wishlistItems = (await Promise.all(validWishlistItems))
-            .filter(item => item !== null) // Remove any failed items
+            .filter(item => item !== null)
             .sort((a, b) => b.addedAt - a.addedAt);
 
-        // Clean up any invalid or unlisted products
+        // 🔄 Clean wishlist if invalid items were removed
         if (wishlistItems.length !== uniqueWishlistItems.length) {
             user.wishlist = wishlistItems.map(item => ({
                 product: item._id,
@@ -93,15 +92,13 @@ const renderWishlist = async (req, res) => {
             await user.save();
         }
 
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.json({
-                success: true,
-                wishlistItems,
-                cartCount
-            });
-        }
-        
-        // Fetch all currently active offers
+        // ✅ Inject isInCart flag
+        const cartProductIds = cart?.items?.map(item => item.product.toString()) || [];
+        wishlistItems.forEach(item => {
+            item.isInCart = cartProductIds.includes(item._id.toString());
+        });
+
+        // 🏷️ Optional: fetch active offers if needed for badge
         const now = new Date();
         const offers = await Offer.find({
             isActive: true,
@@ -109,6 +106,16 @@ const renderWishlist = async (req, res) => {
             validUntil: { $gte: now }
         }).lean();
 
+        // If JSON request, return JSON
+        if (req.xhr || req.headers.accept?.includes('application/json')) {
+            return res.json({
+                success: true,
+                wishlistItems,
+                cartCount
+            });
+        }
+
+        // 👀 Render wishlist view
         res.render('user/wishlist', {
             offers,
             wishlistItems,
@@ -117,6 +124,7 @@ const renderWishlist = async (req, res) => {
             title: 'My Wishlist',
             cartCount
         });
+
     } catch (error) {
         console.error('Error fetching wishlist:', error);
         const errorMessage = error.message || 'Error fetching wishlist';
@@ -126,6 +134,7 @@ const renderWishlist = async (req, res) => {
         });
     }
 };
+
 
 // Toggle product in wishlist
 const toggleWishlist = async (req, res) => {

@@ -95,7 +95,6 @@ const productSchema = new mongoose.Schema({
 
 // Calculate average rating before saving
 productSchema.pre('save', function(next) {
-    // Compute final price based on bestOffer or salesPrice
     this.finalPrice = (this.bestOffer != null) ? this.bestOffer : this.salesPrice;
     if (this.ratings && this.ratings.length > 0) {
         const totalRating = this.ratings.reduce((sum, rating) => sum + rating.rating, 0);

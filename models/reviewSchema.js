@@ -32,7 +32,6 @@ const reviewSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Compound index to ensure one review per user per product
 reviewSchema.index({ user: 1, product: 1 }, { unique: true });
 
 module.exports = mongoose.model('Review', reviewSchema);

@@ -276,89 +276,142 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
-      async function handleRegisterSubmit(event) {
-        event.preventDefault();
+    async function handleRegisterSubmit(event) {
+  event.preventDefault();
 
-        const password = document.getElementById('password').value;
-        const confirmPassword = document.getElementById('confirmPassword').value;
+  const rawName = document.getElementById('name').value;
+  const name = rawName.trim();
+  const email = document.getElementById('email').value.trim().toLowerCase();
+  const phone = document.getElementById('phone').value.trim();
+  const password = document.getElementById('password').value;
+  const confirmPassword = document.getElementById('confirmPassword').value;
+  const referralCode = document.getElementById('referralCode').value || undefined;
 
-        if (password !== confirmPassword) {
-          Swal.fire({
-            icon: 'error',
-            title: 'Password Mismatch',
-            text: 'Password and confirm password do not match'
-          });
-          return;
+  // Regex patterns
+  const nameRegex = /^[A-Za-z][A-Za-z\s]*$/; // starts with a letter, only letters/spaces
+  const emailStartRegex = /^[A-Za-z]/;
+  const emailFormatRegex = /^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/;
+  const phoneRegex = /^\d{10}$/;
+
+  // Name validation
+  if (!rawName || rawName[0] === ' ') {
+  return Swal.fire({
+    icon: 'error',
+    title: 'Invalid Name',
+    text: 'Name cannot start with a space.'
+  });
+}
+
+if (!nameRegex.test(name)) {
+  return Swal.fire({
+    icon: 'error',
+    title: 'Invalid Name',
+    text: 'Name must start with a letter and contain only letters and spaces.'
+  });
+}
+
+  // Email validation
+  if (!emailStartRegex.test(email)) {
+    return Swal.fire({
+      icon: 'error',
+      title: 'Invalid Email',
+      text: 'Email must start with a letter'
+    });
+  }
+
+  if (!emailFormatRegex.test(email)) {
+    return Swal.fire({
+      icon: 'error',
+      title: 'Invalid Email Format',
+      text: 'Please enter a valid email address'
+    });
+  }
+
+  // Phone validation
+  if (!phoneRegex.test(phone)) {
+    return Swal.fire({
+      icon: 'error',
+      title: 'Invalid Phone',
+      text: 'Phone number must be exactly 10 digits'
+    });
+  }
+
+  // Password match validation
+  if (password !== confirmPassword) {
+    return Swal.fire({
+      icon: 'error',
+      title: 'Password Mismatch',
+      text: 'Password and confirm password do not match'
+    });
+  }
+
+  // Construct form data
+  const formData = {
+    name,
+    email,
+    phone,
+    password,
+    referralCode
+  };
+
+  // Submit to server
+  const response = await fetch('/register', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify(formData)
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    if (data.error === 'Email already registered') {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Email Already Registered',
+        text: 'This email is already registered. Would you like to login instead?',
+        showCancelButton: true,
+        confirmButtonText: 'Login',
+        confirmButtonColor: '#ffbe33',
+        cancelButtonText: 'Try Again',
+        cancelButtonColor: '#d33'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          window.location.href = '/login';
         }
+      });
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'Registration Failed',
+        text: data.error || 'An error occurred during registration'
+      });
+    }
+    return;
+  }
 
-        const formData = {
-          name: document.getElementById('name').value,
-          email: document.getElementById('email').value,
-          phone: document.getElementById('phone').value,
-          password: document.getElementById('password').value,
-          referralCode: document.getElementById('referralCode').value || undefined
-        };
+  if (data.success) {
+    localStorage.setItem('registrationToken', data.token);
 
-        const response = await fetch('/register', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify(formData)
-        });
+    await Swal.fire({
+      icon: 'success',
+      title: 'Success!',
+      text: data.message,
+      showConfirmButton: false,
+      timer: 1500
+    });
 
-        const data = await response.json();
-
-        if (!response.ok) {
-          if (data.error === 'Email already registered') {
-            await Swal.fire({
-              icon: 'error',
-              title: 'Email Already Registered',
-              text: 'This email is already registered. Would you like to login instead?',
-              showCancelButton: true,
-              confirmButtonText: 'Login',
-              confirmButtonColor: '#ffbe33',
-              cancelButtonText: 'Try Again',
-              cancelButtonColor: '#d33'
-            }).then((result) => {
-              if (result.isConfirmed) {
-                window.location.href = '/login';
-              }
-            });
-          } else {
-            Swal.fire({
-              icon: 'error',
-              title: 'Registration Failed',
-              text: data.error || 'An error occurred during registration'
-            });
-          }
-          return;
-        }
-
-        if (data.success) {
-          // Save token to localStorage for OTP verification
-          localStorage.setItem('registrationToken', data.token);
-          
-          // Show success message
-          await Swal.fire({
-            icon: 'success',
-            title: 'Success!',
-            text: data.message,
-            showConfirmButton: false,
-            timer: 1500
-          });
-
-        
-          window.location.href = '/verify-otp';
-        } else {
-          Swal.fire({
-            icon: 'error',
-            title: 'Registration Failed',
-            text: data.error || 'An error occurred during registration'
-          });
-        }
-      }
+    window.location.href = '/verify-otp';
+  } else {
+    Swal.fire({
+      icon: 'error',
+      title: 'Registration Failed',
+      text: data.error || 'An error occurred during registration'
+    });
+  }
+}
 
       function togglePassword(inputId, toggleId) {
         const input = document.getElementById(inputId);

@@ -121,6 +121,7 @@
         background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3e%3cpath stroke='rgba(34, 40, 49, 1)' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
       }
     </style>
+    
   </head>
   <body class="sub_page">
     <div class="hero_area">
@@ -156,20 +157,21 @@
               <div class="user_option">
                 <% if (locals.user) { %>
                   <!-- User Dropdown -->
-                  <div class="user-dropdown dropdown">
-                    <a class="dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <div class="user-dropdown dropdown">
+                    <a class="dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                       <i class="fa fa-user me-2"></i>
-                      <%= locals.user ? user.name : 'Guest' %>
+                      <%= locals.user ? locals.user.name : 'Guest' %>
                     </a>
-                    <div class="dropdown-menu">
-                      <a class="dropdown-item" href="/profile">Profile</a>
-                      <a class="dropdown-item" href="/orders">Orders</a>
-                      <a class="dropdown-item" href="/wishlist">Wishlist</a>
-                      <a class="dropdown-item" href="/addresses">Addresses</a>
-                      <a class="dropdown-item" href="/wallet">Wallet</a>
-                      <div class="dropdown-divider"></div>
-                      <a class="dropdown-item" href="#" onclick="handleLogout(event)">Logout</a>
-                    </div>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                      <li><a class="dropdown-item" href="/profile">Profile</a></li>
+                      <li><a class="dropdown-item" href="/orders">Orders</a></li>
+                      <li><a class="dropdown-item" href="/wishlist">Wishlist</a></li>
+                      <li><a class="dropdown-item" href="/addresses">Addresses</a></li>
+                      <li><a class="dropdown-item" href="/wallet">Wallet</a></li>
+                      <li><hr class="dropdown-divider"></li>
+                      <li><a class="dropdown-item" href="#" onclick="handleLogout(event)">Logout</a></li>
+                    </ul>
+                  </div>
                   </div>
 
                   <!-- Cart Link -->
@@ -253,4 +255,5 @@
       }
     });
   </script>
+  
 </html>

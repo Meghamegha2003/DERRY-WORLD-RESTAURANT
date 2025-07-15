@@ -17,7 +17,8 @@ async function viewCoupons(req, res) {
         res.render('admin/coupons', {
             title: 'Coupon Management',
             coupons,
-            error: null
+            error: null,
+            path: '/admin/coupons'
         });
     } catch (error) {
         console.error('Error fetching coupons:', error);

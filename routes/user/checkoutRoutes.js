@@ -5,6 +5,7 @@ const { auth } = require('../../middlewares/authMiddleware');
 
 // Checkout page
 router.get('/', auth, checkoutController.getCheckout);
+
 router.post('/process', auth, checkoutController.processCheckout);
 
 // Coupon management

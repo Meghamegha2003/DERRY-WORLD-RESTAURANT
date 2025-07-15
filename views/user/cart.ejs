@@ -25,6 +25,42 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <style>
+              .checkout-btn {
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 10px;
+                                        width: 100%;
+                                        padding: 16px;
+                                        margin-top: 20px;
+                                        background: linear-gradient(135deg, #ffbe33 0%, #fd7e14 100%);
+                                        color: white;
+                                        border: none;
+                                        border-radius: 8px;
+                                        font-size: 1rem;
+                                        font-weight: 600;
+                                        text-decoration: none;
+                                        transition: all 0.3s ease;
+                                        box-shadow: 0 2px 4px rgba(253, 126, 20, 0.2);
+                                    }
+
+                                    .checkout-btn:hover {
+                                        background: linear-gradient(135deg, #fd7e14 0%, #ffbe33 100%);
+                                        transform: translateY(-2px);
+                                        box-shadow: 0 4px 8px rgba(253, 126, 20, 0.3);
+                                        text-decoration: none;
+                                        color: white;
+                                    }
+
+                                    .checkout-btn i {
+                                        font-size: 0.9rem;
+                                        transition: transform 0.3s ease;
+                                    }
+
+                                    .checkout-btn:hover i {
+                                        transform: translateX(4px);
+                                    }
+                              
         .cart-container {
             background-color: #f8f9fa;
             min-height: 100vh;
@@ -433,254 +469,8 @@
             color: #f57c00;
             font-weight: 500;
         }
-    </style>
-</head>
 
-<body class="sub_page">
-    <%- include('../partials/user/header-no-bg', { user, cartCount }) %>
 
-    <div class="cart-container">
-        <div class="container">
-            <% try { %>
-                <% if (!cartItems || cartItems.length === 0) { %>
-                    <div class="empty-cart text-center">
-                        <img src="/images/empty-cart.png" alt="Empty Cart" class="empty-cart-img mb-4" style="max-width: 200px;">
-                        <h3 class="empty-cart-title mb-4">Your cart is empty</h3>
-                        <p class="empty-cart-text mb-4">Looks like you haven't added any items to your cart yet.</p>
-                        <a href="/menu" class="btn btn-primary">Continue Shopping</a>
-                    </div>
-                <% } else { %>
-                    <div class="row">
-                        <!-- Cart Items -->
-                        <div class="col-lg-8">
-                            <div class="cart-items-container">
-                                <div class="cart-items-scroll">
-                                    <% cartItems.forEach(item => { %>
-                                        <% if (item && item.product) { %>
-                                            <div class="cart-item" data-product-id="<%= item.product._id %>">
-                                                <div class="row align-items-center w-100">
-                                                    <!-- Product Image -->
-                                                    <div class="col-md-2">
-                                                        <img src="<%= item.product.productImage && Array.isArray(item.product.productImage) && item.product.productImage.length > 0 ? item.product.productImage[0] : item.product.productImage %>" 
-                                                             alt="<%= item.product.name %>" 
-                                                             class="product-img"
-                                                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y4ZjlmYSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiNhZGI1YmQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4='">
-                                                    </div>
-                                                    
-                                                    <!-- Product Details -->
-                                                    <div class="col-md-4">
-                                                        <h5 class="product-name"><%= item.product.name %></h5>
-                                                        <% if (item.product.category && item.product.category.isBlocked) { %>
-                                                            <div class="alert alert-danger" style="padding: 6px 10px; margin-bottom: 8px; font-size: 13px;">
-                                                                This product is <b>unavailable</b> (category blocked).
-                                                            </div>
-                                                        <% } %>
-                                                        <div class="product-price">
-    <span class="original-price">₹<%= item.product.regularPrice ? item.product.regularPrice.toFixed(2) : '0.00' %></span>
-<% if (item.product.offerDetails && item.product.offerDetails.finalPrice) { %>
-    <span class="current-price item-price" data-price="<%= item.product.offerDetails.finalPrice %>">₹<%= item.product.offerDetails.finalPrice %></span>
-<% } else if (item.product.salesPrice && item.product.salesPrice < item.product.regularPrice) { %>
-    <span class="current-price item-price" data-price="<%= item.product.salesPrice %>">₹<%= item.product.salesPrice %></span>
-<% } else { %>
-    <span class="current-price item-price" data-price="<%= item.product.regularPrice %>">₹<%= item.product.regularPrice %></span>
-<% } %>
-</div>
-                                                    </div>
-
-                                                    <!-- Quantity Controls -->
-                                                    <div class="col-md-3">
-                                                        <div class="quantity-controls">
-                                                            <button
-                                                                class="quantity-btn decrease-btn"
-                                                                data-product-id="<%= item.product._id %>"
-                                                                data-action="decrease"
-                                                                data-stock="<%= item.product.quantity %>"
-                                                                <%= item.quantity <= 1 || (item.product.category && item.product.category.isBlocked) ? 'disabled' : '' %>
-                                                            >
-                                                                <i class="fas fa-minus"></i>
-                                                            </button>
-                                                            <input type="text" class="quantity-input" value="<%= item.quantity %>" readonly>
-                                                            <button
-                                                                class="quantity-btn increase-btn"
-                                                                data-product-id="<%= item.product._id %>"
-                                                                data-action="increase"
-                                                                data-stock="<%= item.product.quantity %>"
-                                                                <%= item.quantity >= 5 || (item.product.category && item.product.category.isBlocked) ? 'disabled' : '' %>
-                                                            >
-                                                                <i class="fas fa-plus"></i>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-
-                                                    <!-- Remove Button -->
-                                                    <div class="col-md-2 text-right">
-                                                        <button class="remove-btn" onclick="removeFromCart('<%= item.product._id %>')">
-                                                            <i class="fas fa-trash"></i>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        <% } %>
-                                    <% }); %>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Order Summary -->
-                        <div class="col-lg-4">
-                            <div class="cart-summary">
-                                <h4 class="summary-title">Order Summary</h4>
-                                
-                                <!-- Coupon Section First -->
-                                <div class="coupon-section mb-4">
-  <% if (cart && cart.couponCode && cart.couponDiscount > 0) { %>
-    <div class="applied-coupon">
-      <div class="coupon-badge">
-        <div class="coupon-badge-content">
-          <i class="fas fa-tag"></i>
-          <div class="coupon-info">
-            <div class="coupon-code-text"><%= cart.couponCode %></div>
-            <div class="coupon-discount">-₹<%= cart.couponDiscount.toFixed(2) %></div>
-          </div>
-        </div>
-        <button class="remove-coupon-btn" onclick="removeCoupon()">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-    </div>
-  <% } else { %>
-    <button class="apply-coupon-btn" id="openCouponModal">
-      <i class="fas fa-tag"></i>
-      <span>Apply Coupon</span>
-    </button>
-  <% } %>
-</div>
-
-                                <div class="cart-totals">
-                                    <div class="total-item">
-                                        <span>Subtotal</span>
-                                        <span id="subtotal">
-₹<%=
-  cartItems && cartItems.length > 0
-    ? cartItems.reduce((sum, item) => {
-        let price = (item.product.offerDetails && item.product.offerDetails.finalPrice)
-          ? item.product.offerDetails.finalPrice
-          : (item.product.salesPrice && item.product.salesPrice < item.product.regularPrice)
-            ? item.product.salesPrice
-            : item.product.regularPrice;
-        return sum + (price * item.quantity);
-      }, 0).toFixed(2)
-    : '0.00'
-%>
-</span>
-                                    </div>
-                                    <% if (cart && cart.couponDiscount > 0) { %>
-                                        <div class="total-item discount">
-                                            <span>Coupon Discount</span>
-                                            <span id="coupon-discount">-₹<%= cart.couponDiscount.toFixed(2) %></span>
-                                        </div>
-                                    <% } %>
-                                    <div class="total-item">
-                                        <span>Delivery Charge</span>
-                                        <span id="delivery-charge">₹<%= deliveryCharge ? deliveryCharge.toFixed(2) : '0.00' %></span>
-                                    </div>
-                                    <div class="total-item total">
-                                        <span>Total</span>
-                                        <span id="total">
-₹<%=
-  cartItems && cartItems.length > 0
-    ? (
-        cartItems.reduce((sum, item) => {
-          let price = (item.product.offerDetails && item.product.offerDetails.finalPrice)
-            ? item.product.offerDetails.finalPrice
-            : (item.product.salesPrice && item.product.salesPrice < item.product.regularPrice)
-              ? item.product.salesPrice
-              : item.product.regularPrice;
-          return sum + (price * item.quantity);
-        }, 0)
-        + (deliveryCharge || 0)
-        - (cart && cart.couponDiscount ? cart.couponDiscount : 0)
-      ).toFixed(2)
-    : '0.00'
-%>
-</span>
-                                    </div>
-                                </div>
-                                <a href="/checkout" class="checkout-btn">
-                                    <span>Proceed to Checkout</span>
-                                    <i class="fas fa-arrow-right"></i>
-                                </a>
-                                <style>
-                                    .checkout-btn {
-                                        display: flex;
-                                        align-items: center;
-                                        justify-content: center;
-                                        gap: 10px;
-                                        width: 100%;
-                                        padding: 16px;
-                                        margin-top: 20px;
-                                        background: linear-gradient(135deg, #ffbe33 0%, #fd7e14 100%);
-                                        color: white;
-                                        border: none;
-                                        border-radius: 8px;
-                                        font-size: 1rem;
-                                        font-weight: 600;
-                                        text-decoration: none;
-                                        transition: all 0.3s ease;
-                                        box-shadow: 0 2px 4px rgba(253, 126, 20, 0.2);
-                                    }
-
-                                    .checkout-btn:hover {
-                                        background: linear-gradient(135deg, #fd7e14 0%, #ffbe33 100%);
-                                        transform: translateY(-2px);
-                                        box-shadow: 0 4px 8px rgba(253, 126, 20, 0.3);
-                                        text-decoration: none;
-                                        color: white;
-                                    }
-
-                                    .checkout-btn i {
-                                        font-size: 0.9rem;
-                                        transition: transform 0.3s ease;
-                                    }
-
-                                    .checkout-btn:hover i {
-                                        transform: translateX(4px);
-                                    }
-                                </style>
-                            </div>
-                        </div>
-                    </div>
-                <% } %>
-            <% } catch (error) { %>
-                <div class="error-message text-center">
-                    <p>Error loading cart items</p>
-                    <a href="/menu" class="btn btn-primary">Continue Shopping</a>
-                </div>
-            <% } %>
-        </div>
-    </div>
-
-    <!-- Coupon Modal Trigger Button -->
-    <button id="openCouponModal" class="btn btn-outline-primary mb-3" style="float:right;">Have a Coupon?</button>
-
-    <!-- Coupon Modal -->
-    <div id="couponModal" class="coupon-modal-overlay" style="display:none;">
-        <div class="coupon-modal-content">
-            <button class="coupon-modal-close" id="closeCouponModal" aria-label="Close">&times;</button>
-            <h4>Apply Coupon</h4>
-            <div class="form-group">
-                <input type="text" id="couponCodeInput" class="form-control" placeholder="Enter coupon code" autofocus />
-            </div>
-            <div id="availableCoupons" class="mb-2"></div>
-            <button id="applyCouponBtn" class="btn btn-primary w-100 mt-2">Apply</button>
-            <div id="couponMessage" class="text-center mt-2"></div>
-        </div>
-    </div>
-
-    <!-- Cart JS -->
-    <script src="/js/cart.js"></script>
-
-    <style>
         .coupon-modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
@@ -740,72 +530,231 @@
             from { opacity: 0; transform: scale(0.96); }
             to { opacity: 1; transform: scale(1); }
         }
+
     </style>
 
-    <script>
-        // Modal open/close logic
-        document.getElementById('openCouponModal').onclick = function() {
-            document.getElementById('couponModal').style.display = 'flex';
-            setTimeout(() => {
-                document.getElementById('couponCodeInput').focus();
-            }, 200);
-            // Dynamically load coupons when modal opens
-            if (typeof loadAvailableCoupons === 'function') {
-                loadAvailableCoupons();
-            }
-        };
-        document.getElementById('closeCouponModal').onclick = function() {
-            document.getElementById('couponModal').style.display = 'none';
-            document.getElementById('couponMessage').innerText = '';
-            document.getElementById('couponCodeInput').value = '';
-        };
-        // Close modal on overlay click
-        document.getElementById('couponModal').onclick = function(e) {
-            if (e.target === this) {
-                this.style.display = 'none';
-                document.getElementById('couponMessage').innerText = '';
-                document.getElementById('couponCodeInput').value = '';
-            }
-        };
-        // Enter key submits coupon
-        document.getElementById('couponCodeInput').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                document.getElementById('applyCouponBtn').click();
-            }
-        });
-        // Apply coupon logic (delegated to cart.js, but show loading/message here)
-        document.getElementById('applyCouponBtn').onclick = async function() {
-            const code = document.getElementById('couponCodeInput').value.trim();
-            const msg = document.getElementById('couponMessage');
-            if (!code) {
-                msg.innerText = 'Please enter a coupon code.';
-                msg.style.color = '#e74c3c';
-                return;
-            }
-            msg.innerText = 'Checking...';
-            msg.style.color = '#888';
-            try {
-                // You may want to move this AJAX to cart.js for separation
-                const res = await fetch('/user/coupons/apply', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    msg.innerText = 'Coupon applied!';
-                    msg.style.color = '#27ae60';
-                    setTimeout(() => window.location.reload(), 900);
-                } else {
-                    msg.innerText = data.message || 'Invalid coupon.';
-                    msg.style.color = '#e74c3c';
-                }
-            } catch (err) {
-                msg.innerText = 'Error applying coupon.';
-                msg.style.color = '#e74c3c';
-            }
-        };
-    </script>
+    
+</head>
+
+<body class="sub_page">
+    <%- include('../partials/user/header-no-bg', { user, cartCount }) %>
+
+    <div class="cart-container">
+        <div class="container">
+            <% try { %>
+                <% if (!cartItems || cartItems.length === 0) { %>
+                    <div class="empty-cart text-center">
+                        <img src="/images/empty-cart.png" alt="Empty Cart" class="empty-cart-img mb-4" style="max-width: 200px;">
+                        <h3 class="empty-cart-title mb-4">Your cart is empty</h3>
+                        <p class="empty-cart-text mb-4">Looks like you haven't added any items to your cart yet.</p>
+                        <a href="/menu" class="btn btn-primary">Continue Shopping</a>
+                    </div>
+                <% } else { %>
+                    <div class="row">
+                        <!-- Cart Items -->
+                        <div class="col-lg-8">
+                            <div class="cart-items-container">
+                                <div class="cart-items-scroll">
+                                    <% cartItems.forEach(item => { %>
+                                        <% if (item && item.product) { %>
+                                            <div class="cart-item" data-product-id="<%= item.product._id %>">
+                                                <div class="row align-items-center w-100">
+                                                    <!-- Product Image -->
+                                                    <div class="col-md-2">
+                                                        <img src="<%= item.product.productImage && Array.isArray(item.product.productImage) && item.product.productImage.length > 0 ? item.product.productImage[0] : item.product.productImage %>" 
+                                                             alt="<%= item.product.name %>" 
+                                                             class="product-img"
+                                                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y4ZjlmYSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiNhZGI1YmQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4='">
+                                                    </div>
+                                                    
+                                                    <!-- Product Details -->
+                                                    <div class="col-md-4">
+                                                        <h5 class="product-name"><%= item.product.name %></h5>
+                                                        <% if (item.product.category && item.product.category.isBlocked) { %>
+                                                            <div class="alert alert-danger" style="padding: 6px 10px; margin-bottom: 8px; font-size: 13px;">
+                                                                This product is <b>unavailable</b> (category blocked).
+                                                            </div>
+                                                        <% } %>
+                                                        <div class="product-price">
+                                                            <span class="original-price">₹<%= item.product.regularPrice ? item.product.regularPrice.toFixed(2) : '0.00' %></span>
+                                                        <% if (item.product.offerDetails && item.product.offerDetails.finalPrice) { %>
+                                                            <span class="current-price item-price" data-price="<%= item.product.offerDetails.finalPrice %>">₹<%= item.product.offerDetails.finalPrice %></span>
+                                                        <% } else if (item.product.salesPrice && item.product.salesPrice < item.product.regularPrice) { %>
+                                                            <span class="current-price item-price" data-price="<%= item.product.salesPrice %>">₹<%= item.product.salesPrice %></span>
+                                                        <% } else { %>
+                                                            <span class="current-price item-price" data-price="<%= item.product.regularPrice %>">₹<%= item.product.regularPrice %></span>
+                                                        <% } %>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Quantity Controls -->
+                                                  <div class="col-md-3" data-product-id="<%= item.product._id %>">
+                                                    <div class="quantity-controls">
+                                                        <% const isBlocked = item.product.category && item.product.category.isBlocked; %>
+
+                                                        <% if (item.quantity > 1 && !isBlocked) { %>
+                                                        <button
+                                                            class="quantity-btn decrease-btn"
+                                                            data-product-id="<%= item.product._id %>"
+                                                            data-action="decrease"
+                                                            data-stock="<%= item.product.quantity %>"
+                                                        >
+                                                            <i class="fas fa-minus"></i>
+                                                        </button>
+                                                        <% } %>
+
+                                                        <input type="text" class="quantity-input" value="<%= item.quantity %>" readonly>
+
+                                                        <% if (item.quantity < 5 && item.quantity < item.product.quantity && !isBlocked) { %>
+                                                        <button
+                                                            class="quantity-btn increase-btn"
+                                                            data-product-id="<%= item.product._id %>"
+                                                            data-action="increase"
+                                                            data-stock="<%= item.product.quantity %>"
+                                                        >
+                                                            <i class="fas fa-plus"></i>
+                                                        </button>
+                                                        <% } %>
+                                                    </div>
+                                                    </div>
+
+
+                                                    <!-- Remove Button -->
+                                                    <div class="col-md-2 text-right">
+                                                        <button class="remove-btn" onclick="removeFromCart('<%= item.product._id %>')">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        <% } %>
+                                    <% }); %>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Order Summary -->
+                        <div class="col-lg-4">
+                            <div class="cart-summary">
+                                <h4 class="summary-title">Order Summary</h4>
+                                
+                                <!-- Coupon Section First -->
+                                <div class="coupon-section mb-4">
+  <% if (cart && cart.couponCode && cart.couponDiscount > 0) { %>
+    <div class="applied-coupon">
+      <div class="coupon-badge">
+        <div class="coupon-badge-content">
+          <i class="fas fa-tag"></i>
+          <div class="coupon-info">
+            <div class="coupon-code-text"><%= cart.couponCode %></div>
+            <div class="coupon-discount">-₹<%= cart.couponDiscount.toFixed(2) %></div>
+          </div>
+        </div>
+        <button class="remove-coupon-btn" onclick="removeCoupon()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+  <% } else { %>
+    <button class="apply-coupon-btn" id="openCouponModal">
+      <i class="fas fa-tag"></i>
+      <span>Apply Coupon</span>
+    </button>
+  <% } %>
+</div>
+
+                                <div class="cart-totals">
+                                    <div class="total-item">
+                                        <span>Subtotal</span>
+                                        <span id="subtotal">
+                                    ₹<%=
+                                    cartItems && cartItems.length > 0
+                                        ? cartItems.reduce((sum, item) => {
+                                            let price = (item.product.offerDetails && item.product.offerDetails.finalPrice)
+                                            ? item.product.offerDetails.finalPrice
+                                            : (item.product.salesPrice && item.product.salesPrice < item.product.regularPrice)
+                                                ? item.product.salesPrice
+                                                : item.product.regularPrice;
+                                            return sum + (price * item.quantity);
+                                        }, 0).toFixed(2)
+                                        : '0.00'
+                                    %>
+                                    </span>
+                                    </div>
+                                    <% if (cart && cart.couponDiscount > 0) { %>
+                                        <div class="total-item discount">
+                                            <span>Coupon Discount</span>
+                                            <span id="coupon-discount">-₹<%= cart.couponDiscount.toFixed(2) %></span>
+                                        </div>
+                                    <% } %>
+                                    <div class="total-item">
+                                        <span>Delivery Charge</span>
+                                        <span id="delivery-charge">₹<%= deliveryCharge ? deliveryCharge.toFixed(2) : '0.00' %></span>
+                                    </div>
+                                    <div class="total-item total">
+                                        <span>Total</span>
+                                        <span id="total">
+₹<%=
+  cartItems && cartItems.length > 0
+    ? (
+        cartItems.reduce((sum, item) => {
+          let price = (item.product.offerDetails && item.product.offerDetails.finalPrice)
+            ? item.product.offerDetails.finalPrice
+            : (item.product.salesPrice && item.product.salesPrice < item.product.regularPrice)
+              ? item.product.salesPrice
+              : item.product.regularPrice;
+          return sum + (price * item.quantity);
+        }, 0)
+        + (deliveryCharge || 0)
+        - (cart && cart.couponDiscount ? cart.couponDiscount : 0)
+      ).toFixed(2)
+    : '0.00'
+%>
+</span>
+                                    </div>
+                                </div>
+                                <a href="/checkout" class="checkout-btn">
+                                    <span>Proceed to Checkout</span>
+                                    <i class="fas fa-arrow-right"></i>
+                                </a>
+                               
+                              
+                            </div>
+                        </div>
+                    </div>
+                <% } %>
+            <% } catch (error) { %>
+                <div class="error-message text-center">
+                    <p>Error loading cart items</p>
+                    <a href="/menu" class="btn btn-primary">Continue Shopping</a>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <!-- Coupon Modal Trigger Button -->
+    <button id="openCouponModal" class="btn btn-outline-primary mb-3" style="float:right;">Have a Coupon?</button>
+
+    <!-- Coupon Modal -->
+    <div id="couponModal" class="coupon-modal-overlay" style="display:none;">
+        <div class="coupon-modal-content">
+            <button class="coupon-modal-close" id="closeCouponModal" aria-label="Close">&times;</button>
+            <h4>Apply Coupon</h4>
+            <div class="form-group">
+                <input type="text" id="couponCodeInput" class="form-control" placeholder="Enter coupon code" autofocus />
+            </div>
+            <div id="availableCoupons" class="mb-2"></div>
+            <button id="applyCouponBtn" class="btn btn-primary w-100 mt-2">Apply</button>
+            <div id="couponMessage" class="text-center mt-2"></div>
+        </div>
+    </div>
+
+    <!-- Cart JS -->
+    <script src="/js/cart.js"></script>
+
+    
+
+    
 
      <%- include('../partials/user/footer') %>
     <script src="/js/bootstrap.bundle.min.js"></script>

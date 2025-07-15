@@ -35,7 +35,8 @@ const categoryController = {
                 totalPages,
                 success: req.query.success,
                 error: req.query.error,
-                user: req.admin // Pass admin user data
+                user: req.admin ,
+                path: '/admin/categories'
             });
         } catch (error) {
             console.error('Error in listCategories:', error);

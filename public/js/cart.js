@@ -84,36 +84,35 @@ function removeFromCart(productId) {
     });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const cartItemsEl = document.querySelector('.cart-items-scroll');
-    if (cartItemsEl) {
-        cartItemsEl.addEventListener('click', async function(e) {
-            if (!e.target.closest('.quantity-btn')) return;
 
+    if (cartItemsEl) {
+        cartItemsEl.addEventListener('click', async function (e) {
             const button = e.target.closest('.quantity-btn');
+            if (!button) return;
+
             const productId = button.dataset.productId;
             const action = button.dataset.action;
             const quantityInput = button.parentElement.querySelector('.quantity-input');
             const currentQuantity = parseInt(quantityInput.value);
-            // Get available stock from data attribute (set in cart.ejs)
-            const availableStock = parseInt(button.dataset.stock || '5');
+            const maxStock = parseInt(button.dataset.stock || '5');
+
             let newQuantity = currentQuantity;
+
             if (action === 'increase' && currentQuantity < 5) {
-                newQuantity = currentQuantity + 1;
+                newQuantity++;
             } else if (action === 'decrease' && currentQuantity > 1) {
-                newQuantity = currentQuantity - 1;
+                newQuantity--;
             } else {
                 return;
             }
 
-            let endpoint;
-            if (action === 'increase') {
-                endpoint = `/cart/increment/${productId}`;
-            } else if (action === 'decrease') {
-                endpoint = `/cart/decrement/${productId}`;
-            } else {
-                return;
-            }
+            const endpoint =
+                action === 'increase'
+                    ? `/cart/increment/${productId}`
+                    : `/cart/decrement/${productId}`;
+
             try {
                 const response = await fetch(endpoint, {
                     method: 'PUT',
@@ -122,41 +121,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
 
-                let data;
                 if (!response.ok) {
-                    data = await response.json().catch(() => ({}));
-                    const err = new Error(data.message || data.error || 'Failed to update quantity');
-                    if (data.availableStock !== undefined) err.availableStock = data.availableStock;
-                    throw err;
-                }
-                data = await response.json();
-
-                // Only update the input value after successful backend response
-                quantityInput.value = newQuantity;
-
-                // Update button states
-                button.parentElement.querySelector('.decrease-btn').disabled = newQuantity <= 1;
-                button.parentElement.querySelector('.increase-btn').disabled = newQuantity >= 5;
-
-                // Update order summary UI if present
-                if (data) {
-                    const subtotalElem = document.getElementById('subtotal');
-                    const deliveryElem = document.getElementById('delivery-charge');
-                    const totalElem = document.getElementById('total');
-                    const couponElem = document.getElementById('coupon-discount');
-                    if (subtotalElem && typeof data.subtotal !== 'undefined') 
-                        subtotalElem.textContent = `₹${Number(data.subtotal).toFixed(2)}`;
-                    if (deliveryElem && typeof data.deliveryCharge !== 'undefined') 
-                        deliveryElem.textContent = `₹${Number(data.deliveryCharge).toFixed(2)}`;
-                    if (totalElem && typeof data.total !== 'undefined') 
-                        totalElem.textContent = `₹${Number(data.total).toFixed(2)}`;
-                    if (couponElem && typeof data.couponDiscount !== 'undefined' && data.couponDiscount > 0)
-                        couponElem.textContent = `-₹${Number(data.couponDiscount).toFixed(2)}`;
-                    else if (couponElem)
-                        couponElem.textContent = '-₹0.00';
+                    const errData = await response.json();
+                    throw new Error(errData.message || 'Failed to update cart');
                 }
 
-                // Show custom styled SweetAlert
+                const data = await response.json();
+
+                // ✅ SweetAlert Toast
                 Swal.fire({
                     toast: true,
                     position: 'top-end',
@@ -177,21 +149,24 @@ document.addEventListener('DOMContentLoaded', function() {
                         toast.style.fontWeight = 'bold';
                     }
                 });
+
+                // ✅ Auto reload after 1.5s
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
             } catch (error) {
-                console.error('Error updating quantity:', error);
-                // If stock error, adjust UI to available stock
-                if (error.availableStock !== undefined) {
-                    quantityInput.value = error.availableStock;
-                    const incBtn = button.parentElement.querySelector('.increase-btn');
-                    incBtn.disabled = true;
-                    Toast.fire({ icon: 'warning', title: `Only ${error.availableStock} in stock` });
-                } else {
-                    Toast.fire({ icon: 'error', title: error.message || 'Failed to update quantity' });
-                }
+                console.error('Quantity update failed:', error.message);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.message || 'Failed to update quantity',
+                    confirmButtonColor: '#d33'
+                });
             }
         });
     }
 });
+
 
 async function fetchCartData() {
     try {
@@ -357,7 +332,6 @@ async function updateQuantity(productId, newQuantity, maxQuantity = 5, action = 
         console.error('Failed to update quantity:', error);
     }
 }
-
 let availableCoupons = [];
 
 let couponModal;
@@ -753,3 +727,138 @@ $(document).ready(function() {
         });
     }
 });
+
+
+
+
+    async function removeFromCart(productId) {
+  const confirm = await Swal.fire({
+    title: 'Remove this item?',
+    text: 'Are you sure you want to delete it from your cart?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, remove it!',
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6'
+  });
+
+  if (!confirm.isConfirmed) return;
+
+  try {
+    const response = await fetch(`/cart/remove/${productId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Remove the product div from the DOM
+      const productDiv = document.querySelector(`.cart-item[data-product-id="${productId}"]`);
+      if (productDiv) productDiv.remove();
+
+      // Update totals
+      document.getElementById('subtotal').textContent = `₹${data.subtotal.toFixed(2)}`;
+      document.getElementById('total').textContent = `₹${data.total.toFixed(2)}`;
+      document.getElementById('delivery-charge').textContent = `₹${data.deliveryCharge.toFixed(2)}`;
+
+      // Show toast
+      Swal.fire({
+        icon: 'success',
+        title: 'Removed!',
+        text: 'Product removed from cart',
+        toast: true,
+        position: 'top-end',
+        timer: 1500,
+        showConfirmButton: false,
+      });
+
+      // If cart becomes empty, refresh to show "empty cart" UI
+      const remainingItems = document.querySelectorAll('.cart-item');
+      if (remainingItems.length === 0) {
+        setTimeout(() => window.location.reload(), 1000);
+      }
+
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'Oops...',
+        text: data.error || 'Failed to remove item!',
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: 'Something went wrong!',
+    });
+  }
+}
+
+        // Modal open/close logic
+        document.getElementById('openCouponModal').onclick = function() {
+            document.getElementById('couponModal').style.display = 'flex';
+            setTimeout(() => {
+                document.getElementById('couponCodeInput').focus();
+            }, 200);
+            // Dynamically load coupons when modal opens
+            if (typeof loadAvailableCoupons === 'function') {
+                loadAvailableCoupons();
+            }
+        };
+        document.getElementById('closeCouponModal').onclick = function() {
+            document.getElementById('couponModal').style.display = 'none';
+            document.getElementById('couponMessage').innerText = '';
+            document.getElementById('couponCodeInput').value = '';
+        };
+        // Close modal on overlay click
+        document.getElementById('couponModal').onclick = function(e) {
+            if (e.target === this) {
+                this.style.display = 'none';
+                document.getElementById('couponMessage').innerText = '';
+                document.getElementById('couponCodeInput').value = '';
+            }
+        };
+        // Enter key submits coupon
+        document.getElementById('couponCodeInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('applyCouponBtn').click();
+            }
+        });
+        // Apply coupon logic (delegated to cart.js, but show loading/message here)
+        document.getElementById('applyCouponBtn').onclick = async function() {
+            const code = document.getElementById('couponCodeInput').value.trim();
+            const msg = document.getElementById('couponMessage');
+            if (!code) {
+                msg.innerText = 'Please enter a coupon code.';
+                msg.style.color = '#e74c3c';
+                return;
+            }
+            msg.innerText = 'Checking...';
+            msg.style.color = '#888';
+            try {
+                // You may want to move this AJAX to cart.js for separation
+                const res = await fetch('/user/coupons/apply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    msg.innerText = 'Coupon applied!';
+                    msg.style.color = '#27ae60';
+                    setTimeout(() => window.location.reload(), 900);
+                } else {
+                    msg.innerText = data.message || 'Invalid coupon.';
+                    msg.style.color = '#e74c3c';
+                }
+            } catch (err) {
+                msg.innerText = 'Error applying coupon.';
+                msg.style.color = '#e74c3c';
+            }
+        };
+    

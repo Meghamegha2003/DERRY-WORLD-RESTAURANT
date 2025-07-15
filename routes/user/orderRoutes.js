@@ -6,14 +6,12 @@ const { auth } = require('../../middlewares/authMiddleware');
 // Apply auth middleware to all routes
 router.use(auth);
 
-// Order Management
 // Get all orders
 router.get('/', orderController.getUserOrders);
 
 // Get order details
 router.get('/:orderId', orderController.getOrderDetails);
 
-// Order Actions
 // Cancel entire order
 router.post('/:orderId/cancel', orderController.cancelOrder);
 
@@ -27,7 +25,6 @@ router.post('/:orderId/items/:itemId/return', orderController.requestItemReturn)
 router.post('/:orderId/return', orderController.requestReturn);
 
 // Rating
-// Submit rating for item
 router.post('/submit-rating', orderController.submitRating);
 
 module.exports = router;

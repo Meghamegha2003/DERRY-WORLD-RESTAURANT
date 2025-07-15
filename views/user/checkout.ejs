@@ -11,9 +11,7 @@
     <link href="/css/responsive.css" rel="stylesheet" />
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
     <style>
         /* Address Card Styling */
@@ -512,6 +510,7 @@
     <%- include('../partials/user/header-no-bg', { user, cartCount }) %>
     <%- include('../partials/user/address-modal') %>
     
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
     <div class="container" style="margin-top: 6rem;">
@@ -711,56 +710,65 @@
         </div>
     </div>
 
-    <script>
-        // Initialize variables
-        let selectedPaymentMethod = '';
-        let selectedAddressId = '';
+  <script>
+    let selectedPaymentMethod = '';
+    let selectedAddressId = '';
+ document.addEventListener('DOMContentLoaded', () => {
+        initializeEventHandlers();
 
-        // On DOMContentLoaded, preselect first address if available and sync selectedAddressId
-        document.addEventListener('DOMContentLoaded', function() {
-            const firstCard = document.querySelector('.address-card');
-            if (firstCard) {
-                const firstId = firstCard.getAttribute('data-address');
-                selectedAddressId = firstId;
-                let hiddenInput = document.getElementById('selectedAddressId');
-                if (!hiddenInput) {
-                    hiddenInput = document.createElement('input');
-                    hiddenInput.type = 'hidden';
-                    hiddenInput.name = 'selectedAddressId';
-                    hiddenInput.id = 'selectedAddressId';
-                    document.body.appendChild(hiddenInput);
-                }
-                hiddenInput.value = firstId;
-            }
-        });
-
-        // Helper to sync selectedAddressId from hidden input
-        function getSelectedAddressId() {
-            const hiddenInput = document.getElementById('selectedAddressId');
-            return hiddenInput ? hiddenInput.value : '';
+        const firstAddress = document.querySelector('.address-card');
+        if (firstAddress) {
+            const addressId = firstAddress.dataset.address;
+            selectAddress(addressId);
         }
 
-        // Delete address function
-        async function deleteAddress(addressId) {
-            try {
-                const result = await Swal.fire({
-                    title: 'Are you sure?',
-                    text: 'This address will be permanently deleted.',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#d33',
-                    cancelButtonColor: '#3085d6',
-                    confirmButtonText: 'Yes, delete it!'
-                });
+        const orderTotal = <%= cart.total.toFixed(2) %>;
 
-                if (result.isConfirmed) {
+        if (orderTotal > 1000) {
+            const codCard = document.getElementById('codCard');
+            if (codCard) {
+                codCard.style.display = 'none';
+            }
+
+            // If COD was the default, switch to online or wallet
+            if (selectedPaymentMethod === 'cod') {
+                selectPaymentMethod('online'); // or 'wallet'
+            }
+        } else {
+            selectPaymentMethod('cod');
+        }
+
+        document.querySelectorAll('.address-card').forEach(card => {
+            card.addEventListener('mouseenter', function () {
+                this.querySelector('.address-actions')?.classList.add('d-block');
+            });
+            card.addEventListener('mouseleave', function () {
+                this.querySelector('.address-actions')?.classList.remove('d-block');
+            });
+        });
+    });
+   
+    function getSelectedAddressId() {
+        const hiddenInput = document.getElementById('selectedAddressId');
+        return hiddenInput ? hiddenInput.value : '';
+    }
+
+    function deleteAddress(addressId) {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: 'This address will be permanently deleted.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
                     const response = await fetch(`/addresses/${addressId}`, {
                         method: 'DELETE',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
+                        headers: { 'Content-Type': 'application/json' }
                     });
-
                     const data = await response.json();
                     if (data.success) {
                         await Swal.fire({
@@ -774,349 +782,202 @@
                     } else {
                         throw new Error(data.message || 'Failed to delete address');
                     }
-                }
-            } catch (error) {
-                console.error('Error deleting address:', error);
-                await Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: error.message || 'Failed to delete address'
-                });
-            }
-        }
-
-        // Save address function
-        async function saveAddress() {
-            try {
-                const form = document.getElementById('addressForm');
-                if (!form.checkValidity()) {
-                    form.reportValidity();
-                    return;
-                }
-
-                const formData = new FormData(form);
-                const addressData = Object.fromEntries(formData.entries());
-                
-                // Remove empty addressId if it's a new address
-                if (!addressData.addressId) {
-                    delete addressData.addressId;
-                }
-
-                const url = addressData.addressId ? `/addresses/${addressData.addressId}` : '/addresses';
-                const response = await fetch(url, {
-                    method: addressData.addressId ? 'PUT' : 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(addressData)
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    // Show success message
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Success',
-                        text: addressData.addressId ? 'Address updated successfully' : 'Address added successfully',
-                        timer: 1500,
-                        showConfirmButton: false
-                    }).then(() => {
-                        // Reload page to show new address
-                        window.location.reload();
-                    });
-                } else {
-                    throw new Error(data.error || 'Failed to save address');
-                }
-            } catch (error) {
-                console.error('Error saving address:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: error.message || 'Failed to save address'
-                });
-            }
-        }
-
-        // Handle payment method selection
-        function selectPaymentMethod(method) {
-            selectedPaymentMethod = method;
-            document.querySelectorAll('.payment-method-card').forEach(card => {
-                card.classList.remove('selected');
-            });
-            document.querySelector(`.payment-method-card[data-method="${method}"]`).classList.add('selected');
-        }
-
-        // Handle address selection
-        function selectAddress(addressId) {
-            selectedAddressId = addressId;
-            document.querySelectorAll('.address-card').forEach(card => {
-                card.classList.remove('selected');
-            });
-            const selectedCard = document.querySelector(`.address-card[data-address="${addressId}"]`);
-            if (selectedCard) selectedCard.classList.add('selected');
-            let hiddenInput = document.getElementById('selectedAddressId');
-            if (!hiddenInput) {
-                hiddenInput = document.createElement('input');
-                hiddenInput.type = 'hidden';
-                hiddenInput.name = 'selectedAddressId';
-                hiddenInput.id = 'selectedAddressId';
-                document.body.appendChild(hiddenInput);
-            }
-            hiddenInput.value = addressId;
-        }
-
-        // Place order function
-        async function placeOrder() {
-            // Always use the value from the hidden input (source of truth)
-            let addressInput = document.getElementById('selectedAddressId');
-            let addressIdValue = addressInput ? addressInput.value : '';
-            selectedAddressId = addressIdValue;
-
-            let paymentInput = document.getElementById('selectedPaymentMethod');
-            if (!paymentInput) {
-                paymentInput = document.createElement('input');
-                paymentInput.type = 'hidden';
-                paymentInput.name = 'selectedPaymentMethod';
-                paymentInput.id = 'selectedPaymentMethod';
-                document.body.appendChild(paymentInput);
-            }
-            paymentInput.value = selectedPaymentMethod;
-            try {
-                // Always get latest selected address from hidden input
-                selectedAddressId = getSelectedAddressId();
-                if (!selectedAddressId) {
+                } catch (error) {
+                    console.error('Error deleting address:', error);
                     Swal.fire({
                         icon: 'error',
                         title: 'Error',
-                        text: 'Please select a delivery address'
+                        text: error.message || 'Failed to delete address'
                     });
-                    return;
                 }
+            }
+        });
+    }
 
-                if (!selectedPaymentMethod) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'Please select a payment method'
-                    });
-                    return;
-                }
+    function saveAddress() {
+        const form = document.getElementById('addressForm');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
 
-                // Show loading state
+        const formData = new FormData(form);
+        const addressData = Object.fromEntries(formData.entries());
+
+        if (!addressData.addressId) delete addressData.addressId;
+
+        const url = addressData.addressId ? `/addresses/${addressData.addressId}` : '/addresses';
+
+        fetch(url, {
+            method: addressData.addressId ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(addressData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
                 Swal.fire({
-                    title: 'Processing...',
-                    text: 'Please wait while we process your order',
-                    allowOutsideClick: false,
-                    showConfirmButton: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
+                    icon: 'success',
+                    title: 'Success',
+                    text: addressData.addressId ? 'Address updated successfully' : 'Address added successfully',
+                    timer: 1500,
+                    showConfirmButton: false
+                }).then(() => location.reload());
+            } else {
+                throw new Error(data.error || 'Failed to save address');
+            }
+        })
+        .catch(error => {
+            console.error('Error saving address:', error);
+            Swal.fire({ icon: 'error', title: 'Error', text: error.message || 'Failed to save address' });
+        });
+    }
 
-                const response = await fetch('/checkout/process', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
+    function selectPaymentMethod(method) {
+        selectedPaymentMethod = method;
+        document.querySelectorAll('.payment-method-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        const selectedCard = document.querySelector(`.payment-method-card[data-method="${method}"]`);
+        if (selectedCard) selectedCard.classList.add('selected');
+    }
+
+    function selectAddress(addressId) {
+        selectedAddressId = addressId;
+        document.querySelectorAll('.address-card').forEach(card => card.classList.remove('selected'));
+        const selectedCard = document.querySelector(`.address-card[data-address="${addressId}"]`);
+        if (selectedCard) selectedCard.classList.add('selected');
+
+        let hiddenInput = document.getElementById('selectedAddressId');
+        const form = document.getElementById('checkoutForm') || document.querySelector('form');
+        if (!hiddenInput) {
+            hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = 'selectedAddressId';
+            hiddenInput.id = 'selectedAddressId';
+            if (form) form.appendChild(hiddenInput);
+        }
+        hiddenInput.value = addressId;
+    }
+
+    function placeOrder() {
+        let addressInput = document.getElementById('selectedAddressId');
+        selectedAddressId = addressInput ? addressInput.value : '';
+
+        let paymentInput = document.getElementById('selectedPaymentMethod');
+        if (!paymentInput) {
+            paymentInput = document.createElement('input');
+            paymentInput.type = 'hidden';
+            paymentInput.name = 'selectedPaymentMethod';
+            paymentInput.id = 'selectedPaymentMethod';
+            document.body.appendChild(paymentInput);
+        }
+        paymentInput.value = selectedPaymentMethod;
+
+        if (!selectedAddressId) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Please select a delivery address' });
+            return;
+        }
+
+        if (!selectedPaymentMethod) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Please select a payment method' });
+            return;
+        }
+
+        // 💡 COD Restriction Logic
+        const orderTotal = <%= cart.total.toFixed(2) %>; // Injected from server safely
+        if (selectedPaymentMethod === 'cod' && orderTotal > 1000) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'COD Not Allowed',
+                text: 'Cash on Delivery is not available for orders above ₹1000. Please choose another payment method.'
+            });
+            return;
+        }
+
+        Swal.fire({
+            title: 'Processing...',
+            text: 'Please wait while we process your order',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        fetch('/checkout/process', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                addressId: selectedAddressId,
+                paymentMethod: selectedPaymentMethod
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            Swal.close();
+            if (!data.success) throw new Error(data.message);
+
+            if (selectedPaymentMethod === 'online') {
+                const options = {
+                    key: data.key,
+                    amount: data.order.amount,
+                    currency: data.order.currency,
+                    name: 'Derry World Restaurant',
+                    description: 'Food Order Payment',
+                    order_id: data.order.id,
+                    prefill: {
+                        name: '<%= user.name %>',
+                        email: '<%= user.email %>',
+                        contact: '<%= user.phone %>'
                     },
-                    body: JSON.stringify({
-                        addressId: selectedAddressId,
-                        paymentMethod: selectedPaymentMethod
-                    })
-                });
-                const data = await response.json();
-                if (!data.success) {
-                    throw new Error(data.message);
-                }
-                Swal.close();
-
-                if (selectedPaymentMethod === 'online') {
-                    // Initialize Razorpay payment
-                    const options = {
-                        key: data.key,
-                        amount: data.order.amount,
-                        currency: data.order.currency,
-                        name: 'Derry World Restaurant',
-                        description: 'Food Order Payment',
-                        order_id: data.order.id,
-                        prefill: {
-                            name: '<%= user.name %>',
-                            email: '<%= user.email %>',
-                            contact: '<%= user.phone %>'
-                        },
-                        handler: function(response) {
-                            // Handle successful payment
-                            window.location.href = `/orders/${data.order.orderId}?payment_id=${response.razorpay_payment_id}`;
-                        },
-                        modal: {
-                            ondismiss: function() {
-                                // Handle payment modal dismissal
-                                Swal.fire({
-                                    icon: 'warning',
-                                    title: 'Payment Cancelled',
-                                    text: 'Your payment was cancelled. Please try again.'
-                                });
-                            }
+                    handler: function (response) {
+                        window.location.href = `/orders/${data.order.orderId}?payment_id=${response.razorpay_payment_id}`;
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Payment Cancelled',
+                                text: 'Your payment was cancelled. Please try again.'
+                            });
                         }
-                    };
-
-                    const rzp = new Razorpay(options);
-                    rzp.open();
-                } else {
-                    // Handle COD or wallet payment success
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Order Placed Successfully!',
-                        text: 'Thank you for your order.',
-                        confirmButtonText: 'View Order'
-                    }).then((result) => {
-                        window.location.href = `/orders/${data.orderId}`;
-                    });
-                }
-            } catch (error) {
-                console.error('Order error:', error);
+                    }
+                };
+                const rzp = new Razorpay(options);
+                rzp.open();
+            } else {
                 Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: error.message || 'Failed to place order. Please try again.'
+                    icon: 'success',
+                    title: 'Order Placed Successfully!',
+                    text: 'Thank you for your order.',
+                    confirmButtonText: 'View Order'
+                }).then(() => {
+                    window.location.href = `/orders/${data.orderId}`;
                 });
             }
-        }
+        })
+        .catch(error => {
+            console.error('Order error:', error);
+            Swal.fire({ icon: 'error', title: 'Error', text: error.message || 'Failed to place order. Please try again.' });
+        });
+    }
 
-        // Initialize first address as selected and COD as default payment method
-</script>
-
-<%- include('../partials/user/address-modal') %>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-            const firstAddress = document.querySelector('.address-card');
-            if (firstAddress) {
-                const addressId = firstAddress.dataset.address;
-                selectAddress(addressId);
-            }
-            selectPaymentMethod('cod');
-
-            // Add hover effects for edit/delete buttons
-            document.querySelectorAll('.address-card').forEach(card => {
-                card.addEventListener('mouseenter', function() {
-                    this.querySelector('.address-actions')?.classList.add('d-block');
-                });
-                card.addEventListener('mouseleave', function() {
-                    this.querySelector('.address-actions')?.classList.remove('d-block');
-                });
+    function initializeEventHandlers() {
+        const editBtns = document.querySelectorAll('.edit-address');
+        editBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const { addressId, fullName, phone, addressLine1, addressLine2, city, state, pincode, addressType } = btn.dataset;
+                showEditAddressModal(addressId, fullName, phone, addressLine1, addressLine2, city, state, pincode, addressType);
             });
         });
-    </script>
 
-    <%- include('../partials/user/footer.ejs') %>
-    <script>
-        // Function to initialize event handlers
-        function initializeEventHandlers() {
-            
-            // Edit address button click handler
-            const editBtns = document.querySelectorAll('.edit-address');
-\            editBtns.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const addressId = btn.dataset.addressId;
-                    const fullName = btn.dataset.fullName;
-                    const phone = btn.dataset.phone;
-                    const addressLine1 = btn.dataset.addressLine1;
-                    const addressLine2 = btn.dataset.addressLine2;
-                    const city = btn.dataset.city;
-                    const state = btn.dataset.state;
-                    const pincode = btn.dataset.pincode;
-                    const addressType = btn.dataset.addressType;
-                    showEditAddressModal(addressId, fullName, phone, addressLine1, addressLine2, city, state, pincode, addressType);
-                });
-            });
-
-            // Delete address button click handler
-            const deleteBtns = document.querySelectorAll('.delete-address');
-            deleteBtns.forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const addressId = btn.dataset.addressId;
-                    try {
-                        const result = await Swal.fire({
-                            title: 'Are you sure?',
-                            text: 'This address will be permanently deleted.',
-                            icon: 'warning',
-                            showCancelButton: true,
-                            confirmButtonColor: '#d33',
-                            cancelButtonColor: '#3085d6',
-                            confirmButtonText: 'Yes, delete it!'
-                        });
-
-                        if (result.isConfirmed) {
-                            const response = await fetch(`/addresses/${addressId}`, {
-                                method: 'DELETE',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                }
-                            });
-
-                            const data = await response.json();
-                            if (data.success) {
-                                await Swal.fire({
-                                    icon: 'success',
-                                    title: 'Deleted!',
-                                    text: 'Address has been deleted.',
-                                    showConfirmButton: false,
-                                    timer: 1500
-                                });
-                                location.reload();
-                            } else {
-                                throw new Error(data.message || 'Failed to delete address');
-                            }
-                        }
-                    } catch (err) {
-                    console.error('AJAX error in placeOrder:', err);
-                    Swal.close();
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Order Error',
-                        text: err.message || 'Order could not be placed.'
-                    });
-                    return;
-                });
-            });
-        }
-
-        // Initialize event handlers when DOM is loaded
-        document.addEventListener('DOMContentLoaded', initializeEventHandlers);
-
-        function selectAddress(addressId) {
-            // Your existing selectAddress code here
-        }
-    </script>
-<script>
-function selectAddress(addressId) {
-    // Remove .selected from all address cards
-    document.querySelectorAll('.address-card').forEach(card => card.classList.remove('selected'));
-    // Add .selected to the clicked card
-    const selectedCard = document.querySelector('.address-card[data-address="' + addressId + '"]');
-    if (selectedCard) selectedCard.classList.add('selected');
-    // Store the selected address in a hidden input for form submission
-    let hiddenInput = document.getElementById('selectedAddressId');
-    const form = document.getElementById('checkoutForm') || document.querySelector('form');
-    if (!hiddenInput) {
-        hiddenInput = document.createElement('input');
-        hiddenInput.type = 'hidden';
-        hiddenInput.name = 'selectedAddressId';
-        hiddenInput.id = 'selectedAddressId';
-        if (form) form.appendChild(hiddenInput);
+        const deleteBtns = document.querySelectorAll('.delete-address');
+        deleteBtns.forEach(btn => {
+            btn.addEventListener('click', () => deleteAddress(btn.dataset.addressId));
+        });
     }
-    hiddenInput.value = addressId;
-}
-
-// Preselect the first address on page load
-window.addEventListener('DOMContentLoaded', function() {
-    const firstCard = document.querySelector('.address-card');
-    if (firstCard) {
-        const firstId = firstCard.getAttribute('data-address');
-        selectAddress(firstId);
-    }
-});
 </script>
+
+ <%- include('../partials/user/footer') %>
+
 </body>
 </html>

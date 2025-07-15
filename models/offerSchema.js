@@ -92,10 +92,10 @@ offerSchema.methods.calculateDiscount = function(amount) {
         discount = Math.min(discount, this.maxDiscount);
     }
     
-    return Math.round(discount * 100) / 100; // Round to 2 decimal places
+    return Math.round(discount * 100) / 100; 
 };
 
-// Add indexes for better query performance
+
 offerSchema.index({ isActive: 1, validFrom: 1, validUntil: 1 });
 offerSchema.index({ targetProducts: 1 }, { sparse: true });
 offerSchema.index({ targetCategories: 1 }, { sparse: true });

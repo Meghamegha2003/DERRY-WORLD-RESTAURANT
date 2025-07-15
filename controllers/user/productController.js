@@ -27,7 +27,6 @@ const calculateOffersForProducts = async (products) => {
     }));
 };
 
-
 // Helper function to capitalize words
 function capitalizeWords(str) {
     return str.replace(/\b\w/g, char => char.toUpperCase());
@@ -220,8 +219,7 @@ const rateProduct = async (req, res) => {
     }
 };
 
-// Get food details
-// NOTE: User authentication is handled via JWT, not session. req.user is set by JWT middleware.
+
 const getFoodDetails = async (req, res) => {
     try {
         const productId = req.params.id;

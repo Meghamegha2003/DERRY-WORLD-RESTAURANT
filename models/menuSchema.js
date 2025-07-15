@@ -43,7 +43,6 @@ const menuSchema = new mongoose.Schema({
     }
 });
 
-// Update the updatedAt timestamp before saving
 menuSchema.pre('save', function(next) {
     this.updatedAt = Date.now();
     next();

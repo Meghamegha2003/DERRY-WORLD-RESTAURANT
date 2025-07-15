@@ -30,11 +30,11 @@ const categorySchema = new Schema({
         default: Date.now
     }
 }, {
-    timestamps: true,  // Add timestamps
-    strict: true      // Enforce schema
+    timestamps: true,  
+    strict: true      
 });
 
-// Add an index for commonly queried fields
+
 categorySchema.index({  isListed: 1, isBlocked: 1 });
 
 const Category = mongoose.model('Category', categorySchema);

@@ -14,7 +14,6 @@ const otpSchema = new Schema({
   expiresAt: {
     type: Date,
     required: true,
-    index: true
   },
   createdAt: {
     type: Date,
@@ -23,10 +22,7 @@ const otpSchema = new Schema({
   }
 });
 
-// Ensure OTP documents are automatically deleted after expiry
 otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
-// Add compound index for email and otp for faster lookups
 otpSchema.index({ email: 1, otp: 1 });
 
 const OTP = mongoose.model('OTP', otpSchema);

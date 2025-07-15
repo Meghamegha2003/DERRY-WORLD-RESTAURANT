@@ -20,7 +20,6 @@ router.get('/available', auth, async (req, res) => {
         const subtotal = cart.calculateTotals().subtotal;
         const now = new Date();
         
-        // Find valid coupons using regular find query
         const coupons = await Coupon.find({
             isActive: true,
             validFrom: { $lte: now },
@@ -28,7 +27,6 @@ router.get('/available', auth, async (req, res) => {
             minPurchase: { $lte: subtotal }
         }).exec();
 
-        // Filter coupons based on usage limit
         const validCoupons = coupons.filter(coupon => coupon.usedCount < coupon.usageLimit);
 
         res.json({

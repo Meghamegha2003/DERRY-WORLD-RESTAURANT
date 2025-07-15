@@ -76,27 +76,17 @@ const cartSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Method to calculate totals
 cartSchema.methods.calculateTotals = function() {
-    // Calculate subtotal from items (using price which now includes any active offers)
     const subtotal = this.items.reduce((total, item) => {
         return total + (item.price * item.quantity);
     }, 0);
-
-    // Calculate delivery charge (free for orders ≥ ₹500)
     const deliveryCharge = subtotal >= 500 ? 0 : 40;
-
-    // Get coupon discount (already calculated and stored)
     const couponDiscount = this.couponDiscount || 0;
-
-    // Calculate total savings
     const totalSavings = this.items.reduce((savings, item) => {
         const originalTotal = item.originalPrice * item.quantity;
         const discountedTotal = item.price * item.quantity;
         return savings + (originalTotal - discountedTotal);
     }, 0) + couponDiscount;
-
-    // Calculate final total
     const total = Math.max(0, subtotal - couponDiscount + deliveryCharge);
 
     return {
@@ -108,14 +98,11 @@ cartSchema.methods.calculateTotals = function() {
     };
 };
 
-// Pre-save middleware to validate coupon discount
 cartSchema.pre('save', function(next) {
-    // Ensure couponDiscount is not negative
     if (this.couponDiscount < 0) {
         this.couponDiscount = 0;
     }
 
-    // Ensure couponDiscount doesn't exceed subtotal
     const subtotal = this.items.reduce((total, item) => {
         return total + (item.price * item.quantity);
     }, 0);
@@ -124,13 +111,12 @@ cartSchema.pre('save', function(next) {
         this.couponDiscount = subtotal;
     }
 
-    // Round couponDiscount to 2 decimal places
     this.couponDiscount = Math.round(this.couponDiscount * 100) / 100;
 
     next();
 });
 
-// Pre-save middleware to ensure quantities are valid
+
 cartSchema.pre('save', function(next) {
     this.items.forEach(item => {
         if (typeof item.quantity !== 'number') {

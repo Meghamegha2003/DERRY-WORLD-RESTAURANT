@@ -277,41 +277,39 @@ const updateUserProfile = async (req, res) => {
 
 // Render home page
 const renderHomePage = async (req, res) => {
-    // Fetch active offers
-    const offers = await Offer.find({
-        isActive: true,
-        startDate: { $lte: new Date() },
-        endDate: { $gte: new Date() }
-    }).lean();
   try {
-    // Fetch active offers
+    const selectedCategoryId = req.query.category;
+
     const offers = await Offer.find({
       isActive: true,
       startDate: { $lte: new Date() },
       endDate: { $gte: new Date() }
     }).lean();
 
-    // Fetch categories (only unblocked and listed)
     const categories = await Category.find({ isListed: true, isBlocked: false }).lean();
 
-    // Fetch featured products with offers (whose category is not blocked)
-    const products = await Product.find({ 
+    const productQuery = {
       isListed: true,
-      isBlocked: false,
-    })
-    .populate({
-      path: 'category',
-      match: { isBlocked: false, isListed: true }
-    })
-    .populate('ratings')
-    .sort({ createdAt: -1 })
-    .limit(8)
-    .lean();
+      isBlocked: false
+    };
 
-    // Filter out products whose category didn't populate
-    const validProducts = products.filter(product => product.category);
+    if (selectedCategoryId && selectedCategoryId !== 'all') {
+      productQuery.category = selectedCategoryId;
+    }
 
-    // Calculate offers for each product
+    let products = await Product.find(productQuery)
+      .populate({
+        path: 'category',
+        match: { isBlocked: false, isListed: true }
+      })
+      .populate('ratings')
+      .sort({ createdAt: -1 })
+      .limit(8)
+      .lean();
+
+    const validProducts = products.filter(p => p.category);
+
+    // Apply offers
     const productsWithOffers = await Promise.all(validProducts.map(async (product) => {
       const offerDetails = await OfferService.getBestOffer(product);
       return {
@@ -320,30 +318,35 @@ const renderHomePage = async (req, res) => {
       };
     }));
 
-    // Get user's wishlist if logged in
+    // Get wishlist & cart
     let wishlistItems = [];
+    let cartItems = [];
+
     if (req.user) {
       const user = await User.findById(req.user._id).select('wishlist').lean();
-      wishlistItems = user.wishlist.map(item => item.product.toString());
+      wishlistItems = user?.wishlist?.map(item => item.product.toString()) || [];
+
+      const cart = await Cart.findOne({ user: req.user._id }).lean();
+      cartItems = cart?.items?.map(item => item.product.toString()) || [];
     }
 
-    // Add wishlist status to products
+    // Add wishlist + cart status to products
     const finalProducts = productsWithOffers.map(product => ({
       ...product,
-      isInWishlist: req.user ? wishlistItems.includes(product._id.toString()) : false
+      isInWishlist: req.user ? wishlistItems.includes(product._id.toString()) : false,
+      isInCart: req.user ? cartItems.includes(product._id.toString()) : false
     }));
 
-    // Get cart count
     const cartCount = req.user ? await getCartCount(req.user._id) : 0;
 
     res.render('user/home', {
       offers,
       categories,
-      // Only send products whose category is not blocked
       products: finalProducts,
       user: req.user,
       cartCount,
-      messages: res.locals.messages
+      messages: res.locals.messages,
+      filters: { category: selectedCategoryId }
     });
   } catch (error) {
     console.error('Error rendering home page:', error);
@@ -351,6 +354,7 @@ const renderHomePage = async (req, res) => {
     res.redirect('/menu');
   }
 };
+
 
 // Render about page
 const renderAboutPage = async (req, res) => {
@@ -751,20 +755,39 @@ const renderRegisterPage = (req, res) => {
     if (req.user) {
       return res.redirect("/");
     }
+
+    // Sanitize query params to avoid HTML injection or format issues
+    const sanitizeInput = (value) => {
+      if (typeof value !== 'string') return '';
+      return value.trim().replace(/[<>"'`]/g, '');
+    };
+
+    const name = sanitizeInput(req.query.name || '');
+    const email = sanitizeInput(req.query.email || '');
+    const phone = sanitizeInput(req.query.phone || '');
+
+    // Optional validation: ensure safe formats
+    const nameValid = /^[A-Za-z][A-Za-z\s]*$/.test(name) || name === '';
+    const emailValid = /^[A-Za-z][\w.-]*@([\w-]+\.)+[a-zA-Z]{2,7}$/.test(email) || email === '';
+    const phoneValid = /^[0-9]{10}$/.test(phone) || phone === '';
+
+    const formData = {
+      name: nameValid ? name : '',
+      email: emailValid ? email : '',
+      phone: phoneValid ? phone : ''
+    };
+
     res.render("user/register", {
-      message: req.query.message || "",
-      successMessage: req.query.successMessage || "",
+      message: sanitizeInput(req.query.message || ""),
+      successMessage: sanitizeInput(req.query.successMessage || ""),
       activePage: "register",
-      error: req.query.error || null,
-      formData: { 
-        name: req.query.name || '', 
-        email: req.query.email || '', 
-        phone: req.query.phone || '' 
-      },
+      error: sanitizeInput(req.query.error || null),
+      formData,
       path: '/user/register',
       user: null,
       cartCount: 0
     });
+
   } catch (error) {
     console.error('Error rendering register page:', error);
     res.status(500).render('user/register', {
@@ -1086,6 +1109,8 @@ const verifyOTP = async (req, res) => {
   }
 };
 
+
+//login page
 const renderLoginPage = async (req, res) => {
   try {
     res.render('user/login', {

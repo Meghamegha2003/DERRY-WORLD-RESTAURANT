@@ -31,10 +31,9 @@ const ratingSchema = new mongoose.Schema({
   }
 });
 
-// Compound index to ensure one rating per user per product
+
 ratingSchema.index({ user: 1, product: 1 }, { unique: true });
 
-// Update the updatedAt timestamp before saving
 ratingSchema.pre('save', function(next) {
   this.updatedAt = new Date();
   next();

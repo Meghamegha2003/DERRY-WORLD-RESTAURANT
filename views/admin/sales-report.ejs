@@ -1,4 +1,32 @@
 <%- include('../partials/admin/header') %>
+<style>
+  .numbers {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    width: 100%;
+  }
+
+  .numbers p,
+  .numbers h5 {
+    width: 100%;
+    text-align: center;
+    word-wrap: break-word;
+    white-space: normal;
+  }
+
+  .numbers h5 {
+    font-size: 1.6rem;
+    font-weight: 700;
+  }
+
+  .numbers p {
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+</style>
+
 
 <!-- Main Content -->
 <main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
@@ -132,7 +160,7 @@
                 <p class="text-sm mb-0 text-uppercase font-weight-bold">Total Sales</p>
                 <h5 class="font-weight-bolder">₹<%= totalSales.toFixed(2) %></h5>
                 <p class="mb-0 text-sm text-success">
-                  <span class="font-weight-bolder">Total Orders: <%= totalOrders %></span>
+                  <span class="font-weight-bolder">Total Orders:<%= totalOrders %></span>
                 </p>
               </div>
             </div>
@@ -173,7 +201,7 @@
           <div class="row">
             <div class="col-8">
               <div class="numbers">
-                <p class="text-sm mb-0 text-uppercase font-weight-bold">Average Order Value</p>
+                <p class="text-sm mb-0 text-uppercase font-weight-bold">Average Order </p>
                 <h5 class="font-weight-bolder">₹<%= averageOrderValue.toFixed(2) %></h5>
                 <p class="mb-0 text-sm">
                   <span class="text-muted">Based on <%= totalOrders %> orders</span>

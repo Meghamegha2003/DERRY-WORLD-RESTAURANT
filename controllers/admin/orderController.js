@@ -12,9 +12,9 @@ const STATUS_TRANSITIONS = {
     'Delivered': ['Return Requested'],
     'Return Requested': ['Return Approved', 'Return Rejected'],
     'Return Approved': ['Return Completed'],
-    'Return Rejected': [], // No further transitions
-    'Return Completed': [], // No further transitions
-    'Cancelled': [] // No further transitions
+    'Return Rejected': [], 
+    'Return Completed': [], 
+    'Cancelled': [] 
 };
 
 // Helper functions
@@ -269,7 +269,8 @@ const getOrders = async (req, res) => {
             getPaymentStatusColor,
             formatPaymentMethod,
             getNextStatuses,
-            ORDER_STATUS
+            ORDER_STATUS,
+            path : '/admin/orders'
         });
     } catch (error) {
         console.error('Error fetching orders:', error);
@@ -577,10 +578,66 @@ const handleReturnAction = async (req, res) => {
     }
 };
 
+const handleOrderCancellation = async (order, reason = 'Cancelled by admin') => {
+    try {
+        // Mark order as cancelled
+        order.orderStatus = ORDER_STATUS.CANCELLED;
+        order.cancelReason = reason;
+        order.cancelledAt = new Date();
+
+        // Restore product quantities
+        for (const item of order.items) {
+            if (item.product) {
+                await Product.findByIdAndUpdate(item.product, { $inc: { quantity: item.quantity } });
+            }
+        }
+
+        // Refund the user if prepaid
+        if (order.paymentStatus === PAYMENT_STATUS.COMPLETED && order.paymentMethod !== 'COD') {
+            let wallet = await Wallet.findOne({ user: order.user });
+            if (!wallet) {
+                wallet = new Wallet({ user: order.user, balance: 0, transactions: [] });
+            }
+
+            const refundAmount = order.totalAmount || order.total;
+            wallet.balance += refundAmount;
+            wallet.transactions.push({
+                type: 'credit',
+                amount: refundAmount,
+                description: `Refund for cancelled order ${order._id}`,
+                date: new Date(),
+                orderId: order._id.toString(),
+                status: 'completed'
+            });
+
+            await wallet.save();
+            await User.findByIdAndUpdate(order.user, { wallet: wallet._id });
+
+            // Emit real-time wallet update
+            const io = req.app.get('io');
+            const activeUsers = req.app.get('activeUsers');
+            const socketId = activeUsers.get(order.user.toString());
+            if (socketId) {
+                io.to(socketId).emit('walletUpdated', {
+                    userId: order.user.toString(),
+                    balance: wallet.balance
+                });
+            }
+        }
+
+        await order.save();
+    } catch (error) {
+        console.error('[ADMIN][CANCEL_ORDER] Error cancelling order:', error);
+        throw error;
+    }
+};
+
+
 module.exports = {
     getOrders,
     updateOrderStatus,
     getOrderDetails,
     handleReturnAction,
-    handleRefund
+    handleRefund,
+    handleOrderCancellation
 };

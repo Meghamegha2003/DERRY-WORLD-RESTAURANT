@@ -8,7 +8,6 @@ const {
     toggleOfferStatus
 } = require('../controllers/admin/offerController');
 
-// View all offers middleware
 const viewOffersMiddleware = (req, res, next) => {
     try {
         viewOffers(req, res);
@@ -17,7 +16,6 @@ const viewOffersMiddleware = (req, res, next) => {
     }
 };
 
-// Get active products middleware
 const getActiveProductsMiddleware = (req, res, next) => {
     try {
         getActiveProducts(req, res);
@@ -26,7 +24,6 @@ const getActiveProductsMiddleware = (req, res, next) => {
     }
 };
 
-// Get active categories middleware
 const getActiveCategoriesMiddleware = (req, res, next) => {
     try {
         getActiveCategories(req, res);
@@ -35,7 +32,6 @@ const getActiveCategoriesMiddleware = (req, res, next) => {
     }
 };
 
-// Create offer middleware
 const createOfferMiddleware = (req, res, next) => {
     try {
         createOffer(req, res);
@@ -44,7 +40,6 @@ const createOfferMiddleware = (req, res, next) => {
     }
 };
 
-// Get single offer middleware
 const getOfferMiddleware = (req, res, next) => {
     try {
         getOffer(req, res);
@@ -53,7 +48,6 @@ const getOfferMiddleware = (req, res, next) => {
     }
 };
 
-// Update offer middleware
 const updateOfferMiddleware = (req, res, next) => {
     try {
         updateOffer(req, res);
@@ -62,7 +56,6 @@ const updateOfferMiddleware = (req, res, next) => {
     }
 };
 
-// Toggle offer status middleware
 const toggleOfferStatusMiddleware = (req, res, next) => {
     try {
         toggleOfferStatus(req, res);

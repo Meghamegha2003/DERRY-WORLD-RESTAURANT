@@ -1,6 +1,5 @@
 const multer = require('multer');
 
-// Use memory storage so file.buffer is available in controller
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
@@ -12,8 +11,8 @@ const fileFilter = (req, file, cb) => {
 };
 
 const limits = {
-  fileSize: 5 * 1024 * 1024, // 5MB limit
-  files: 5 // Maximum 5 files at once
+  fileSize: 5 * 1024 * 1024, 
+  files: 5 
 };
 
 const upload = multer({

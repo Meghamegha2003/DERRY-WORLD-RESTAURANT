@@ -4,33 +4,7 @@ const cartController = require('../../controllers/user/cartController');
 const Cart = require('../../models/cartSchema');
 const { auth } = require('../../middlewares/authMiddleware');
 
-// --- DEBUG: Test population route ---
-router.get('/test-populate', auth, async (req, res) => {
-    const userId = req.user && req.user._id;
-    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
-    const cart = await Cart.findOne({ user: userId })
-        .populate({
-            path: 'items.product',
-            select: 'name category',
-            populate: {
-                path: 'category',
-                model: 'Category',
-                select: 'isBlocked name'
-            }
-        });
-    res.json(cart && cart.items ? cart.items.map(item => item.product && item.product.category) : []);
-});
-// --- END DEBUG ROUTE ---
 
-// Debug route to check cart data
-router.get('/debug', async (req, res) => {
-    try {
-        const carts = await Cart.find().lean();
-        res.json(carts);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 
 // Cart page
 router.get('/', auth, cartController.getCartPage);

@@ -12,35 +12,30 @@ passport.use(new GoogleStrategy({
   },
   async function(req, accessToken, refreshToken, profile, done) {
     try {
-      // Check if user already exists
       let user = await User.findOne({ email: profile.emails[0].value });
       
       if (user) {
-        // If user exists but was created with regular signup
         if (!user.googleId) {
           user.googleId = profile.id;
           await user.save();
         }
 
-        // Check if user is active
         if (!user.isActive) {
           return done(null, false, { message: 'Account is blocked' });
         }
       } else {
-        // Create new user if doesn't exist
         user = await User.create({
           name: profile.displayName,
           email: profile.emails[0].value,
           googleId: profile.id,
-          isVerified: true, // Google accounts are already verified
-          password: Math.random().toString(36).slice(-8), // Random password for Google users
-          phone: null, // Explicitly set phone as null for OAuth users
-          roles: ['user'], // Set default role
+          isVerified: true, 
+          password: Math.random().toString(36).slice(-8), 
+          phone: null, 
+          roles: ['user'], 
           isActive: true
         });
       }
 
-      // Generate JWT token
       const token = jwt.sign(
         { 
           userId: user._id,
@@ -50,7 +45,6 @@ passport.use(new GoogleStrategy({
         { expiresIn: '7d' }
       );
 
-      // Attach token to user object
       user.token = token;
 
       return done(null, user);

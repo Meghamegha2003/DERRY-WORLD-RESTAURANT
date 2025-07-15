@@ -21,7 +21,6 @@ try {
 
 // Generate unique referral code
 const generateReferralCode = (userId) => {
-    // Take first 6 characters of userId and add random 4 characters
     const prefix = userId.toString().substring(0, 6);
     const randomChars = Math.random().toString(36).substring(2, 6).toUpperCase();
     return `${prefix}${randomChars}`;

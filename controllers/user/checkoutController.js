@@ -390,6 +390,7 @@ const processCheckout = async (req, res) => {
           message: "Order placed successfully",
           orderId: codOrder._id,
         });
+        
 
       case "wallet": {
         // Use the user's single Wallet document

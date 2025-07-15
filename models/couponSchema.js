@@ -60,10 +60,8 @@ const couponSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Add index for common queries
 couponSchema.index({ isActive: 1, validFrom: 1, validUntil: 1 });
 
-// Method to check if coupon is valid
 couponSchema.methods.isValid = function() {
     const now = new Date();
     return (
@@ -74,7 +72,6 @@ couponSchema.methods.isValid = function() {
     );
 };
 
-// Method to calculate discount amount
 couponSchema.methods.calculateDiscount = function(subtotal) {
     if (!this.isValid()) {
         throw new Error('Coupon is not valid');

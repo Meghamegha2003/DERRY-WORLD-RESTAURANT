@@ -1,31 +1,24 @@
-require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
-// const logger = require('morgan');
 const mongoose = require('mongoose');
 const http = require('http');
 const { Server } = require('socket.io');
 const passport = require('passport');
-
-// Import passport config
+require('dotenv').config();
 require('./config/passport');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Store active user sessions
 const activeUsers = new Map();
 
-// Socket.io connection handling
 io.on('connection', (socket) => {
 
-    // Store user session
     socket.on('storeUserId', (userId) => {
         if (userId) {
            
-            // Remove any existing socket for this user
             for (const [existingUserId, existingSocketId] of activeUsers.entries()) {
                 if (existingUserId === userId && existingSocketId !== socket.id) {
                    
@@ -33,13 +26,11 @@ io.on('connection', (socket) => {
                 }
             }
             activeUsers.set(userId, socket.id);
-            // Acknowledge the connection
             socket.emit('socketStored', { userId, socketId: socket.id });
         }
     });
 
     socket.on('disconnect', () => {
-        // Remove user from active users
         for (const [userId, socketId] of activeUsers.entries()) {
             if (socketId === socket.id) {
                 activeUsers.delete(userId);
@@ -49,21 +40,16 @@ io.on('connection', (socket) => {
     });
 });
 
-// Make io accessible to routes
 app.set('io', io);
 app.set('activeUsers', activeUsers);
 
-// View engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 
-// Middleware
-// app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(process.env.COOKIE_SECRET));
 
-// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/socket.io', express.static(path.join(__dirname, 'node_modules/socket.io/client-dist')));
 
@@ -95,19 +81,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// Debug middleware for all routes
-// app.use((req, res, next) => {
-//     console.log('[DEBUG] Route:', {
-//         path: req.path,
-//         method: req.method,
-//         originalUrl: req.originalUrl,
-//         headers: {
-//             accept: req.headers.accept,
-//             'content-type': req.headers['content-type']
-//         }
-//     });
-//     next();
-// });
 
 // Import routes
 const adminRouter = require('./routes/admin/adminRouter');
@@ -135,22 +108,18 @@ adminGroup.use('/coupons', adminCouponRoutes);
 adminGroup.use('/wallet', adminWalletRoutes);
 
 // Mount admin routes with proper middleware
-app.use('/admin', adminRouter);  // This already has its own auth handling
-app.use('/admin', adminGroup);   // Apply admin routes group
+app.use('/admin', adminRouter);  
+app.use('/admin', adminGroup);  
 
 // Mount user routes with proper middleware
 app.use('/auth/google', googleOAuthRoutes);
-// Cart routes must be mounted before general userRouter to override '/cart' in userRouter
 app.use('/cart', auth, cartRouter);
 app.use('/', userRouter);
 app.use('/user/coupons', auth, userCouponRoutes);
 app.use('/checkout', auth, checkoutRouter);
 app.use('/orders', auth, userOrderRoutes);
 
-// TEST ROUTE FOR EJS DEBUGGING
-app.get('/test', (req, res) => {
-  res.render('test');
-});
+
 
 // Error handler for 404 Not Found
 app.use((req, res, next) => {
@@ -193,7 +162,6 @@ app.use((err, req, res, next) => {
 mongoose.connect(process.env.MONGODB_URI)
     .then(async () => {
         console.log('Connected to MongoDB');
-        // Ensure old wishlist.product index is dropped to prevent duplicate-null errors
         try {
             await mongoose.connection.db.collection('users').dropIndex('wishlist.product_1');
         } catch (err) {
