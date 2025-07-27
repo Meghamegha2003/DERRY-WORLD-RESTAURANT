@@ -1,6 +1,15 @@
-const mongoose = require('mongoose');
-const { getUniqueProductCount } = require('./cartController');
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
+
+const HttpStatus = require('../../utils/httpStatus')
+const generateReferralCode = require('../../utils/generateReferralCode');
+const generateOtp = require('../../utils/generateOtp');
+const {sendOtpEmail}= require('../../utils/sendOtpEmail');
+
+const cartController = require('./cartController');
 const { processReferralReward } = require('./walletController');
+const { preventAuthPages } = require('../../middlewares/authMiddleware');
 const User = require("../../models/userSchema");
 const OTP = require("../../models/otpSchema");
 const Product = require("../../models/productSchema");
@@ -10,11 +19,7 @@ const Wishlist = require("../../models/wishlistSchema");
 const Cart = require("../../models/cartSchema");
 const Rating = require("../../models/ratingSchema");
 const OfferService = require('../../services/offerService');
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
 
-// Define transporter for nodemailer
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -23,7 +28,6 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Helper function to generate JWT token
 const generateToken = (user, cartCount = 0) => {
   return jwt.sign(
     {
@@ -37,181 +41,338 @@ const generateToken = (user, cartCount = 0) => {
   );
 };
 
-// Helper function to handle login errors
-const handleLoginError = (req, res, message, redirectUrl = '/login') => {
+const handleLoginError = (req, res, message, redirectUrl = '/login', errorType = 'error') => {
+  // For admin login attempts, modify the message to not show the admin login button
+  if (errorType === 'admin_login_attempt') {
+    message = 'Invalid email or password';
+  }
+  
   if (req.xhr || req.headers.accept?.includes('application/json')) {
     return res.status(401).json({
       success: false,
-      message: message
+      message: message,
+      errorType: errorType === 'admin_login_attempt' ? 'error' : errorType // Remove admin_login_attempt type in JSON response
     });
   }
+  
   return res.status(401).render('user/login', {
     title: 'Login',
     path: '/login',
-    error: message
+    error: message,
+    errorType: errorType === 'admin_login_attempt' ? 'error' : errorType // Use generic error type for admin attempts
   });
 };
 
-// Authentication Controllers
-const loginUser = async (req, res) => {
+const getCartCount = async (userId) => {
+  try {
+    const cart = await Cart.findOne({ user: userId });
+    return cart?.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+  } catch (error) {
+    console.error("Error in getCartCount:", error);
+    return 0;
+  }
+};
+
+exports.renderLoginPage = async (req, res) => {
+  try {
+    res.render('user/login', {
+      title: 'Login',
+      path: '/login',
+      error: null
+    });
+  } catch (error) {
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).send('Something went wrong');
+  }
+};
+
+exports.processLoginRequest = (req, res, next) => {
+  // This middleware is a placeholder for any pre-login processing
+  // Currently, it just passes control to the next middleware
+  next();
+};
+
+exports.loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+    console.log('Login attempt for email:', email);
 
-    // Find user by email
-    const userCount = await User.countDocuments({ email: email.toLowerCase() });
-    
     const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      
-      return handleLoginError(req, res, 'Invalid email or password');
-    }
-
-    // Check if user is an admin
-    if (user.roles.includes('admin')) {
-      
-      return handleLoginError(req, res, 'Please use the admin login page');
-    }
-
-    // Check if user is blocked
-    if (!user.isActive) {
-      
-      // Clear any existing user token
-      res.clearCookie('userToken', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        path: '/'
-      });
-      // Emit socket event if user has an active socket
-      const io = req.app.get('io');
-      const activeUsers = req.app.get('activeUsers');
-      const socketId = activeUsers.get(user._id.toString());
-      
-      if (socketId && io) {
-        
-        io.to(socketId).emit('userBlocked', {
-          message: 'Your account has been blocked. Please contact support.'
-        });
-      }
-      
-      return handleLoginError(req, res, 'Your account has been blocked. Please contact support.');
-    }
-
-    // Check password
+    console.log('User found:', user ? 'Yes' : 'No');
     
-    const isMatch = await bcrypt.compare(password, user.password);
+    if (!user) {
+      console.log('No user found with email:', email);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    // Check for admin login attempt
+    if (user.roles.includes("admin")) {
+      console.log('Admin login attempt from user side');
+      return res.status(401).json({
+        success: false,
+        message: 'Admin accounts must use the admin login page.'
+      });
+    }
+
+    // Check if account is active
+    if (!user.isActive) {
+      console.log('Login attempt for inactive user:', email);
+      res.clearCookie("userToken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        path: "/"
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been blocked. Please contact support.'
+      });
+    }
+
+    // Verify password
+    console.log('Comparing password for user:', email);
+    const isMatch = await user.comparePassword(password);
+    console.log('Password match:', isMatch);
     
     if (!isMatch) {
-     
-      return handleLoginError(req, res, 'Invalid email or password');
-    }
-
-    // Check if user is verified
-    if (!user.isVerified) {
-      
-      
-      // Generate and save new OTP
-      const otp = await generateAndSaveOtp(user.email);
-      
-      // Create temporary token for OTP verification
-      const tempToken = jwt.sign(
-        { email: user.email, purpose: 'otp_verification' },
-        process.env.JWT_SECRET,
-        { expiresIn: '10m' }
-      );
-
-      // Set token in cookie
-      res.cookie('otpToken', tempToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 10 * 60 * 1000 // 10 minutes
+      console.log('Invalid password for user:', email);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
       });
-
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(200).json({
-          success: false,
-          message: 'Please verify your email first',
-          redirectUrl: '/verify-otp'
-        });
-      }
-      return res.redirect('/verify-otp');
     }
 
-    // Get cart count
+    // Generate token and prepare response
     const cartCount = await getCartCount(user._id);
-
-    // Generate token
     const token = generateToken(user, cartCount);
 
-    // Set token in cookie
-    res.cookie('userToken', token, {
+    // Set the token in cookie
+    res.cookie("userToken", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      sameSite: 'strict'
     });
 
-    if (req.xhr || req.headers.accept?.includes('application/json')) {
-      return res.status(200).json({
-        success: true,
-        message: 'Login successful',
-        redirectUrl: '/'
-      });
-    }
-    return res.redirect('/');
+    // Return success response
+    return res.json({
+      success: true,
+      message: 'Login successful',
+      redirect: '/'
+    });
+
   } catch (error) {
-    console.error('Error in loginUser:', error);
-    return handleLoginError(req, res, 'An error occurred during login');
+    console.error("Error in loginUser:", error);
+    return res.status(500).json({
+      success: false,
+      message: 'An error occurred during login. Please try again.'
+    });
   }
 };
 
-// Logout user
-const logoutUser = async (req, res) => {
+exports.logoutUser = (req, res) => {
+  res.clearCookie("userToken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/"
+  });
+
+  res.redirect("/login");
+};
+
+exports.renderRegisterPage = async (req, res) => {
   try {
-    // Clear user token with proper options
-    res.clearCookie('userToken', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      path: '/'
+    if (req.user) {
+      return res.redirect("/");
+    }
+
+    const sanitizeInput = (value) => {
+      if (typeof value !== 'string') return '';
+      return value.trim().replace(/[<>"'`]/g, '');
+    };
+
+    const name = sanitizeInput(req.query.name || '');
+    const email = sanitizeInput(req.query.email || '');
+    const phone = sanitizeInput(req.query.phone || '');
+
+    const nameValid = /^[A-Za-z][A-Za-z\s]*$/.test(name) || name === '';
+    const emailValid = /^[A-Za-z][\w.-]*@([\w-]+\.)+[a-zA-Z]{2,7}$/.test(email) || email === '';
+    const phoneValid = /^[0-9]{10}$/.test(phone) || phone === '';
+
+    const formData = {
+      name: nameValid ? name : '',
+      email: emailValid ? email : '',
+      phone: phoneValid ? phone : ''
+    };
+
+    res.render("user/register", {
+      message: sanitizeInput(req.query.message || ""),
+      successMessage: sanitizeInput(req.query.successMessage || ""),
+      activePage: "register",
+      error: sanitizeInput(req.query.error || null),
+      formData,
+      path: '/user/register',
+      user: null,
+      cartCount: 0
     });
 
-    // Clean up socket connection if exists
-    if (req.user) {
-      const io = req.app.get('io');
-      const activeUsers = req.app.get('activeUsers');
-      const socketId = activeUsers.get(req.user._id.toString());
-      
-      if (socketId && io) {
-       
-        const socket = io.sockets.sockets.get(socketId);
-        if (socket) {
-          socket.disconnect(true);
-        }
-        activeUsers.delete(req.user._id.toString());
-      }
-    }
-    
-    if (req.xhr || req.headers.accept?.includes('application/json')) {
-      return res.status(200).json({
-        success: true,
-        message: 'Logout successful',
-        redirectUrl: '/login'
-      });
-    }
-    
-    return res.redirect('/login');
   } catch (error) {
-    if (req.xhr || req.headers.accept?.includes('application/json')) {
-      return res.status(500).json({
-        success: false,
-        message: 'An error occurred during logout'
-      });
-    }
-    res.status(500).send('Error during logout');
+    console.error('Error rendering register page:', error);
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('user/register', {
+      message: '',
+      successMessage: '',
+      activePage: 'register',
+      error: 'An error occurred. Please try again.',
+      formData: { name: '', email: '', phone: '' },
+      path: '/user/register',
+      user: null,
+      cartCount: 0
+    });
   }
 };
+
+exports.registerUser = async (req, res) => {
+  try {
+    const { name, email, phone, password, referralCode } = req.body;
+
+    // Validate input
+    if (!name || !email || !phone || !password) {
+      return res.redirect(`/register?error=${encodeURIComponent('All fields are required')}&name=${encodeURIComponent(name || '')}&email=${encodeURIComponent(email || '')}&phone=${encodeURIComponent(phone || '')}`);
+    }
+
+    // Validate name format
+    const nameRegex = /^[A-Za-z][A-Za-z\s]*$/;
+    if (!nameRegex.test(name.trim())) {
+      return res.redirect(`/register?error=${encodeURIComponent('Name must start with a letter and contain only letters and spaces')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+    }
+
+    // Validate email format
+    const emailRegex = /^[A-Za-z][\w.-]*@([\w-]+\.)+[a-zA-Z]{2,7}$/;
+    if (!emailRegex.test(email.toLowerCase())) {
+      return res.redirect(`/register?error=${encodeURIComponent('Please enter a valid email address')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+    }
+
+    // Validate phone format
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone)) {
+      return res.redirect(`/register?error=${encodeURIComponent('Phone number must be exactly 10 digits')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.redirect(`/register?error=${encodeURIComponent('Email already registered. Please login instead.')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+    }
+
+    // Check if phone already exists
+    const existingPhone = await User.findOne({ phone });
+    if (existingPhone) {
+      return res.redirect(`/register?error=${encodeURIComponent('Phone number already registered')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+    }
+
+    // Verify referral code if provided
+    let referredBy = null;
+    if (referralCode && referralCode.trim() !== '') {
+      // Convert to uppercase for case-insensitive matching
+      const cleanReferralCode = referralCode.trim().toUpperCase();
+      
+      // Check if the referral code matches the format
+      const referralCodeRegex = /^[A-Z0-9]{6,10}$/;
+      if (!referralCodeRegex.test(cleanReferralCode)) {
+        return res.redirect(`/register?error=${encodeURIComponent('Invalid referral code format. Must be 6-10 alphanumeric characters.')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+      }
+      
+      // Find the referrer
+      const referrer = await User.findOne({ 
+        referralCode: { $regex: new RegExp(`^${cleanReferralCode}$`, 'i') } 
+      });
+      
+      if (!referrer) {
+        return res.redirect(`/register?error=${encodeURIComponent('Referral code not found. Please check and try again.')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+      }
+      
+      // Prevent self-referral
+      if (email === referrer.email) {
+        return res.redirect(`/register?error=${encodeURIComponent('You cannot use your own referral code')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+      }
+      
+      referredBy = referrer._id;
+    }
+
+    try {
+        // Generate OTP
+        const otp = generateOtp();
+        const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+
+        // Delete any existing OTP for this email
+        await OTP.deleteMany({ email: email.toLowerCase() });
+
+        // Create new OTP record
+        await OTP.create({ 
+            email: email.toLowerCase(), 
+            otp, 
+            expiresAt,
+            createdAt: new Date()
+        });
+
+        // Generate referral code for new user
+        const newReferralCode = generateReferralCode();
+
+        // Create JWT token with user data for verification
+        const otpToken = jwt.sign(
+            {
+                purpose: 'otp_verification',
+                name: name.trim(),
+                email: email.toLowerCase(),
+                phone,
+                password, // Will be hashed later during user creation
+                referralCode: newReferralCode,
+                referredBy,
+                timestamp: Date.now(),
+                otp: otp // Include OTP in the token for verification
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '30m' }
+        );
+
+        // Set OTP token in cookie and also send it in the response
+        res.cookie('otpToken', otpToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 30 * 60 * 1000,  // 30 minutes
+            sameSite: 'lax',
+            path: '/verify-otp'  // Only send cookie to verify-otp path
+        });
+
+        // Also include the token in the redirect URL as a fallback
+        const redirectUrl = `/verify-otp?token=${encodeURIComponent(otpToken)}`;
+        
+        // Log OTP to console for development
+        console.log('OTP for', email.toLowerCase() + ':', otp);
+        console.log('OTP Token created at:', new Date().toISOString());
+        
+        // Send OTP email
+        await sendOtpEmail(email.toLowerCase(), otp);
+
+        // Redirect with token in URL as fallback
+        res.redirect(redirectUrl);
+    } catch (error) {
+        console.error('Error in registration process:', error);
+        return res.redirect(`/register?error=${encodeURIComponent('Registration failed. Please try again.')}`);
+    }
+
+  } catch (error) {
+    console.error('Registration error:', error.message);
+    return res.redirect(`/register?error=${encodeURIComponent('Registration failed. Please try again.')}`);
+  }
+};
+
+
 
 // Profile Controllers
-const updateUserProfile = async (req, res) => {
+exports.updateUserProfile = async (req, res) => {
   try {
     const userId = req.user._id;
     const { name, email, phone } = req.body;
@@ -276,7 +437,7 @@ const updateUserProfile = async (req, res) => {
 };
 
 // Render home page
-const renderHomePage = async (req, res) => {
+exports.renderHomePage = async (req, res) => {
   try {
     const selectedCategoryId = req.query.category;
 
@@ -337,7 +498,7 @@ const renderHomePage = async (req, res) => {
       isInCart: req.user ? cartItems.includes(product._id.toString()) : false
     }));
 
-    const cartCount = req.user ? await getCartCount(req.user._id) : 0;
+    const cartCount = req.user ? await exports.getCartCount(req.user._id) : 0;
 
     res.render('user/home', {
       offers,
@@ -357,7 +518,7 @@ const renderHomePage = async (req, res) => {
 
 
 // Render about page
-const renderAboutPage = async (req, res) => {
+exports.renderAboutPage = async (req, res) => {
   try {
     let cartCount = 0;
     if (req.user) {
@@ -377,9 +538,8 @@ const renderAboutPage = async (req, res) => {
 };
 
 // Render contact page
-const renderContactPage = async (req, res) => {
+exports.renderContactPage = async (req, res) => {
     try {
-        // Get cart count safely
         let cartCount = 0;
         if (req.user) {
             cartCount = await getCartCount(req.user._id) || 0;
@@ -402,7 +562,7 @@ const renderContactPage = async (req, res) => {
 };
 
 // Address Controllers
-const getAddresses = async (req, res) => {
+exports.getAddresses = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     const cartCount = await getCartCount(req.user._id);
@@ -422,7 +582,7 @@ const getAddresses = async (req, res) => {
   }
 };
 
-const addAddress = async (req, res) => {
+exports.addAddress = async (req, res) => {
   try {
     const { fullName, phone, addressLine1, addressLine2, city, state, pincode, addressType } = req.body;
 
@@ -439,58 +599,89 @@ const addAddress = async (req, res) => {
     if (!validTypes.includes(addressType)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid address type'
+        message: 'Invalid address type. Must be one of: Home, Work, Other'
       });
     }
 
-    // Validate phone number
-    if (!/^\d{10}$/.test(phone)) {
+    // Check if address already exists
+    const existingUser = await User.findOne({
+      _id: req.user._id,
+      'addresses': {
+        $elemMatch: {
+          addressLine1: addressLine1,
+          city: city,
+          pincode: pincode
+        }
+      }
+    });
+
+    if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid phone number'
+        message: 'This address already exists in your address book'
       });
     }
 
-    // Validate pincode
-    if (!/^\d{6}$/.test(pincode)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid PIN code'
-      });
-    }
-
+    // Get current address count to determine if this is the first address
     const user = await User.findById(req.user._id);
-    
-    // Add new address
-    user.addresses.push({
+    const isFirstAddress = user.addresses.length === 0;
+
+    // Create new address object
+    const newAddress = {
       fullName,
       phone,
       addressLine1,
-      addressLine2,
+      addressLine2: addressLine2 || '',
       city,
       state,
       pincode,
       addressType,
-      isDefault: user.addresses.length === 0 // Make first address default
-    });
+      isDefault: isFirstAddress
+    };
 
-    await user.save();
+    // Update the user's addresses array directly using findByIdAndUpdate
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { 
+        $push: { 
+          addresses: newAddress 
+        } 
+      },
+      { new: true, runValidators: true }
+    );
 
-    res.json({
+    // If this is the first address, make it default
+    if (isFirstAddress) {
+      await User.updateOne(
+        { _id: req.user._id },
+        { $set: { 'addresses.0.isDefault': true } }
+      );
+      newAddress.isDefault = true;
+    }
+
+    // Get the newly added address
+    const addedAddress = updatedUser.addresses.find(addr => 
+      addr.addressLine1 === addressLine1 && 
+      addr.city === city && 
+      addr.pincode === pincode
+    );
+
+    res.status(201).json({
       success: true,
       message: 'Address added successfully',
-      address: user.addresses[user.addresses.length - 1]
+      address: addedAddress || newAddress
     });
   } catch (error) {
     console.error('Error adding address:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Error adding address'
+      message: error.message || 'Error adding address',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-const updateAddress = async (req, res) => {
+exports.updateAddress = async (req, res) => {
   try {
     const { id } = req.params;
     const { fullName, phone, addressLine1, addressLine2, city, state, pincode, addressType } = req.body;
@@ -508,65 +699,104 @@ const updateAddress = async (req, res) => {
     if (!validTypes.includes(addressType)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid address type'
+        message: 'Invalid address type. Must be one of: Home, Work, Other'
       });
     }
 
-    // Validate phone number
+    // Validate phone number (10 digits)
     if (!/^\d{10}$/.test(phone)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid phone number'
+        message: 'Phone number must be 10 digits'
       });
     }
 
-    // Validate pincode
+    // Validate pincode (6 digits)
     if (!/^\d{6}$/.test(pincode)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid PIN code'
+        message: 'PIN code must be 6 digits'
       });
     }
 
-    const user = await User.findById(req.user._id);
-    const address = user.addresses.id(id);
+    // Check if the address exists and belongs to the user
+    const user = await User.findOne({
+      _id: req.user._id,
+      'addresses._id': id
+    });
 
-    if (!address) {
+    if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'Address not found'
+        message: 'Address not found or does not belong to user'
       });
     }
 
-    // Update address fields
-    address.fullName = fullName;
-    address.phone = phone;
-    address.addressLine1 = addressLine1;
-    address.addressLine2 = addressLine2 || '';
-    address.city = city;
-    address.state = state;
-    address.pincode = pincode;
-    address.addressType = addressType;
+    // Check for duplicate address (excluding current address)
+    const isDuplicate = user.addresses.some(addr => 
+      addr._id.toString() !== id &&
+      addr.addressLine1 === addressLine1 &&
+      addr.city === city &&
+      addr.pincode === pincode
+    );
 
-    await user.save();
+    if (isDuplicate) {
+      return res.status(400).json({
+        success: false,
+        message: 'This address already exists in your address book'
+      });
+    }
+
+    // Prepare the update object
+    const updateObj = {
+      'addresses.$.fullName': fullName,
+      'addresses.$.phone': phone,
+      'addresses.$.addressLine1': addressLine1,
+      'addresses.$.addressLine2': addressLine2 || '',
+      'addresses.$.city': city,
+      'addresses.$.state': state,
+      'addresses.$.pincode': pincode,
+      'addresses.$.addressType': addressType,
+      'addresses.$.updatedAt': new Date()
+    };
+
+    // Update the address directly in the database
+    const result = await User.findOneAndUpdate(
+      { 
+        _id: req.user._id,
+        'addresses._id': id 
+      },
+      { $set: updateObj },
+      { new: true, runValidators: true }
+    );
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: 'Failed to update address'
+      });
+    }
+
+    // Find the updated address to return
+    const updatedAddress = result.addresses.find(addr => addr._id.toString() === id);
 
     res.json({
       success: true,
       message: 'Address updated successfully',
-      address
+      address: updatedAddress
     });
   } catch (error) {
     console.error('Error updating address:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Error updating address'
+      message: error.message || 'Error updating address',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-const deleteAddress = async (req, res) => {
+exports.deleteAddress = async (req, res) => {
   try {
-    
     const addressId = req.params.id;
     if (!addressId) {
       return res.status(400).json({
@@ -575,30 +805,31 @@ const deleteAddress = async (req, res) => {
       });
     }
 
-    const user = await User.findById(req.user._id);
-    if (!user) {
+    // Use findByIdAndUpdate with $pull to remove the address without triggering wishlist validation
+    const result = await User.findByIdAndUpdate(
+      req.user._id,
+      { $pull: { addresses: { _id: addressId } } },
+      { new: true }
+    );
+
+    if (!result) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found or address not found'
       });
     }
 
-   
-    
-    const addressIndex = user.addresses.findIndex(
-      addr => addr._id.toString() === addressId
+    // Check if the address was actually removed
+    const addressExists = result.addresses.some(addr => 
+      addr._id.toString() === addressId
     );
 
-    if (addressIndex === -1) {
+    if (addressExists) {
       return res.status(404).json({
         success: false,
         message: 'Address not found'
       });
     }
-
-    // Remove address
-    user.addresses.splice(addressIndex, 1);
-    await user.save();
 
     res.json({
       success: true,
@@ -608,12 +839,13 @@ const deleteAddress = async (req, res) => {
     console.error('Error deleting address:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Error deleting address'
+      message: error.message || 'Error deleting address',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-const applyOffersToProducts = async (products) => {
+exports.applyOffersToProducts = async (products) => {
   for (const product of products) {
     // Use sales price as base if it exists and is less than regular price
     const basePrice = (product.salesPrice && product.salesPrice < product.regularPrice) 
@@ -681,7 +913,7 @@ const applyOffersToProducts = async (products) => {
   return products;
 };
 
-const renderLandingPage = async (req, res) => {
+exports.renderLandingPage = async (req, res) => {
   try {
     let cartCount = 0;
     let userWishlist = [];
@@ -750,380 +982,369 @@ const renderLandingPage = async (req, res) => {
   }
 };
 
-const renderRegisterPage = (req, res) => {
+
+
+exports.resendOTP = async (req, res) => {
   try {
-    if (req.user) {
-      return res.redirect("/");
-    }
-
-    // Sanitize query params to avoid HTML injection or format issues
-    const sanitizeInput = (value) => {
-      if (typeof value !== 'string') return '';
-      return value.trim().replace(/[<>"'`]/g, '');
-    };
-
-    const name = sanitizeInput(req.query.name || '');
-    const email = sanitizeInput(req.query.email || '');
-    const phone = sanitizeInput(req.query.phone || '');
-
-    // Optional validation: ensure safe formats
-    const nameValid = /^[A-Za-z][A-Za-z\s]*$/.test(name) || name === '';
-    const emailValid = /^[A-Za-z][\w.-]*@([\w-]+\.)+[a-zA-Z]{2,7}$/.test(email) || email === '';
-    const phoneValid = /^[0-9]{10}$/.test(phone) || phone === '';
-
-    const formData = {
-      name: nameValid ? name : '',
-      email: emailValid ? email : '',
-      phone: phoneValid ? phone : ''
-    };
-
-    res.render("user/register", {
-      message: sanitizeInput(req.query.message || ""),
-      successMessage: sanitizeInput(req.query.successMessage || ""),
-      activePage: "register",
-      error: sanitizeInput(req.query.error || null),
-      formData,
-      path: '/user/register',
-      user: null,
-      cartCount: 0
-    });
-
-  } catch (error) {
-    console.error('Error rendering register page:', error);
-    res.status(500).render('user/register', {
-      message: '',
-      successMessage: '',
-      activePage: 'register',
-      error: 'An error occurred. Please try again.',
-      formData: { name: '', email: '', phone: '' },
-      path: '/user/register',
-      user: null,
-      cartCount: 0
-    });
-  }
-};
-
-const resendOTP = async (req, res) => {
-  try {
-    // Accept otpToken from cookie or request body
-    let otpToken = req.cookies.otpToken || req.body.otpToken;
+    // Get OTP token from request body, query params, or cookie
+    let otpToken = req.body.token || req.query.token || req.cookies.otpToken;
+    
     if (!otpToken) {
-      return res.status(400).json({
-        success: false,
-        message: 'Verification session expired. Please try again.'
-      });
+      const errorMsg = 'Verification session expired. Please register again.';
+      if (req.accepts('json')) {
+        return res.status(400).json({ 
+          success: false, 
+          message: errorMsg
+        });
+      }
+      return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
     }
-    // Verify and decode token
+
     let decoded;
     try {
       decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
       if (decoded.purpose !== 'otp_verification') throw new Error('Invalid token purpose');
     } catch (error) {
       res.clearCookie('otpToken');
-      return res.status(400).json({
-        success: false,
-        message: 'Verification session expired. Please try again.'
-      });
+      if (req.accepts('json')) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Verification session expired. Please register again.' 
+        });
+      }
+      return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
     }
 
-    // Generate and save new OTP
-    const otp = await generateAndSaveOtp(decoded.email);
+    // Generate new OTP with extended expiration time
+    const otp = generateOtp();
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
 
-    res.json({
-      success: true,
-      message: 'New OTP has been sent to your email'
+    // Delete old OTP and create new one with creation timestamp
+    await OTP.deleteMany({ email: decoded.email });
+    await OTP.create({ 
+      email: decoded.email, 
+      otp, 
+      expiresAt,
+      createdAt: new Date()
     });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to resend OTP. Please try again.'
-    });
-  }
-};
-
-const registerUser = async (req, res) => {
-  try {
     
-    const { name, email, password, phone, referralCode } = req.body;
-    
-    // Validate required fields
-    if (!name || !email || !password || !phone) {
-     
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(400).json({
-          success: false,
-          error: 'All fields are required'
-        });
-      }
-      res.setMessage('error', 'All fields are required');
-      return res.redirect('/register');
-    }
+    // Log the new OTP for debugging
+    console.log(`New OTP for ${decoded.email}: ${otp} (Expires at: ${expiresAt})`);
 
-    // Validate phone number format
-    if (!/^\d{10}$/.test(phone)) {
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(400).json({
-          success: false,
-          error: 'Please enter a valid 10-digit phone number'
-        });
-      }
-      res.setMessage('error', 'Please enter a valid 10-digit phone number');
-      return res.redirect('/register');
-    }
+    // Send new OTP
+    await exports.sendOTPEmail(decoded.email, otp);
 
-    // Validate email format
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(400).json({
-          success: false,
-          error: 'Please enter a valid email address'
-        });
-      }
-      res.setMessage('error', 'Please enter a valid email address');
-      return res.redirect('/register');
-    }
-
-    // Validate password strength
-    if (password.length < 6) {
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(400).json({
-          success: false,
-          error: 'Password must be at least 6 characters long'
-        });
-      }
-      res.setMessage('error', 'Password must be at least 6 characters long');
-      return res.redirect('/register');
-    }
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ 
-      $or: [
-        { email: email.toLowerCase() },
-        { phone: phone }
-      ]
-    });
-
-    if (existingUser) {
-      const errorMessage = existingUser.email === email.toLowerCase() 
-        ? 'Email already registered' 
-        : 'Phone number already registered';
-
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(400).json({
-          success: false,
-          error: errorMessage
-        });
-      }
-      res.setMessage('error', errorMessage);
-      return res.redirect('/register');
-    }
-
-    // Handle referral code if provided
-    let referredByUser = null;
-    if (referralCode) {
-      referredByUser = await User.findOne({ referralCode });
-      if (!referredByUser) {
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-          return res.status(400).json({
-            success: false,
-            error: 'Invalid referral code'
-          });
-        }
-        res.setMessage('error', 'Invalid referral code');
-        return res.redirect('/register');
-      }
-    }
-
-    // Generate unique referral code for new user
-    const userReferralCode = generateReferralCode(new mongoose.Types.ObjectId());
-
-    // Generate and send OTP
-    const otp = await generateAndSaveOtp(email);
-    // Create JWT for OTP verification (stateless)
-    const otpToken = jwt.sign(
-      {
+    // Generate a new token with the updated expiration
+    const newToken = jwt.sign(
+      { 
+        email: decoded.email, 
         purpose: 'otp_verification',
-        name,
-        email: email.toLowerCase(),
-        phone,
-        password: password, // Store plain password, will be hashed by userSchema middleware
-        referralCode: userReferralCode,
-        referredBy: referredByUser ? referredByUser._id : null
+        otp // Include OTP in the token for verification
       },
       process.env.JWT_SECRET,
-      { expiresIn: '10m' }
+      { expiresIn: '30m' }
     );
-    // Set the OTP token in a cookie
-    res.cookie('otpToken', otpToken, {
+
+    // Set the token in cookie for web requests
+    res.cookie('otpToken', newToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 10 * 60 * 1000, // 10 minutes
-      path: '/'
+      sameSite: 'lax',
+      maxAge: 30 * 60 * 1000, // 30 minutes
+      path: '/verify-otp'
     });
 
-    if (req.xhr || req.headers.accept?.includes('application/json')) {
-      return res.status(200).json({
-        success: true,
-        message: 'OTP sent successfully',
-        redirectUrl: '/verify-otp'
-      });
+    // Prepare response data
+    const responseData = {
+      success: true, 
+      message: 'New OTP sent successfully to your email',
+      token: newToken // Include token in response for API clients
+    };
+
+    // Return JSON response for AJAX requests
+    if (req.accepts('json')) {
+      return res.json(responseData);
     }
 
-    // Redirect to verify OTP page
-    res.setMessage('success', 'Please verify your email with the OTP sent');
-    return res.redirect('/verify-otp');
+    // Fallback for non-AJAX requests
+    return res.redirect(`/verify-otp?token=${encodeURIComponent(newToken)}&message=${encodeURIComponent('New OTP sent successfully to your email')}`);
 
   } catch (error) {
-    if (req.xhr || req.headers.accept?.includes('application/json')) {
-      return res.status(500).json({
-        success: false,
-        error: 'An error occurred during registration'
+    console.error('Resend OTP error:', error);
+    const errorMsg = error.message || 'Failed to resend OTP. Please try again.';
+    
+    if (req.accepts('json')) {
+      return res.status(500).json({ 
+        success: false, 
+        message: errorMsg
       });
     }
-    res.setMessage('error', 'An error occurred during registration');
-    return res.redirect('/register');
+    
+    // If we have a token, include it in the redirect to maintain the verification context
+    const redirectUrl = req.cookies.otpToken || req.body.token || req.query.token
+      ? `/verify-otp?token=${encodeURIComponent(req.cookies.otpToken || req.body.token || req.query.token)}&error=${encodeURIComponent(errorMsg)}`
+      : `/register?error=${encodeURIComponent(errorMsg)}`;
+      
+    return res.redirect(redirectUrl);
   }
 };
+
+
 
 // Render OTP verification page
-const renderVerifyOtpPage = async (req, res) => {
+exports.renderVerifyOtpPage = async (req, res) => {
   try {
-    // Check for OTP token
-    const otpToken = req.cookies.otpToken;
-    if (!otpToken) {
-      res.setMessage('error', 'Verification session expired. Please try again.');
-      return res.redirect('/login');
-    }
-    let email;
-    try {
-      const decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
-      if (decoded.purpose !== 'otp_verification') throw new Error('Invalid token purpose');
-      email = decoded.email;
-    } catch (error) {
-      res.clearCookie('otpToken');
-      res.setMessage('error', 'Verification session expired. Please try again.');
-      return res.redirect('/login');
-    }
-
-    res.render('user/verify-otp', {
-      title: 'Verify OTP',
-      email: email
-    });
-  } catch (error) {
-    res.setMessage('error', 'Something went wrong. Please try again.');
-    res.redirect('/login');
-  }
-};
-
-const verifyOTP = async (req, res) => {
-  try {
-    const { otp } = req.body;
+    // Get token from URL parameter or cookie
+    const tokenFromUrl = req.query.token;
+    const tokenFromCookie = req.cookies.otpToken;
+    const otpToken = tokenFromUrl || tokenFromCookie;
     
-    // Check for OTP token
-    const otpToken = req.cookies.otpToken;
     if (!otpToken) {
-      return res.status(400).json({
-        success: false,
-        message: 'Verification session expired. Please try again.'
-      });
+      return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
     }
+    
     let decoded;
     try {
+      // Verify the token
       decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
       if (decoded.purpose !== 'otp_verification') throw new Error('Invalid token purpose');
-    } catch (error) {
-      res.clearCookie('otpToken');
-      return res.status(400).json({
-        success: false,
-        message: 'Verification session expired. Please try again.'
-      });
-    }
-
-    // Find OTP record
-    const otpRecord = await OTP.findOne({
-      email: decoded.email,
-      otp: otp,
-      expiresAt: { $gt: new Date() }
-    });
-
-    if (!otpRecord) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired OTP. Please try again.'
-      });
-    }
-
-    // Delete used OTP
-    await OTP.deleteOne({ _id: otpRecord._id });
-
-    // This is a registration or login verification
-    const userData = decoded;
-    if (userData.name) {
-      // Registration flow
-      const newUser = new User({
-        name: userData.name,
-        email: userData.email.toLowerCase(),
-        phone: userData.phone,
-        password: userData.password,
-        referralCode: userData.referralCode,
-        referredBy: userData.referredBy,
-        isVerified: true
-      });
-      await newUser.save();
-      // If user was referred, process referral rewards
-      if (userData.referredBy) {
-        await processReferralReward(userData.referredBy, newUser._id);
-      }
-      res.clearCookie('otpToken');
-      return res.json({
-        success: true,
-        message: 'Registration successful. Please login to continue.',
-        redirectUrl: '/login'
-      });
-    } else {
-      // Login verification flow
-      const user = await User.findOneAndUpdate(
-        { email: userData.email },
-        { isVerified: true },
-        { new: true }
-      );
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
+      
+      // If token is from URL, set it in cookie for subsequent requests
+      if (tokenFromUrl && !tokenFromCookie) {
+        res.cookie('otpToken', otpToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 30 * 60 * 1000, // 30 minutes
+          path: '/verify-otp'
         });
       }
+    } catch (error) {
+      console.error('Token verification failed:', error);
       res.clearCookie('otpToken');
-      return res.json({
-        success: true,
-        message: 'Email verified successfully. Please login to continue.',
-        redirectUrl: '/login'
-      });
+      return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
+    }
+
+    // Render the OTP verification page with the token and any messages
+    res.render('user/verify-otp', {
+      title: 'Verify OTP',
+      email: decoded.email,
+      token: otpToken, // Pass the token to the view
+      error: req.query.error || null,
+      message: req.query.message || null
+    });
+  } catch (error) {
+    console.error('Error rendering verify OTP page:', error);
+    res.redirect('/register?error=' + encodeURIComponent('Something went wrong. Please try again.'));
+  }
+};
+
+exports.verifyOTP = async (req, res) => {
+    try {
+        const { otp, token: tokenFromBody } = req.body;
+        
+        // Try to get token from body, query param, or cookie (in order of preference)
+        const otpToken = tokenFromBody || req.query.token || req.cookies.otpToken;
+        
+        // Validate OTP input
+        if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
+            const errorMsg = 'Please enter a valid 6-digit OTP';
+            if (req.accepts('json')) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: errorMsg 
+                });
+            }
+            return res.status(400).render('user/verify-otp', {
+                title: 'Verify OTP',
+                error: errorMsg,
+                token: otpToken
+            });
+        }
+        
+        if (!otpToken) {
+            const errorMsg = 'Verification session expired. Please register again.';
+            console.error('No OTP token found in request');
+            
+            if (req.accepts('json')) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: errorMsg 
+                });
+            }
+            return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
+        }
+        
+        let decoded;
+        try {
+            // Verify the token
+            decoded = jwt.verify(otpToken, process.env.JWT_SECRET, { ignoreExpiration: false });
+            
+            // Check if this is an OTP verification token
+            if (decoded.purpose !== 'otp_verification') {
+                const errorMsg = 'Invalid verification request. Please try again.';
+                console.error('Invalid token purpose:', decoded.purpose);
+                
+                if (req.accepts('json')) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        message: errorMsg 
+                    });
+                }
+                return res.status(400).render('user/verify-otp', {
+                    title: 'Verify OTP',
+                    error: errorMsg,
+                    token: otpToken
+                });
+            }
+            
+            // Verify the OTP from the token matches the one provided
+            if (decoded.otp !== otp) {
+                const errorMsg = 'Invalid OTP. Please try again.';
+                console.error('OTP mismatch for:', decoded.email);
+                
+                if (req.accepts('json')) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        message: errorMsg 
+                    });
+                }
+                return res.status(400).render('user/verify-otp', {
+                    title: 'Verify OTP',
+                    error: errorMsg,
+                    token: otpToken,
+                    email: decoded.email
+                });
+            }
+            
+            console.log('Token verified for:', decoded.email, 'issued at:', new Date(decoded.iat * 1000).toISOString());
+            
+        } catch (error) {
+            console.error('JWT verification error:', error.message);
+            const errorMsg = 'Verification session expired. Please register again.';
+            
+            // Clear the OTP token cookie
+            res.clearCookie('otpToken', { path: '/verify-otp' });
+            
+            if (req.accepts('json')) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: errorMsg 
+                });
+            }
+            return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
+        }
+        
+        // Find and validate OTP record
+        const otpRecord = await OTP.findOne({
+            email: { $regex: new RegExp(`^${decoded.email}$`, 'i') },
+            otp: otp,
+            expiresAt: { $gt: new Date() }
+        });
+        
+        console.log('OTP verification attempt for:', decoded.email, 'Found:', !!otpRecord);
+        
+        if (!otpRecord) {
+            const errorMsg = 'Invalid or expired OTP. Please try again.';
+            
+            if (req.accepts('json')) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: errorMsg 
+                });
+            }
+            
+            return res.status(400).render('user/verify-otp', {
+                title: 'Verify OTP',
+                error: errorMsg,
+                token: otpToken,
+                email: decoded.email
+            });
+        }
+        
+        // Delete used OTP
+        await OTP.deleteOne({ _id: otpRecord._id });
+
+    // This is a registration flow
+    const userData = decoded;
+    if (userData.name) {
+      try {
+        // Create new user - let the pre-save hook handle password hashing
+        const newUser = new User({
+          name: userData.name,
+          email: userData.email.toLowerCase(),
+          phone: userData.phone,
+          password: userData.password, // Will be hashed by pre-save hook
+          referralCode: userData.referralCode,
+          referredBy: userData.referredBy,
+          isVerified: true,
+          isActive: true
+        });
+        
+        // Save the user - this will trigger the pre-save hook to hash the password
+        await newUser.save();
+        
+        console.log('New user created:', newUser.email);
+        
+        // If user was referred, process referral rewards
+        if (userData.referredBy) {
+          try {
+            await processReferralReward(userData.referredBy, newUser._id);
+            console.log('Referral reward processed successfully');
+          } catch (referralError) {
+            console.error('Referral reward processing failed:', referralError);
+            // Don't fail registration for referral errors
+          }
+        }
+        
+        // Clear OTP token
+        res.clearCookie('otpToken', { path: '/verify-otp' });
+        
+        // Send welcome email in the background (don't wait for it to complete)
+        exports.sendWelcomeEmail(userData.email, userData.name)
+          .catch(emailError => {
+            console.error('Failed to send welcome email:', emailError);
+          });
+        
+        // Return success response
+        if (req.accepts('json')) {
+          return res.json({ 
+            success: true, 
+            message: 'Registration successful! You can now log in.',
+            redirectUrl: '/login?message=' + encodeURIComponent('Registration successful! Please log in.')
+          });
+        }
+        
+        // For non-AJAX requests, redirect to login with success message
+        return res.redirect('/login?message=' + encodeURIComponent('Registration successful! Please log in.'));
+        
+      } catch (error) {
+        console.error('Error creating user:', error);
+        const errorMsg = 'Failed to create user. Please try again.';
+        
+        if (req.accepts('json')) {
+          return res.status(500).json({ 
+            success: false, 
+            message: errorMsg 
+          });
+        }
+        
+        return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
+      }
+    } else {
+      // This shouldn't happen in registration flow, but handle gracefully
+      res.clearCookie('otpToken');
+      return res.redirect('/login?message=' + encodeURIComponent('Verification successful. Please login to continue.'));
     }
 
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: 'Verification failed. Please try again.'
-    });
+    console.error('OTP verification error:', error);
+    return res.redirect('/verify-otp?error=' + encodeURIComponent('Verification failed. Please try again.'));
   }
 };
 
 
-//login page
-const renderLoginPage = async (req, res) => {
-  try {
-    res.render('user/login', {
-      title: 'Login',
-      path: '/login',
-      error: null
-    });
-  } catch (error) {
-    res.status(500).send('Internal Server Error');
-  }
-};
-
-const renderForgotPassword = (req, res) => {
+exports.renderForgotPassword = async (req, res) => {
   res.render('user/forgot-password', {
     message: req.query.message || '',
     successMessage: req.query.successMessage || '',
@@ -1133,7 +1354,7 @@ const renderForgotPassword = (req, res) => {
   });
 };
 
-const handleForgotPassword = async (req, res) => {
+exports.handleForgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -1203,7 +1424,7 @@ const handleForgotPassword = async (req, res) => {
   }
 };
 
-const renderResetPassword = async (req, res) => {
+exports.renderResetPassword = async (req, res) => {
   try {
     const { token } = req.params;
     const user = await User.findOne({
@@ -1237,7 +1458,7 @@ const renderResetPassword = async (req, res) => {
   }
 };
 
-const handleResetPassword = async (req, res) => {
+exports.handleResetPassword = async (req, res) => {
   try {
     const { token } = req.params;
     const { password, confirmPassword } = req.body;
@@ -1298,7 +1519,7 @@ const handleResetPassword = async (req, res) => {
   }
 };
 
-const renderProfilePage = async (req, res) => {
+exports.renderProfilePage = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     let cartCount = 0;
@@ -1323,7 +1544,7 @@ const renderProfilePage = async (req, res) => {
   }
 };
 
-const googleCallback = async (req, res) => {
+exports.googleCallback = async (req, res) => {
   try {
     const { id, email, displayName, picture } = req.user;
 
@@ -1390,7 +1611,7 @@ const googleCallback = async (req, res) => {
 };
 
 // Render product details page
-const renderProductDetails = async (req, res) => {
+exports.renderProductDetails = async (req, res) => {
   try {
     const productId = req.params.id;
     const product = await Product.findById(productId).populate('category');
@@ -1445,7 +1666,7 @@ const renderProductDetails = async (req, res) => {
 }
 
 // Change password
-const changePassword = async (req, res) => {
+exports.changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword, confirmPassword } = req.body;
 
@@ -1555,7 +1776,7 @@ const changePassword = async (req, res) => {
 };
 
 // Verify referral code
-const verifyReferralCode = async (req, res) => {
+exports.verifyReferralCode = async (req, res) => {
   try {
     const { referralCode } = req.body;
 
@@ -1566,35 +1787,40 @@ const verifyReferralCode = async (req, res) => {
       });
     }
 
-    const referrer = await User.findOne({ referralCode });
+    // Find user with this referral code
+    const referrer = await User.findOne({ referralCode: referralCode.toUpperCase() });
 
     if (!referrer) {
-      return res.status(400).json({
+      return res.status(404).json({
         success: false,
         error: 'Invalid referral code'
       });
     }
 
-    return res.status(200).json({
+    // Return success with reward information
+    res.json({
       success: true,
       message: 'Valid referral code',
+      referrer: {
+        name: referrer.name
+      },
       rewards: {
-        referrer: '₹100',
-        newUser: '₹50'
+        newUser: '₹100',
+        referrer: '₹50'
       }
     });
 
   } catch (error) {
-    console.error('Referral code verification error:', error);
+    console.error('Referral verification error:', error);
     res.status(500).json({
       success: false,
-      error: 'An error occurred while verifying referral code'
+      error: 'Failed to verify referral code'
     });
   }
 };
 
 // Render cart page
-const renderCartPage = async (req, res) => {
+exports.renderCartPage = async (req, res) => {
   try {
     if (!req.user) {
       return res.redirect('/login');
@@ -1664,7 +1890,7 @@ const renderCartPage = async (req, res) => {
 };
 
 // Add to cart
-const addToCart = async (req, res) => {
+exports.addToCart = async (req, res) => {
   try {
     const userId = req.user._id;
     const { productId } = req.params;
@@ -1716,7 +1942,7 @@ const addToCart = async (req, res) => {
 };
 
 // Update cart item
-const updateCartItem = async (req, res) => {
+exports.updateCartItem = async (req, res) => {
   try {
     const userId = req.user._id;
     const { productId } = req.params;
@@ -1769,7 +1995,7 @@ const updateCartItem = async (req, res) => {
 };
 
 // Remove from cart
-const removeFromCart = async (req, res) => {
+exports.removeFromCart = async (req, res) => {
   try {
     const userId = req.user._id;
     const { productId } = req.params;
@@ -1803,8 +2029,50 @@ const removeFromCart = async (req, res) => {
   }
 };
 
+// Helper function to send welcome email to new users
+exports.sendWelcomeEmail = async (email, name) => {
+  try {
+    // Create a test account for development
+    const testAccount = await nodemailer.createTestAccount();
+
+    // Create reusable transporter object using the default SMTP transport
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false, // true for 465, false for other ports
+      auth: {
+        user: testAccount.user, // generated ethereal user
+        pass: testAccount.pass, // generated ethereal password
+      },
+    });
+
+    // Send mail with defined transport object
+    const info = await transporter.sendMail({
+      from: '"Derry World" <welcome@derryworld.com>', // sender address
+      to: email, // list of receivers
+      subject: 'Welcome to Derry World!', // Subject line
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+          <h2 style="color: #333;">Welcome to Derry World, ${name}!</h2>
+          <p>Thank you for registering with us. We're excited to have you on board!</p>
+          <p>Start exploring our delicious menu and place your first order today.</p>
+          <p>If you have any questions, feel free to contact our support team.</p>
+          <p>Best regards,<br>The Derry World Team</p>
+        </div>
+      `,
+    });
+
+    console.log('Welcome email sent to %s', email);
+    console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+    return true;
+  } catch (error) {
+    console.error('Error sending welcome email:', error);
+    return false;
+  }
+};
+
 // Helper function to send OTP email
-const sendOTPEmail = async (email, otp) => {
+exports.sendOTPEmail = async (email, otp) => {
   try {
     // Configure nodemailer transporter
     const transporter = nodemailer.createTransport({
@@ -1842,7 +2110,7 @@ const sendOTPEmail = async (email, otp) => {
 };
 
 // Helper function to generate and save OTP
-const generateAndSaveOtp = async (email) => {
+exports.generateAndSaveOtp = async (email) => {
   try {
     // Delete any existing OTPs for this email
     await OTP.deleteMany({ email });
@@ -1875,7 +2143,7 @@ const generateAndSaveOtp = async (email) => {
 };
 
 // Helper function to get cart count
-const getCartCount = async (userId) => {
+exports.getCartCount = async (userId) => {
   try {
     const cart = await Cart.findOne({ user: userId });
     if (!cart || !cart.items) return 0;
@@ -1886,17 +2154,10 @@ const getCartCount = async (userId) => {
   }
 };
 
-const generateReferralCode = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-};
+
 
 // Password Reset Controllers
-const forgotPassword = async (req, res) => {
+exports.forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
        
@@ -1985,7 +2246,7 @@ const forgotPassword = async (req, res) => {
     }
 };
 
-const resetPassword = async (req, res) => {
+exports.resetPassword = async (req, res) => {
     try {
         const { token } = req.params;
         const { password } = req.body;
@@ -2081,16 +2342,16 @@ const resetPassword = async (req, res) => {
 };
 
 // Render password reset pages
-const renderForgotPasswordPage = (req, res) => {
+exports.renderForgotPasswordPage = async (req, res) => {
     res.render('user/forgot-password');
 };
 
-const renderResetPasswordPage = (req, res) => {
+exports.renderResetPasswordPage = async (req, res) => {
     res.render('user/reset-password', { token: req.params.token });
 };
 
 // Handle contact form submission
-const handleContactForm = async (req, res) => {
+exports.handleContactForm = async (req, res) => {
     try {
         const { name, email, phone, message } = req.body;
 
@@ -2133,44 +2394,4 @@ const handleContactForm = async (req, res) => {
             message: 'An error occurred. Please try again.'
         });
     }
-};
-
-module.exports = {
-  getCartCount,
-  loginUser,
-  logoutUser,
-  updateUserProfile,
-  renderHomePage,
-  renderAboutPage,
-  renderContactPage,
-  handleContactForm,
-  getAddresses,
-  addAddress,
-  updateAddress,
-  deleteAddress,
-  applyOffersToProducts,
-  renderLandingPage,
-  renderRegisterPage,
-  registerUser,
-  renderVerifyOtpPage,
-  verifyOTP,
-  resendOTP,
-  renderLoginPage,
-  renderForgotPassword,
-  handleForgotPassword,
-  renderResetPassword,
-  handleResetPassword,
-  renderProfilePage,
-  googleCallback,
-  renderProductDetails,
-  changePassword,
-  verifyReferralCode,
-  renderCartPage,
-  addToCart,
-  updateCartItem,
-  removeFromCart,
-  forgotPassword,
-  resetPassword,
-  renderForgotPasswordPage,
-  renderResetPasswordPage
 };

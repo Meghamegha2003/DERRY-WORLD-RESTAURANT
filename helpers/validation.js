@@ -1,4 +1,3 @@
-// Address validation rules
 const validateAddress = (address) => {
     const errors = [];
     

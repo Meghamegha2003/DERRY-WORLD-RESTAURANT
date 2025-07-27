@@ -710,6 +710,17 @@
 
   document.getElementById('productImages').addEventListener('change', function(e) {
     const file = e.target.files[0];
+    // Validate file exists and is an image
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Invalid File Type',
+        text: 'Only image files are allowed'
+      });
+      this.value = '';
+      return;
+    }
     if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = function(e) {

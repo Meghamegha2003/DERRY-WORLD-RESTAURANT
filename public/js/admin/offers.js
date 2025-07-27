@@ -51,13 +51,22 @@ function validateOfferForm(data) {
 function handleOfferTypeChange(event) {
     const type = event.target.value;
     const modal = event.target.closest('.modal');
-    const prefix = modal.id === 'addOfferModal' ? 'add' : 'edit';
+    const isAddModal = modal && modal.id === 'addOfferModal';
+    const prefix = isAddModal ? 'add' : 'edit';
 
     // Get the field elements
-    const productField = document.getElementById(`${prefix}ProductField`);
-    const categoryField = document.getElementById(`${prefix}CategoryField`);
-    const productSelect = document.getElementById(`${prefix}Product`);
-    const categorySelect = document.getElementById(`${prefix}Category`);
+    // For add modal, the IDs are 'productDropdownAdd' and 'categoryDropdownAdd'
+    // For edit modal, the IDs are 'editProductField' and 'editCategoryField'
+    const productField = isAddModal 
+        ? document.getElementById('productDropdownAdd')
+        : document.getElementById(`${prefix}ProductField`);
+        
+    const categoryField = isAddModal 
+        ? document.getElementById('categoryDropdownAdd')
+        : document.getElementById(`${prefix}CategoryField`);
+        
+    const productSelect = document.getElementById(isAddModal ? 'targetProductAdd' : `${prefix}Product`);
+    const categorySelect = document.getElementById(isAddModal ? 'targetCategoryAdd' : `${prefix}Category`);
 
     // Hide both fields first
     if (productField) productField.style.display = 'none';
@@ -210,8 +219,16 @@ async function saveOffer(event) {
     if (!validateOfferForm(data)) return;
 
     try {
-        // Add this line to ensure targetType is explicitly set
-        data.targetType = document.getElementById('offerTargetType').value;
+        // Get the target type from the form
+        const targetType = document.querySelector('#addOfferModal select[name="targetType"]').value;
+        data.targetType = targetType;
+        
+        // Set the target ID based on the selected type
+        if (targetType === 'product') {
+            data.targetId = data.targetProduct;
+        } else if (targetType === 'category') {
+            data.targetId = data.targetCategory;
+        }
         
         console.log("Submitting data:", data);
         
@@ -265,7 +282,25 @@ async function updateOffer(event) {
     const formData = new FormData(form);
     const offerId = formData.get('offerId');
     formData.delete('offerId');
-    const data = Object.fromEntries(formData.entries());
+    let data = Object.fromEntries(formData.entries());
+
+    // Get the target type and ID from the form
+    const targetType = document.querySelector('#editOfferModal select[name="targetType"]').value;
+    data.targetType = targetType;
+    
+    // Set the target ID based on the selected type
+    if (targetType === 'product') {
+        data.targetId = data.targetProduct;
+    } else if (targetType === 'category') {
+        data.targetId = data.targetCategory;
+    }
+
+    // Ensure date fields are properly formatted
+    if (data.startDate) data.startDate = new Date(data.startDate).toISOString();
+    if (data.endDate) data.endDate = new Date(data.endDate).toISOString();
+
+    // Log the data being sent for debugging
+    console.log('Updating offer with data:', data);
 
     // Validate form
     if (!validateOfferForm(data)) return;
@@ -313,6 +348,26 @@ async function updateOffer(event) {
     }
 }
 
+// Toggle target dropdown based on selection in add modal
+function toggleTargetDropdown(prefix) {
+    // Handle the add modal which has id 'offerTargetType' instead of 'addType'
+    const typeSelect = document.getElementById(prefix === 'add' ? 'offerTargetType' : `${prefix}Type`);
+    if (typeSelect) {
+        handleOfferTypeChange({ target: typeSelect });
+    }
+    
+    // Also update the target dropdown visibility based on the selected value
+    const selectedValue = typeSelect ? typeSelect.value : '';
+    
+    // For add modal, the IDs are 'productDropdownAdd' and 'categoryDropdownAdd'
+    // For edit modal, the IDs are 'editProductField' and 'editCategoryField'
+    const productField = document.getElementById(prefix === 'add' ? 'productDropdownAdd' : prefix + 'ProductField');
+    const categoryField = document.getElementById(prefix === 'add' ? 'categoryDropdownAdd' : prefix + 'CategoryField');
+    
+    if (productField) productField.style.display = selectedValue === 'product' ? 'block' : 'none';
+    if (categoryField) categoryField.style.display = selectedValue === 'category' ? 'block' : 'none';
+}
+
 // Initialize form
 function initializeForm() {
     // Add offer type change listeners for both modals
@@ -335,10 +390,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const addModal = document.getElementById('addOfferModal');
     if (addModal) {
         addModal.addEventListener('shown.bs.modal', function() {
-            const typeSelect = document.getElementById('addType');
+            // Use the correct ID for the add modal's target type select
+            const typeSelect = document.getElementById('offerTargetType');
             if (typeSelect) {
                 typeSelect.value = '';
-                handleOfferTypeChange({ target: typeSelect });
+                // Hide both dropdowns by default
+                const productField = document.getElementById('productDropdownAdd');
+                const categoryField = document.getElementById('categoryDropdownAdd');
+                if (productField) productField.style.display = 'none';
+                if (categoryField) categoryField.style.display = 'none';
             }
             initializeDateFields();
         });

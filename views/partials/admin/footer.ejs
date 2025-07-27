@@ -11,6 +11,7 @@
     const sidebar = document.getElementById('sidebar');
     const mainContent = document.querySelector('.main-content');
     const sidebarToggle = document.getElementById('sidebarToggle');
+    if (!sidebar || !mainContent || !sidebarToggle) return;
 
     function toggleSidebar() {
       sidebar.classList.toggle('active');

@@ -20,14 +20,14 @@ try {
 }
 
 // Generate unique referral code
-const generateReferralCode = (userId) => {
+exports.generateReferralCode = function(userId) {
     const prefix = userId.toString().substring(0, 6);
     const randomChars = Math.random().toString(36).substring(2, 6).toUpperCase();
     return `${prefix}${randomChars}`;
 };
 
 // Process referral reward
-const processReferralReward = async (referrerId, referredId) => {
+exports.processReferralReward = async function(referrerId, referredId) {
     try {
         const referrerBonus = 100; // ₹100 for referrer
         const referredBonus = 50;  // ₹50 for new user
@@ -88,7 +88,7 @@ const processReferralReward = async (referrerId, referredId) => {
 };
 
 // Get wallet details and transactions
-const getWallet = async (req, res) => {
+exports.getWallet = async function(req, res) {
     try {
         // Prevent caching so the wallet page always shows latest balance
         res.set({
@@ -99,7 +99,7 @@ const getWallet = async (req, res) => {
 
         const userId = req.user._id;
         const page = parseInt(req.query.page) || 1;
-        const limit = 10;
+        const limit = 3;
         const skip = (page - 1) * limit;
 
         // Always fetch the latest wallet and all transactions
@@ -123,11 +123,7 @@ const getWallet = async (req, res) => {
         const user = await User.findById(userId);
         // If the user does not have a referralCode, generate and save it
         if (user && (!user.referralCode || user.referralCode === '')) {
-            const generateReferralCode = (userId) => {
-                const prefix = userId.toString().substring(0, 6);
-                const randomChars = Math.random().toString(36).substring(2, 6).toUpperCase();
-                return `${prefix}${randomChars}`;
-            };
+            const generateReferralCode = exports.generateReferralCode;
             user.referralCode = generateReferralCode(user._id);
             await user.save();
         }
@@ -167,11 +163,7 @@ const getWallet = async (req, res) => {
         const user = await User.findById(userId);
         // If the user does not have a referralCode, generate and save it
         if (user && (!user.referralCode || user.referralCode === '')) {
-            const generateReferralCode = (userId) => {
-                const prefix = userId.toString().substring(0, 6);
-                const randomChars = Math.random().toString(36).substring(2, 6).toUpperCase();
-                return `${prefix}${randomChars}`;
-            };
+            const generateReferralCode = exports.generateReferralCode;
             user.referralCode = generateReferralCode(user._id);
             await user.save();
         }
@@ -196,7 +188,7 @@ const getWallet = async (req, res) => {
 };
 
 // Initialize add money transaction
-const initializeAddMoney = async (req, res) => {
+exports.initializeAddMoney = async function(req, res) {
     try {
         // Check if Razorpay is initialized
         if (!razorpay) {
@@ -260,7 +252,7 @@ const initializeAddMoney = async (req, res) => {
 };
 
 // Verify payment and add money to wallet
-const verifyAndAddMoney = async (req, res) => {
+exports.verifyAndAddMoney = async function(req, res) {
     try {
         // Check if Razorpay is initialized
         if (!razorpay) {
@@ -366,7 +358,7 @@ const verifyAndAddMoney = async (req, res) => {
 };
 
 // Get wallet transactions
-const getTransactions = async (req, res) => {
+exports.getTransactions = async function(req, res) {
     try {
         const userId = req.user._id;
         const page = parseInt(req.query.page) || 1;
@@ -394,12 +386,4 @@ const getTransactions = async (req, res) => {
             message: 'Failed to fetch wallet transactions'
         });
     }
-};
-
-module.exports = {
-    processReferralReward,
-    getWallet,
-    initializeAddMoney,
-    verifyAndAddMoney,
-    getTransactions
 };

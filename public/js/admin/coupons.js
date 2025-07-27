@@ -96,6 +96,34 @@ async function editCoupon(couponId) {
     }
 }
 
+// Function to validate coupon form data
+function validateCouponForm(data) {
+    const discountValue = Number(data.discountValue);
+    const minPurchase = Number(data.minPurchase);
+    
+    // Check if discount value is greater than minimum purchase amount
+    if (discountValue > minPurchase) {
+        Swal.fire({
+            title: 'Validation Error',
+            text: 'Discount value cannot be greater than the minimum purchase amount',
+            icon: 'error'
+        });
+        return false;
+    }
+    
+    // For percentage discounts, ensure value is between 1-100
+    if (data.discountType === 'percentage' && (discountValue < 1 || discountValue > 100)) {
+        Swal.fire({
+            title: 'Validation Error',
+            text: 'Percentage discount must be between 1% and 100%',
+            icon: 'error'
+        });
+        return false;
+    }
+    
+    return true;
+}
+
 // Function to save coupon
 async function saveCoupon(event) {
     event.preventDefault();
@@ -104,6 +132,12 @@ async function saveCoupon(event) {
         const form = event.target;
         const formData = new FormData(form);
         const data = Object.fromEntries(formData.entries());
+        
+        // Validate form data before submission
+        if (!validateCouponForm(data)) {
+            return; // Stop if validation fails
+        }
+        
         const couponId = document.getElementById('couponId').value;
 
         const url = couponId ? `/admin/coupons/${couponId}` : '/admin/coupons';
@@ -253,8 +287,55 @@ function setupDiscountTypeListener(formId) {
     });
 }
 
+// Add validation for discount value vs min purchase
+function setupDiscountValidation(formId) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    
+    const discountValueInput = form.querySelector('input[name="discountValue"]');
+    const minPurchaseInput = form.querySelector('input[name="minPurchase"]');
+    const discountTypeSelect = form.querySelector('select[name="discountType"]');
+    
+    if (!discountValueInput || !minPurchaseInput || !discountTypeSelect) return;
+    
+    function validateDiscount() {
+        const discountValue = parseFloat(discountValueInput.value) || 0;
+        const minPurchase = parseFloat(minPurchaseInput.value) || 0;
+        const isPercentage = discountTypeSelect.value === 'percentage';
+        
+        if (isPercentage && (discountValue < 1 || discountValue > 100)) {
+            discountValueInput.setCustomValidity('Percentage must be between 1 and 100');
+            return false;
+        }
+        
+        if (!isPercentage && discountValue > minPurchase) {
+            discountValueInput.setCustomValidity('Discount amount cannot be greater than minimum purchase amount');
+            return false;
+        }
+        
+        discountValueInput.setCustomValidity('');
+        return true;
+    }
+    
+    // Add event listeners for real-time validation
+    discountValueInput.addEventListener('input', validateDiscount);
+    minPurchaseInput.addEventListener('input', validateDiscount);
+    discountTypeSelect.addEventListener('change', validateDiscount);
+    
+    // Add form validation
+    form.addEventListener('submit', function(event) {
+        if (!validateDiscount()) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        form.classList.add('was-validated');
+    }, false);
+}
+
 // Setup listeners when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     setupDiscountTypeListener('addCouponForm');
     setupDiscountTypeListener('editCouponForm');
+    setupDiscountValidation('addCouponForm');
+    setupDiscountValidation('editCouponForm');
 });

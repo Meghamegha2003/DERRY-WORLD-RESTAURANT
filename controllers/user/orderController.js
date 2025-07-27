@@ -8,6 +8,8 @@ const User = require("../../models/userSchema");
 const Product = require("../../models/productSchema");
 const Wallet = require("../../models/walletSchema");
 const { getBestOffer } = require("../../helpers/offerHelper");
+const PDFDocument = require("pdfkit");
+
 
 // Initialize Razorpay
 const Razorpay = require("razorpay");
@@ -19,7 +21,7 @@ const razorpay = new Razorpay({
 });
 
 // Get user orders
-const getUserOrders = async (req, res) => {
+exports.getUserOrders = async (req, res) => {
   try {
     if (!req.user) {
       return res.redirect("/login");
@@ -183,7 +185,7 @@ const getUserOrders = async (req, res) => {
 };
 
 // Get order details
-const getOrderDetails = async (req, res) => {
+exports.getOrderDetails = async (req, res) => {
   try {
     if (!req.user) {
       // Pass intended destination as a query param for stateless redirect
@@ -285,6 +287,27 @@ const getOrderDetails = async (req, res) => {
     processedOrder.totalSavings = totalSavings;
     processedOrder.total = total;
 
+    // Calculate return window eligibility and timer
+    let deliveryDate = processedOrder.deliveryDate || processedOrder.deliveredAt || processedOrder.updatedAt;
+    let canReturn = false;
+    let returnWindowText = "";
+    if (processedOrder.orderStatus === ORDER_STATUS.DELIVERED && deliveryDate) {
+      const deliveryTime = new Date(deliveryDate);
+      const now = new Date();
+      const returnWindowMs = 15 * 60 * 1000; // 15 minutes
+      const msLeft = deliveryTime.getTime() + returnWindowMs - now.getTime();
+      if (msLeft > 0) {
+        canReturn = true;
+        const hoursLeft = Math.floor(msLeft / (1000 * 60 * 60));
+        const minsLeft = Math.floor((msLeft % (1000 * 60 * 60)) / (1000 * 60));
+        returnWindowText = `Return available for ${hoursLeft > 0 ? hoursLeft + "h " : ""}${minsLeft}m left`;
+      } else {
+        returnWindowText = "Return period expired";
+      }
+    }
+    processedOrder.canReturn = canReturn;
+    processedOrder.returnWindowText = returnWindowText;
+
     res.render("user/orderDetails", {
       order: processedOrder,
       user: req.user,
@@ -303,7 +326,7 @@ const getOrderDetails = async (req, res) => {
 };
 
 // Cancel order
-const cancelOrder = async (req, res) => {
+exports.cancelOrder = async (req, res) => {
   try {
     if (!req.body.reason) {
       return res.status(400).json({
@@ -436,7 +459,7 @@ const cancelOrder = async (req, res) => {
 };
 
 // Cancel order item
-const cancelOrderItem = async (req, res) => {
+exports.cancelOrderItem = async (req, res) => {
   try {
     const { orderId, itemId } = req.params;
     const { reason } = req.body;
@@ -516,32 +539,18 @@ const cancelOrderItem = async (req, res) => {
     item.refundAmount = refundAmount;
     item.refundStatus = "Pending";
 
-    // If payment was made, process refund
+    // If payment was made, process refund via helper
     if (
       order.paymentMethod !== "cod" &&
       order.paymentStatus === PAYMENT_STATUS.PAID
     ) {
-      const walletTransaction = new Wallet({
-        user: userId,
-        type: "credit",
-        amount: refundAmount,
-        description: `Refund for cancelled item in order #${order._id
-          .toString()
-          .slice(-8)
-          .toUpperCase()}`,
-        orderReference: order._id,
-        status: "completed",
-        timestamp: new Date(),
-      });
-      await walletTransaction.save();
-
-      // Update user's wallet balance
-      await User.findByIdAndUpdate(userId, {
-        $inc: { "wallet.balance": refundAmount },
-      });
-
-      item.refundStatus = "Completed";
-      item.refundDate = new Date();
+      const refundSuccess = await processRefund(userId, refundAmount);
+      if (!refundSuccess) {
+        console.error(`[CANCEL_ITEM] Refund processing failed for order ${order._id}`);
+      } else {
+        item.refundStatus = "Completed";
+        item.refundDate = new Date();
+      }
     }
 
     // Update order total
@@ -582,7 +591,7 @@ const cancelOrderItem = async (req, res) => {
 };
 
 // Request item return
-const requestItemReturn = async (req, res) => {
+exports.requestItemReturn = async (req, res) => {
   try {
     const { orderId, itemId } = req.params;
     const { reason } = req.body;
@@ -611,9 +620,8 @@ const requestItemReturn = async (req, res) => {
     }
 
     // Find the item in the order
-    const item = order.items.find(
-      (item) => item.product.toString() === itemId.toString()
-    );
+    // Find the item in the order by its subdocument id
+    const item = order.items.id(itemId);
 
     if (!item) {
       return res.status(404).json({
@@ -657,7 +665,7 @@ const requestItemReturn = async (req, res) => {
 };
 
 // Process refund to wallet
-const processRefund = async (userId, amount) => {
+exports.processRefund = async (userId, amount) => {
   try {
     // Find or create wallet
     let wallet = await Wallet.findOne({ user: userId });
@@ -688,7 +696,7 @@ const processRefund = async (userId, amount) => {
 };
 
 // Admin: Approve return request
-const approveReturn = async (req, res) => {
+exports.approveReturn = async (req, res) => {
   try {
     const { orderId, itemId } = req.params;
 
@@ -739,7 +747,7 @@ const approveReturn = async (req, res) => {
 };
 
 // Admin: Reject return request
-const rejectReturn = async (req, res) => {
+exports.rejectReturn = async (req, res) => {
   try {
     const { orderId, itemId } = req.params;
 
@@ -790,7 +798,7 @@ const rejectReturn = async (req, res) => {
 };
 
 // Submit product rating
-const submitRating = async (req, res) => {
+exports.submitRating = async (req, res) => {
   try {
     const { productId, rating, orderId } = req.body;
     const userId = req.user._id;
@@ -899,7 +907,7 @@ const submitRating = async (req, res) => {
 };
 
 // Request return
-const requestReturn = async (req, res) => {
+exports.requestReturn = async (req, res) => {
   try {
     const { orderId } = req.params;
     const { reason, comment, rating } = req.body;
@@ -1034,15 +1042,185 @@ const requestReturn = async (req, res) => {
   }
 };
 
-module.exports = {
-  getUserOrders,
-  getOrderDetails,
-  cancelOrder,
-  cancelOrderItem,
-  requestItemReturn,
-  processRefund,
-  submitRating,
-  approveReturn,
-  rejectReturn,
-  requestReturn,
+// Show retry payment page
+exports.showRetryPaymentPage = async (req, res) => {
+  try {
+    const orderId = req.params.orderId;
+    const order = await Order.findById(orderId).populate("items.product");
+
+    if (!order || order.paymentStatus !== "Failed") {
+      return res.status(400).render("error", { message: "Invalid or already paid order." });
+    }
+
+    const amount = Math.round(
+      (order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+      - (order.couponDiscount || 0)
+      + (order.deliveryCharge || 0)) * 100
+    ); // in paise
+
+    const razorpayOrder = await razorpay.orders.create({
+      amount,
+      currency: "INR",
+      receipt: order._id.toString(),
+      notes: { orderId: order._id.toString() },
+    });
+
+    res.render("user/retry-payment", {
+      user: req.user,
+      order,
+      razorpayOrder,
+      razorpayKey: process.env.RAZORPAY_KEY,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).render("error", { message: "Server Error" });
+  }
+};
+
+// POST /retry-payment-initiate/:orderId
+exports.initiateRetryPayment = async (req, res) => {
+  try {
+    const orderId = req.params.orderId;
+    const order = await Order.findById(orderId);
+
+    if (!order || order.orderStatus !== "Pending") {
+      return res.status(400).json({ success: false, message: "Invalid or already paid order." });
+    }
+
+    const amount = Math.round(
+      (order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+      - (order.couponDiscount || 0)
+      + (order.deliveryCharge || 0)) * 100
+    ); // in paise
+
+    const razorpayOrder = await razorpay.orders.create({
+      amount,
+      currency: "INR",
+      receipt: order._id.toString(),
+      notes: { orderId: order._id.toString() },
+    });
+
+    return res.json({ success: true, order: razorpayOrder });
+  } catch (error) {
+    console.error("Retry Payment Error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Download Invoice Handler
+exports.downloadInvoice = async (req, res) => {
+  try {
+    const orderId = req.params.orderId;
+    const order = await Order.findOne({ _id: orderId, user: req.user._id }).populate("items.product");
+    if (!order) {
+      return res.status(404).send("Order not found");
+    }
+
+    // Seller details (set via env or defaults)
+    const sellerName = process.env.SELLER_NAME || "Derry World"; // Updated name per request
+    const sellerAddress = process.env.SELLER_ADDRESS || "123 Main Street, City, State, ZIP";
+    const sellerGSTIN = process.env.SELLER_GSTIN || "XXXXXXXXXXXXXXX";
+    const sellerEmail = process.env.SELLER_EMAIL || "DERRY@gmail.com";
+    const sellerPlace = process.env.SELLER_PLACE || "manappuram po, cherthala, Alappuzha, kerala";
+    const sellerPin = process.env.SELLER_PIN || "688526";
+    const sellerPhone = process.env.SELLER_PHONE || "6282679552";
+    const invoiceNumber = `INV-${order._id.toString().slice(-8).toUpperCase()}`;
+
+    // Create PDF
+    const doc = new PDFDocument({ margin: 40 });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=invoice_${orderId}.pdf`);
+    doc.pipe(res);
+
+    // Draw page border
+    const { width, height } = doc.page;
+    // Draw border inside margins
+    const { top, bottom, left, right } = doc.page.margins;
+    doc.strokeColor('black').lineWidth(2)
+       .rect(left, top, width - left - right, height - top - bottom)
+       .stroke();
+    // Move header down inside border
+    doc.y = top + 20;
+
+    // Header
+    const headerWidth = width - left - right - 20;
+    doc.fillColor('#ffc107').font('Helvetica-Bold').fontSize(20)
+       .text(sellerName, { align: 'center' });
+    doc.fillColor('black').font('Helvetica').fontSize(10)
+       .text(`Email: ${sellerEmail}`, { align: 'center', width: headerWidth })
+       .text(`Place: ${sellerPlace}, Pin: ${sellerPin}`, { align: 'center', width: headerWidth })
+       .text(`Phone: ${sellerPhone}`, { align: 'center', width: headerWidth });
+    doc.moveDown();
+
+    // Invoice Title
+    doc.fillColor('#ffc107').font('Helvetica-Bold').fontSize(16).text('Invoice', { align: 'center' });
+    doc.fillColor('black');
+    doc.moveDown();
+
+    // Order Details
+    doc.font('Helvetica').fontSize(12)
+       .text(`Name of user: ${req.user.name}`, left + 10)
+       .text(`Order ID: #${order._id.toString().slice(-8).toUpperCase()}`, left + 10)
+       .text(`Order Date: ${order.createdAt.toLocaleDateString('en-GB')}`, left + 10);
+    const method = order.paymentMethod === 'online' ? 'Razorpay' : order.paymentMethod === 'cod' ? 'COD' : order.paymentMethod;
+    doc.text(`Payment Method: ${method}`, left + 10);
+    doc.moveDown();
+
+    // Products:
+    doc.fillColor('#ffc107').font('Helvetica-Bold').fontSize(12).text('Products:', left + 10);
+    doc.fillColor('black');
+
+    // Invoice Items Table
+    const tableLeft = left + 10;
+    const tableTop = doc.y + 10;
+    const widths = [40, 220, 60, 80, 80];
+    const headers = ["S.No","Product Name","Quantity","Price","Total"]; 
+    const widthSum = widths.reduce((acc, w) => acc + w, 0);
+    const rowHeight = 25;
+
+    // Header background
+    doc.fillColor('#333').rect(tableLeft, tableTop, widthSum, rowHeight).fill().stroke();
+    doc.fillColor('#fff').font('Helvetica-Bold').fontSize(10);
+    let x = tableLeft;
+    headers.forEach((h, i) => {
+      doc.text(h, x + 5, tableTop + 7, { width: widths[i] - 10, align: i === 0 ? 'left' : i === 1 ? 'center' : 'right' });
+      x += widths[i];
+    });
+
+    // Grid lines
+    for (let i = 0; i < order.items.length + 1; i++) {
+      doc.strokeColor('#ccc').lineWidth(0.5).moveTo(tableLeft, tableTop + (i + 1) * rowHeight).lineTo(tableLeft + widthSum, tableTop + (i + 1) * rowHeight).stroke();
+    }
+
+    // Rows
+    let y = tableTop + rowHeight;
+    order.items.forEach((item, index) => {
+      if (index % 2 === 0) {
+        doc.fillColor('#f9f9f9').rect(tableLeft, y, widthSum, rowHeight).fill();
+      }
+      doc.fillColor('#000').font('Helvetica').fontSize(10);
+      x = tableLeft;
+      const vals = [(index+1).toString(), item.product.name, item.quantity.toString(), `₹${item.price.toFixed(2)}`, `₹${(item.price * item.quantity).toFixed(2)}`];
+      vals.forEach((v, j) => {
+        doc.text(v, x + 5, y + 7, { width: widths[j] - 10, align: j === 0 ? 'left' : j === 1 ? 'center' : 'right' });
+        x += widths[j];
+      });
+      y += rowHeight;
+    });
+
+    // Summary
+    const preTotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    const discount = order.couponDiscount || 0;
+    const finalAmount = preTotal - discount;
+    doc.font('Helvetica').fontSize(10).text(`Total Amount: ₹${preTotal.toFixed(2)}`, tableLeft, y + 10, { width: widthSum, align: 'right' });
+    doc.text(`Discount: ₹${discount.toFixed(2)}`, { width: widthSum, align: 'right' });
+    doc.font('Helvetica-Bold').fillColor('red').text(`Final Amount: ₹${finalAmount.toFixed(2)}`, { width: widthSum, align: 'right' });
+    doc.fillColor('black');
+    doc.moveDown(2);
+
+    doc.end();
+  } catch (error) {
+    console.error("Invoice download error:", error);
+    res.status(500).send("Failed to generate invoice");
+  }
 };

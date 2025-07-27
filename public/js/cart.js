@@ -13,33 +13,36 @@ const Toast = Swal.mixin({
 
 // Cart functions
 function addToCart(productId, quantity = 1) {
-    $.ajax({
-        url: `/cart/add/${productId}`,
+    fetch(`/cart/add/${productId}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        data: JSON.stringify({ quantity }),
-        xhrFields: {
-            withCredentials: true
-        },
-        success: function(response) {
-            if (response.success) {
-                Toast.fire({
-                    icon: 'success',
-                    title: 'Item added to cart'
-                });
-                updateCartCount(response.cartCount);
-            }
-        },
-        error: function(xhr) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: xhr.responseJSON?.message || 'Failed to add item to cart',
-                confirmButtonColor: '#d33'
-            });
+        body: JSON.stringify({ quantity }),
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => Promise.reject(err));
         }
+        return response.json();
+    })
+    .then(response => {
+        if (response.success) {
+            Toast.fire({
+                icon: 'success',
+                title: 'Item added to cart'
+            });
+            updateCartCount(response.cartCount);
+        }
+    })
+    .catch(error => {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: error.message || 'Failed to add item to cart',
+            confirmButtonColor: '#d33'
+        });
     });
 }
 
@@ -54,31 +57,34 @@ function removeFromCart(productId) {
         confirmButtonText: 'Yes, remove it!'
     }).then((result) => {
         if (result.isConfirmed) {
-            $.ajax({
-                url: `/cart/remove/${productId}`,
+            fetch(`/cart/remove/${productId}`, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                xhrFields: {
-                    withCredentials: true
-                },
-                success: function(response) {
-                    if (response.success) {
-                        $(`#cart-item-${productId}`).fadeOut(300, function() {
-                            $(this).remove();
-                            // location.reload();
-                        });
-                    }
-                },
-                error: function(xhr) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: xhr.responseJSON?.message || 'Failed to remove item from cart',
-                        confirmButtonColor: '#d33'
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => Promise.reject(err));
+                }
+                return response.json();
+            })
+            .then(response => {
+                if (response.success) {
+                    $(`#cart-item-${productId}`).fadeOut(300, function() {
+                        $(this).remove();
+                        // location.reload();
                     });
                 }
+            })
+            .catch(error => {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.message || 'Failed to remove item from cart',
+                    confirmButtonColor: '#d33'
+                });
             });
         }
     });

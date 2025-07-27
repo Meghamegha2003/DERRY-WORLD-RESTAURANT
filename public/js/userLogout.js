@@ -1,33 +1,32 @@
-function handleLogout(event) {
-    event.preventDefault();
-    
-    Swal.fire({
-        title: 'Are you sure?',
-        text: "You will be logged out from your account!",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'Yes, logout!',
-        cancelButtonText: 'Cancel'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            Swal.fire({
-                title: 'Logging out...',
-                text: 'Please wait',
-                allowOutsideClick: false,
-                showConfirmButton: false,
-                willOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-
-            // Create a form and submit it as POST
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/logout';
-            document.body.appendChild(form);
-            form.submit();
+function handleAdminLogout() {
+  Swal.fire({
+    title: 'Logout?',
+    text: "Are you sure you want to log out?",
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#6c757d',
+    confirmButtonText: 'Yes, logout'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      fetch('/admin/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json'
         }
-    });
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          window.location.href = '/admin/login';
+        } else {
+          Swal.fire('Error', data.message || 'Logout failed', 'error');
+        }
+      })
+      .catch(error => {
+        Swal.fire('Error', 'Something went wrong. Please try again.', 'error');
+      });
+    }
+  });
 }

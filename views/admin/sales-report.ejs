@@ -89,65 +89,7 @@
     </form>
   </div>
 
-  <script>
-    function resetFilters() {
-      // Reset date inputs to default (current month)
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-      const today = now.toISOString().split('T')[0];
-      
-      // Reset all form fields
-      document.querySelector('input[name="startDate"]').value = startOfMonth;
-      document.querySelector('input[name="endDate"]').value = today;
-      document.querySelector('select[name="paymentMethod"]').value = 'all';
-      document.querySelector('select[name="orderStatus"]').value = 'all';
-      
-      // Submit the form with reset values
-      document.getElementById('filterForm').submit();
-    }
-
-    // Validate date range before submitting
-    document.getElementById('filterForm').addEventListener('submit', function(e) {
-      const startDate = new Date(document.querySelector('input[name="startDate"]').value);
-      const endDate = new Date(document.querySelector('input[name="endDate"]').value);
-      
-      if (startDate > endDate) {
-        e.preventDefault();
-        alert('Start date cannot be later than end date');
-        return;
-      }
-
-      // Add page=1 when filters change to start from first page
-      if (!this.querySelector('input[name="page"]')) {
-        const pageInput = document.createElement('input');
-        pageInput.type = 'hidden';
-        pageInput.name = 'page';
-        pageInput.value = '1';
-        this.appendChild(pageInput);
-      }
-    });
-
-    // Preserve filters in pagination links
-    document.querySelectorAll('.pagination .page-link').forEach(link => {
-      link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const url = new URL(this.href);
-        const page = url.searchParams.get('page');
-        
-        // Update the form with the new page number and submit
-        const form = document.getElementById('filterForm');
-        let pageInput = form.querySelector('input[name="page"]');
-        if (!pageInput) {
-          pageInput = document.createElement('input');
-          pageInput.type = 'hidden';
-          pageInput.name = 'page';
-          form.appendChild(pageInput);
-        }
-        pageInput.value = page;
-        form.submit();
-      });
-    });
-  </script>
+  
 
   <!-- Summary Cards -->
   <div class="row px-4 my-4">
@@ -392,57 +334,100 @@ function getStatusBadgeClass(status) {
 <!-- Add necessary scripts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  // Handle form submission
-  document.getElementById('filterForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const formData = new FormData(this);
-    const params = new URLSearchParams();
-    
-    for(let pair of formData.entries()) {
-      if(pair[1]) {
-        params.append(pair[0], pair[1]);
+  document.addEventListener("DOMContentLoaded", function () {
+    const filterForm = document.getElementById('filterForm');
+
+    // ========= Validate & Submit Filters ========= //
+    filterForm.addEventListener('submit', function (e) {
+      const start = new Date(filterForm.startDate.value);
+      const end = new Date(filterForm.endDate.value);
+
+      if (start > end) {
+        e.preventDefault();
+        alert('Start date cannot be later than end date');
+        return;
       }
-    }
-    
-    window.location.href = '/admin/sales-report?' + params.toString();
+
+      // Always reset page to 1 on filter submit
+      let pageInput = filterForm.querySelector('input[name="page"]');
+      if (!pageInput) {
+        pageInput = document.createElement('input');
+        pageInput.type = 'hidden';
+        pageInput.name = 'page';
+        filterForm.appendChild(pageInput);
+      }
+      pageInput.value = '1';
+    });
+
+    // ========= Reset Filters ========= //
+    window.resetFilters = function () {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const today = now.toISOString().split('T')[0];
+
+      filterForm.startDate.value = firstDay;
+      filterForm.endDate.value = today;
+      filterForm.paymentMethod.value = 'all';
+      filterForm.orderStatus.value = 'all';
+      filterForm.submit();
+    };
+
+    // ========= Pagination Handling ========= //
+    document.querySelectorAll('.pagination .page-link').forEach(link => {
+      link.addEventListener('click', function (e) {
+        e.preventDefault();
+        const targetPage = new URL(this.href).searchParams.get('page');
+        let pageInput = filterForm.querySelector('input[name="page"]');
+        if (!pageInput) {
+          pageInput = document.createElement('input');
+          pageInput.type = 'hidden';
+          pageInput.name = 'page';
+          filterForm.appendChild(pageInput);
+        }
+        pageInput.value = targetPage;
+        filterForm.submit();
+      });
+    });
   });
 
-  // Export functions
+  // ========= Export to PDF ========= //
   async function exportToPDF() {
     try {
-      const response = await fetch('/admin/sales-report/export-pdf' + window.location.search);
+      const response = await fetch(`/admin/sales-report/export-pdf${window.location.search}`);
+      if (!response.ok) throw new Error('PDF export failed');
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'sales-report.pdf';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error exporting PDF:', error);
-      alert('Failed to export PDF. Please try again.');
+      triggerDownload(blob, 'sales-report.pdf');
+    } catch (err) {
+      console.error('PDF Export Error:', err);
+      alert('Failed to export PDF. Try again.');
     }
   }
 
+  // ========= Export to Excel ========= //
   async function exportToExcel() {
     try {
-      const response = await fetch('/admin/export/sales/excel' + window.location.search);
+      const response = await fetch(`/admin/sales-report/export-excel${window.location.search}`);
+      if (!response.ok) throw new Error('Excel export failed');
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'sales-report.xlsx';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error exporting Excel:', error);
-      alert('Failed to export Excel. Please try again.');
+      triggerDownload(blob, 'sales-report.xlsx');
+    } catch (err) {
+      console.error('Excel Export Error:', err);
+      alert('Failed to export Excel. Try again.');
     }
   }
+
+  // ========= Trigger File Download ========= //
+  function triggerDownload(blob, filename) {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }
 </script>
+
 
 <%- include('../partials/admin/footer') %>

@@ -3,8 +3,8 @@ const Category = require('../../models/categorySchema');
 const OfferService = require('../../services/offerService');
 const Cart = require('../../models/cartSchema');
 
-// Helper function to get cart count (copied from userController.js)
-const getCartCount = async (userId) => {
+// Helper function to get cart count
+exports.getCartCount = async (userId) => {
     try {
         const cart = await Cart.findOne({ user: userId });
         if (!cart || !cart.items) return 0;
@@ -16,7 +16,7 @@ const getCartCount = async (userId) => {
 };
 
 // Helper function to calculate offers for products
-const calculateOffersForProducts = async (products) => {
+exports.calculateOffersForProducts = async (products) => {
     return await Promise.all(products.map(async (product) => {
         const productObj = product.toObject();
         // Ensure we pass the salesPrice to the offer calculation
@@ -28,12 +28,12 @@ const calculateOffersForProducts = async (products) => {
 };
 
 // Helper function to capitalize words
-function capitalizeWords(str) {
+exports.capitalizeWords = (str) => {
     return str.replace(/\b\w/g, char => char.toUpperCase());
 }
 
 // Get all products with offers
-const getAllProducts = async (req, res) => {
+exports.getAllProducts = async (req, res) => {
     const offers = await require("../../models/offerSchema").find({
         isActive: true,
         startDate: { $lte: new Date() },
@@ -44,7 +44,7 @@ const getAllProducts = async (req, res) => {
             .populate('category');
 
         // Calculate offers for each product, using salesPrice if available
-        products = await calculateOffersForProducts(products);
+        products = await exports.calculateOffersForProducts(products);
 
         
 
@@ -63,7 +63,7 @@ const getAllProducts = async (req, res) => {
 };
 
 // Get product details with offers
-const getProductDetails = async (req, res) => {
+exports.getProductDetails = async (req, res) => {
     
     try {
         const productId = req.params.id;
@@ -92,7 +92,7 @@ const getProductDetails = async (req, res) => {
             }
         }
         // Get unique product count for cart icon
-        const cartCount = req.user ? await getCartCount(req.user._id) : 0;
+        const cartCount = req.user ? await exports.getCartCount(req.user._id) : 0;
 
         // Fetch related products (same category, not this product)
         let relatedProducts = [];
@@ -121,7 +121,7 @@ const getProductDetails = async (req, res) => {
 };
 
 // Calculate product price with offers
-const calculateProductPrice = async (req, res) => {
+exports.calculateProductPrice = async (req, res) => {
     try {
         const { productId } = req.params;
         const product = await Product.findById(productId);
@@ -153,7 +153,7 @@ const calculateProductPrice = async (req, res) => {
 };
 
 // Rate a product
-const rateProduct = async (req, res) => {
+exports.rateProduct = async (req, res) => {
     try {
         const { productId } = req.params;
         const { rating, review } = req.body;
@@ -220,7 +220,7 @@ const rateProduct = async (req, res) => {
 };
 
 
-const getFoodDetails = async (req, res) => {
+exports.getFoodDetails = async (req, res) => {
     try {
         const productId = req.params.id;
         const product = await Product.findById(productId);
@@ -266,7 +266,7 @@ const getFoodDetails = async (req, res) => {
         // Calculate cartCount as in userController.js
         let cartCount = 0;
         if (req.user) {
-            cartCount = await getCartCount(req.user._id);
+            cartCount = await exports.getCartCount(req.user._id);
         }
         
         res.render('user/foodDetails', {
@@ -284,7 +284,7 @@ const getFoodDetails = async (req, res) => {
 };
 
 // API to get latest food status (for AJAX polling)
-const getFoodStatus = async (req, res) => {
+exports.getFoodStatus = async (req, res) => {
     try {
         const productId = req.params.id;
         const product = await Product.findById(productId).populate('category');
@@ -314,12 +314,4 @@ const getFoodStatus = async (req, res) => {
     } catch (err) {
         res.status(500).json({ success: false });
     }
-};
-
-module.exports = {
-    getProductDetails,
-    calculateProductPrice,
-    getFoodDetails,
-    getFoodStatus,
-    rateProduct
 };

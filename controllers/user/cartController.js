@@ -20,8 +20,7 @@ const razorpay =
       })
     : null;
 
-// Utility to get unique product count
-function getUniqueProductCount(cart) {
+exports.getUniqueProductCount = function(cart) {
   if (!cart || !cart.items) return 0;
   return new Set(
     cart.items
@@ -30,19 +29,17 @@ function getUniqueProductCount(cart) {
   ).size;
 }
 
-const calculateCartCount = async (userId) => {
+exports.calculateCartCount = async (userId) => {
   try {
     if (!userId) return 0;
 
     const cart = await Cart.findOne({ user: userId });
     if (!cart || !cart.items) return 0;
 
-    // Filter out any invalid items and get unique product count
     const validItems = cart.items.filter(
       (item) => item && item.product && item.quantity > 0
     );
 
-    // Return the number of unique products
     return getUniqueProductCount(cart);
   } catch (error) {
     console.error("Error calculating cart count:", error);
@@ -50,14 +47,13 @@ const calculateCartCount = async (userId) => {
   }
 };
 
-const renderProductDetails = async (req, res) => {
+exports.renderProductDetails = async (req, res) => {
   try {
     const { productId } = req.params;
     let isInWishlist = false;
     let cartItems = [];
     let cartCount = 0;
 
-    // Get product details
     const product = await Product.findById(productId)
       .populate("category")
       .populate("ratings.user", "name");
@@ -122,7 +118,7 @@ const renderProductDetails = async (req, res) => {
   }
 };
 
-const submitRating = async (req, res) => {
+exports.submitRating = async (req, res) => {
   try {
     const productId = req.params.id;
     const { rating, comment } = req.body;
@@ -179,9 +175,9 @@ const submitRating = async (req, res) => {
   }
 };
 
-const calculateCartTotal = async (cart) => {
+exports.calculateCartTotal = async (cart) => {
   let subtotal = 0;
-  let deliveryCharge = 40; // Default delivery charge
+  let deliveryCharge = 0; // Delivery always free
 
   if (!cart || !cart.items) {
     return {
@@ -238,47 +234,12 @@ const calculateCartTotal = async (cart) => {
   };
 };
 
-const getCart = async (req, res) => {
-  try {
-    const cart = await Cart.findOne({ user: req.user._id }).populate({
-      path: "items.product",
-      model: "Product",
-      select: "name price salesPrice productImage",
-    });
-
-    if (!cart) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Cart not found" });
-    }
-
-    const cartItems = cart.items || [];
-    const total = cartItems.reduce((sum, item) => {
-      const price = item.product.salesPrice || item.product.regularPrice;
-      return sum + price * item.quantity;
-    }, 0);
-
-    res.json({
-      success: true,
-      cart: cartItems,
-      total,
-      cartCount: getUniqueProductCount(cart), // Update to count unique items
-    });
-  } catch (error) {
-    console.error("Error fetching cart data:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to fetch cart data" });
-  }
-};
-
-const addToCart = async (req, res) => {
+exports.addToCart = async (req, res) => {
   try {
     const productId = req.params.productId;
     const { quantity = 1 } = req.body;
     const userId = req.user._id;
 
-    // Validate product exists and is available
     const product = await Product.findById(productId);
     if (!product) {
       return res
@@ -292,7 +253,6 @@ const addToCart = async (req, res) => {
         .json({ success: false, message: "Product is not available" });
     }
 
-    // Check stock availability
     if (product.quantity < quantity) {
       return res
         .status(400)
@@ -302,26 +262,22 @@ const addToCart = async (req, res) => {
         });
     }
 
-    // Get current offer details for the product
     const offerDetails = await OfferService.getBestOffer(product);
     const productPrice = offerDetails.hasOffer
       ? offerDetails.finalPrice
       : product.regularPrice;
 
-    // Find or create cart
     let cart = await Cart.findOne({ user: userId });
 
     if (!cart) {
       cart = new Cart({ user: userId, items: [] });
     }
 
-    // Check if product already exists in cart
     const existingItem = cart.items.find(
       (item) => item.product.toString() === productId
     );
 
     if (existingItem) {
-      // Update quantity if product exists
       existingItem.quantity = quantity;
       existingItem.price = productPrice;
       existingItem.originalPrice = product.regularPrice;
@@ -329,7 +285,6 @@ const addToCart = async (req, res) => {
         ? offerDetails.discountPercentage
         : 0;
     } else {
-      // Add new item if product doesn't exist
       cart.items.push({
         product: productId,
         quantity: quantity,
@@ -341,18 +296,14 @@ const addToCart = async (req, res) => {
       });
     }
 
-    // Calculate cart totals
     const totals = cart.calculateTotals();
     cart.subtotal = totals.subtotal;
     cart.total = totals.total;
 
-    // Save cart
     await cart.save();
 
-    // Get unique product count
-    const cartCount = getUniqueProductCount(cart);
+    const cartCount = exports.getUniqueProductCount(cart);
 
-    // Return updated cart details
     return res.json({
       success: true,
       message: "Product added to cart successfully",
@@ -363,9 +314,9 @@ const addToCart = async (req, res) => {
         deliveryCharge: totals.deliveryCharge,
         couponDiscount: totals.couponDiscount,
         totalSavings: totals.totalSavings,
-        itemCount: cartCount, // Use unique product count
+        itemCount: cartCount, 
       },
-      cartCount: cartCount, // Add this at the top level for frontend
+      cartCount: cartCount, 
     });
   } catch (error) {
     console.error("Error in addToCart:", error);
@@ -375,7 +326,7 @@ const addToCart = async (req, res) => {
   }
 };
 
-const updateCart = async (req, res) => {
+exports.updateCart = async (req, res) => {
   try {
     const userId = req.user._id; // Convert ObjectId to string
     // Get productId from URL params and quantity from request body
@@ -471,7 +422,7 @@ const updateCart = async (req, res) => {
     await cart.save();
 
     // Calculate new cart count and totals
-    const cartCount = getUniqueProductCount(cart);
+    const cartCount = exports.getUniqueProductCount(cart);
     const totals = cart.calculateTotals();
 
     // Update res.locals and req.user
@@ -494,7 +445,7 @@ const updateCart = async (req, res) => {
   }
 };
 
-const removeFromCart = async (req, res) => {
+exports.removeFromCart = async (req, res) => {
   try {
     const { productId } = req.params;
     const userId = req.user._id;
@@ -536,7 +487,7 @@ const removeFromCart = async (req, res) => {
       subtotal: totals.subtotal,
       total: totals.total,
       deliveryCharge: totals.deliveryCharge,
-      itemCount: getUniqueProductCount(cart),
+      itemCount: exports.getUniqueProductCount(cart),
     });
   } catch (error) {
     res.status(500).json({
@@ -546,7 +497,7 @@ const removeFromCart = async (req, res) => {
   }
 };
 
-const placeOrder = async (req, res) => {
+exports.placeOrder = async (req, res) => {
   try {
     const { addressId, paymentMethod } = req.body;
     const userId = req.user._id.toString();
@@ -601,7 +552,7 @@ const placeOrder = async (req, res) => {
   }
 };
 
-const getWishlist = async (req, res) => {
+exports.getWishlist = async (req, res) => {
   try {
     const userId = req.user._id;
 
@@ -622,7 +573,7 @@ const getWishlist = async (req, res) => {
     }
 
     // Get cart count
-    const cartCount = await calculateCartCount(userId);
+    const cartCount = await exports.calculateCartCount(userId);
 
     // Filter out any wishlist items where the product has been deleted
     const validWishlist = user.wishlist
@@ -648,7 +599,7 @@ const getWishlist = async (req, res) => {
   }
 };
 
-const addToWishlist = async (req, res) => {
+exports.addToWishlist = async (req, res) => {
   try {
     const { productId } = req.body;
     const userId = req.user._id;
@@ -692,7 +643,7 @@ const addToWishlist = async (req, res) => {
   }
 };
 
-const removeFromWishlist = async (req, res) => {
+exports.removeFromWishlist = async (req, res) => {
   try {
     const { productId } = req.body; // Get productId from request body
     const userId = req.user._id;
@@ -734,7 +685,7 @@ const removeFromWishlist = async (req, res) => {
   }
 };
 
-const toggleWishlist = async (req, res) => {
+exports.toggleWishlist = async (req, res) => {
   try {
     const { productId } = req.body;
     const userId = req.user._id;
@@ -815,7 +766,7 @@ const toggleWishlist = async (req, res) => {
   }
 };
 
-const renderCheckoutPage = async (req, res) => {
+exports.renderCheckoutPage = async (req, res) => {
   try {
     const userId = req.user._id.toString();
 
@@ -899,7 +850,7 @@ const renderCheckoutPage = async (req, res) => {
     cart.total = totals.total;
 
     // Get unique product count
-    const cartCount = getUniqueProductCount(cart);
+    const cartCount = exports.getUniqueProductCount(cart);
 
     res.render("user/checkout", {
       offers,
@@ -925,7 +876,7 @@ const renderCheckoutPage = async (req, res) => {
   }
 };
 
-const processCheckout = async (req, res) => {
+exports.processCheckout = async (req, res) => {
   try {
     const { addressId, paymentMethod } = req.body;
     const userId = req.user._id.toString();
@@ -1095,9 +1046,8 @@ const processCheckout = async (req, res) => {
   }
 };
 
-const verifyRazorpayPayment = async (req, res) => {
+exports.verifyRazorpayPayment = async (req, res) => {
   try {
-    // Check if Razorpay is configured
     if (!razorpay) {
       return res.status(400).json({
         error: "Online payment is not available at the moment.",
@@ -1107,7 +1057,6 @@ const verifyRazorpayPayment = async (req, res) => {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
       req.body;
 
-    // Verify signature
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
@@ -1115,7 +1064,6 @@ const verifyRazorpayPayment = async (req, res) => {
       .digest("hex");
 
     if (expectedSignature === razorpay_signature) {
-      // Find and update order
       const order = await Order.findOne({ razorpayOrderId: razorpay_order_id });
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
@@ -1125,7 +1073,6 @@ const verifyRazorpayPayment = async (req, res) => {
       order.razorpayPaymentId = razorpay_payment_id;
       await order.save();
 
-      // Clear cart
       const cart = await Cart.findOne({ user: req.user._id.toString() });
       if (cart) {
         cart.items = [];
@@ -1143,7 +1090,7 @@ const verifyRazorpayPayment = async (req, res) => {
   }
 };
 
-const checkProductInCart = async (req, res) => {
+exports.checkProductInCart = async (req, res) => {
   try {
     const { productId } = req.params;
     const userId = req.user._id.toString();
@@ -1163,7 +1110,7 @@ const checkProductInCart = async (req, res) => {
   }
 };
 
-const getCartPage = async (req, res) => {
+exports.getCartPage = async (req, res) => {
   try {
     if (!req.user) {
       return res.redirect("/login");
@@ -1274,7 +1221,7 @@ const getCartPage = async (req, res) => {
     cart.total = totals.total;
 
     // Get unique product count
-    const cartCount = getUniqueProductCount(cart);
+    const cartCount = exports.getUniqueProductCount(cart);
 
     res.render("user/cart", {
       cartItems,
@@ -1296,7 +1243,7 @@ const getCartPage = async (req, res) => {
   }
 };
 
-const applyCoupon = async (req, res) => {
+exports.applyCoupon = async (req, res) => {
   try {
     const { couponCode } = req.body;
     const userId = req.user._id; // No need to convert to string
@@ -1345,7 +1292,7 @@ const applyCoupon = async (req, res) => {
     }
 
     // Calculate cart totals before applying coupon
-    const cartTotals = await calculateCartTotal(cart);
+    const cartTotals = await exports.calculateCartTotal(cart);
 
     // Check minimum purchase using correct schema field
     if (cartTotals.subtotal < coupon.minPurchase) {
@@ -1388,7 +1335,7 @@ const applyCoupon = async (req, res) => {
         path: "category",
       },
     });
-    const updatedCartTotals = await calculateCartTotal(updatedCart);
+    const updatedCartTotals = await exports.calculateCartTotal(updatedCart);
 
     // Return response with complete cart data
     res.json({
@@ -1411,7 +1358,7 @@ const applyCoupon = async (req, res) => {
   }
 };
 
-const removeCoupon = async (req, res) => {
+exports.removeCoupon = async (req, res) => {
   try {
     const userId = req.user._id.toString();
 
@@ -1451,7 +1398,7 @@ const removeCoupon = async (req, res) => {
   }
 };
 
-const getAvailableCoupons = async (req, res) => {
+exports.getAvailableCoupons = async (req, res) => {
   try {
     const userId = req.user._id.toString();
 
@@ -1464,7 +1411,7 @@ const getAvailableCoupons = async (req, res) => {
       });
     }
 
-    const { subtotal } = await calculateCartTotal(cart);
+    const { subtotal } = await exports.calculateCartTotal(cart);
 
     // Find valid coupons
     const now = new Date();
@@ -1506,7 +1453,7 @@ const getAvailableCoupons = async (req, res) => {
   }
 };
 
-const calculateCartSummary = (cart) => {
+exports.calculateCartSummary = (cart) => {
   const subtotal = cart.items.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
@@ -1523,7 +1470,7 @@ const calculateCartSummary = (cart) => {
   };
 };
 
-const incrementCartItem = async (req, res) => {
+exports.incrementCartItem = async (req, res) => {
   try {
     const userId = req.user._id;
     const { productId } = req.params;
@@ -1558,7 +1505,7 @@ const incrementCartItem = async (req, res) => {
 
     cartItem.quantity += 1;
     await cart.save();
-    const summary = calculateCartSummary(cart);
+    const summary = exports.calculateCartSummary(cart);
     return res.json({
       success: true,
       message: "Quantity increased",
@@ -1573,7 +1520,7 @@ const incrementCartItem = async (req, res) => {
   }
 };
 
-const decrementCartItem = async (req, res) => {
+exports.decrementCartItem = async (req, res) => {
   try {
     const userId = req.user._id;
     const { productId } = req.params;
@@ -1602,7 +1549,7 @@ const decrementCartItem = async (req, res) => {
 
     cartItem.quantity -= 1;
     await cart.save();
-    const summary = calculateCartSummary(cart);
+    const summary = exports.calculateCartSummary(cart);
     return res.json({
       success: true,
       message: "Quantity decreased",
@@ -1615,30 +1562,4 @@ const decrementCartItem = async (req, res) => {
       .status(500)
       .json({ success: false, message: "Failed to decrease quantity" });
   }
-};
-
-module.exports = {
-  getUniqueProductCount,
-  renderProductDetails,
-  submitRating,
-  calculateCartTotal,
-  getCartPage,
-  addToCart,
-  updateCart,
-  removeFromCart,
-  placeOrder,
-  getWishlist,
-  addToWishlist,
-  removeFromWishlist,
-  toggleWishlist,
-  renderCheckoutPage,
-  processCheckout,
-  verifyRazorpayPayment,
-  checkProductInCart,
-  applyCoupon,
-  removeCoupon,
-  getAvailableCoupons,
-  calculateCartSummary,
-  incrementCartItem,
-  decrementCartItem,
 };

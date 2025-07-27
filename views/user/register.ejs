@@ -164,7 +164,7 @@
                   <%= error %>
                 </div>
               <% } %>
-              <form id="registerForm" onsubmit="handleRegisterSubmit(event)">
+              <form id="registerForm" method="POST" action="/register" novalidate>
                 <div class="form-group mb-3">
                   <label for="name">Full Name</label>
                   <input type="text" 
@@ -230,21 +230,14 @@
                 </div>
                 <div class="form-group mb-3">
                   <label for="referralCode">Have a Referral Code? (Optional)</label>
-                  <div class="input-group">
-                    <input type="text" 
-                           class="form-control" 
-                           id="referralCode" 
-                           name="referralCode" 
-                           placeholder="Enter referral code"
-                           pattern="[A-Za-z0-9]{6,10}"
-                           title="Referral code should be 6-10 characters long">
-                    <div class="input-group-append">
-                      <button class="btn btn-outline-secondary" type="button" onclick="verifyReferralCode()">
-                        Verify
-                      </button>
-                    </div>
-                  </div>
-                  <small id="referralStatus" class="form-text"></small>
+                  <input type="text" 
+                         class="form-control" 
+                         id="referralCode" 
+                         name="referralCode" 
+                         placeholder="Enter referral code"
+                         pattern="[A-Za-z0-9]{6,10}"
+                         title="Referral code should be 6-10 characters long">
+                  <small class="form-text text-muted">Enter a valid referral code to get rewards</small>
                 </div>
 
                 <button type="submit" class="btn btn-register w-100">Register</button>
@@ -276,142 +269,86 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
-    async function handleRegisterSubmit(event) {
-  event.preventDefault();
+    function validateForm() {
+      const rawName = document.getElementById('name').value;
+      const name = rawName.trim();
+      const email = document.getElementById('email').value.trim().toLowerCase();
+      const phone = document.getElementById('phone').value.trim();
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
 
-  const rawName = document.getElementById('name').value;
-  const name = rawName.trim();
-  const email = document.getElementById('email').value.trim().toLowerCase();
-  const phone = document.getElementById('phone').value.trim();
-  const password = document.getElementById('password').value;
-  const confirmPassword = document.getElementById('confirmPassword').value;
-  const referralCode = document.getElementById('referralCode').value || undefined;
+      // Regex patterns
+      const nameRegex = /^[A-Za-z][A-Za-z\s]*$/;
+      const emailStartRegex = /^[A-Za-z]/;
+      const emailFormatRegex = /^[\w-]+(\.\w+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/;
+      const phoneRegex = /^\d{10}$/;
 
-  // Regex patterns
-  const nameRegex = /^[A-Za-z][A-Za-z\s]*$/; // starts with a letter, only letters/spaces
-  const emailStartRegex = /^[A-Za-z]/;
-  const emailFormatRegex = /^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/;
-  const phoneRegex = /^\d{10}$/;
+      // Name validation
+      if (!rawName || rawName[0] === ' ') {
+        Swal.fire({
+          icon: 'error',
+          title: 'Invalid Name',
+          text: 'Name cannot start with a space.'
+        });
+        return false;
+      }
 
-  // Name validation
-  if (!rawName || rawName[0] === ' ') {
-  return Swal.fire({
-    icon: 'error',
-    title: 'Invalid Name',
-    text: 'Name cannot start with a space.'
-  });
-}
+      if (!nameRegex.test(name)) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Invalid Name',
+          text: 'Name must start with a letter and contain only letters and spaces.'
+        });
+        return false;
+      }
 
-if (!nameRegex.test(name)) {
-  return Swal.fire({
-    icon: 'error',
-    title: 'Invalid Name',
-    text: 'Name must start with a letter and contain only letters and spaces.'
-  });
-}
+      // Email validation
+      if (!emailStartRegex.test(email)) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Invalid Email',
+          text: 'Email must start with a letter'
+        });
+        return false;
+      }
 
-  // Email validation
-  if (!emailStartRegex.test(email)) {
-    return Swal.fire({
-      icon: 'error',
-      title: 'Invalid Email',
-      text: 'Email must start with a letter'
-    });
-  }
+      if (!emailFormatRegex.test(email)) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Invalid Email Format',
+          text: 'Please enter a valid email address'
+        });
+        return false;
+      }
 
-  if (!emailFormatRegex.test(email)) {
-    return Swal.fire({
-      icon: 'error',
-      title: 'Invalid Email Format',
-      text: 'Please enter a valid email address'
-    });
-  }
+      // Phone validation
+      if (!phoneRegex.test(phone)) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Invalid Phone',
+          text: 'Phone number must be exactly 10 digits'
+        });
+        return false;
+      }
 
-  // Phone validation
-  if (!phoneRegex.test(phone)) {
-    return Swal.fire({
-      icon: 'error',
-      title: 'Invalid Phone',
-      text: 'Phone number must be exactly 10 digits'
-    });
-  }
+      // Password match validation
+      if (password !== confirmPassword) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Password Mismatch',
+          text: 'Password and confirm password do not match'
+        });
+        return false;
+      }
 
-  // Password match validation
-  if (password !== confirmPassword) {
-    return Swal.fire({
-      icon: 'error',
-      title: 'Password Mismatch',
-      text: 'Password and confirm password do not match'
-    });
-  }
-
-  // Construct form data
-  const formData = {
-    name,
-    email,
-    phone,
-    password,
-    referralCode
-  };
-
-  // Submit to server
-  const response = await fetch('/register', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
-    body: JSON.stringify(formData)
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    if (data.error === 'Email already registered') {
-      await Swal.fire({
-        icon: 'error',
-        title: 'Email Already Registered',
-        text: 'This email is already registered. Would you like to login instead?',
-        showCancelButton: true,
-        confirmButtonText: 'Login',
-        confirmButtonColor: '#ffbe33',
-        cancelButtonText: 'Try Again',
-        cancelButtonColor: '#d33'
-      }).then((result) => {
-        if (result.isConfirmed) {
-          window.location.href = '/login';
-        }
-      });
-    } else {
-      Swal.fire({
-        icon: 'error',
-        title: 'Registration Failed',
-        text: data.error || 'An error occurred during registration'
-      });
+      return true;
     }
-    return;
-  }
 
-  if (data.success) {
-    localStorage.setItem('registrationToken', data.token);
-
-    await Swal.fire({
-      icon: 'success',
-      title: 'Success!',
-      text: data.message,
-      showConfirmButton: false,
-      timer: 1500
+    document.getElementById('registerForm').addEventListener('submit', function(event) {
+      if (!validateForm()) {
+        event.preventDefault();
+      }
     });
-
-    window.location.href = '/verify-otp';
-  } else {
-    Swal.fire({
-      icon: 'error',
-      title: 'Registration Failed',
-      text: data.error || 'An error occurred during registration'
-    });
-  }
-}
 
       function togglePassword(inputId, toggleId) {
         const input = document.getElementById(inputId);
@@ -428,51 +365,7 @@ if (!nameRegex.test(name)) {
         }
       }
 
-      async function verifyReferralCode() {
-        const referralCode = document.getElementById('referralCode').value;
-        const referralStatus = document.getElementById('referralStatus');
 
-        if (!referralCode) {
-          referralStatus.textContent = 'Please enter a referral code';
-          referralStatus.className = 'form-text text-danger';
-          return;
-        }
-
-        const response = await fetch('/user/verify-referral', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ referralCode })
-        });
-
-        if (!response.ok) {
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const data = await response.json();
-            console.error('Referral verification error:', data);
-            referralStatus.textContent = data.error;
-            referralStatus.className = 'form-text text-danger';
-          } else {
-            const text = await response.text();
-            console.error('Referral verification error text:', text);
-            referralStatus.textContent = 'Failed to verify referral code';
-            referralStatus.className = 'form-text text-danger';
-          }
-          return;
-        }
-
-        const data = await response.json();
-
-        if (data.success) {
-          referralStatus.textContent = `Valid referral code! You'll get ${data.rewards.newUser} and your referrer will get ${data.rewards.referrer}`;
-          referralStatus.className = 'form-text text-success';
-        } else {
-          referralStatus.textContent = data.error;
-          referralStatus.className = 'form-text text-danger';
-        }
-      }
     </script>
   </body>
 </html>

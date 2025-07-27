@@ -551,7 +551,6 @@
                     </div>
                 <% } else { %>
                     <div class="row">
-                        <!-- Cart Items -->
                         <div class="col-lg-8">
                             <div class="cart-items-container">
                                 <div class="cart-items-scroll">
@@ -559,7 +558,6 @@
                                         <% if (item && item.product) { %>
                                             <div class="cart-item" data-product-id="<%= item.product._id %>">
                                                 <div class="row align-items-center w-100">
-                                                    <!-- Product Image -->
                                                     <div class="col-md-2">
                                                         <img src="<%= item.product.productImage && Array.isArray(item.product.productImage) && item.product.productImage.length > 0 ? item.product.productImage[0] : item.product.productImage %>" 
                                                              alt="<%= item.product.name %>" 
@@ -662,7 +660,6 @@
     </button>
   <% } %>
 </div>
-
                                 <div class="cart-totals">
                                     <div class="total-item">
                                         <span>Subtotal</span>
@@ -689,7 +686,7 @@
                                     <% } %>
                                     <div class="total-item">
                                         <span>Delivery Charge</span>
-                                        <span id="delivery-charge">₹<%= deliveryCharge ? deliveryCharge.toFixed(2) : '0.00' %></span>
+                                        <span id="delivery-charge">FREE</span>
                                     </div>
                                     <div class="total-item total">
                                         <span>Total</span>
@@ -732,10 +729,8 @@
         </div>
     </div>
 
-    <!-- Coupon Modal Trigger Button -->
     <button id="openCouponModal" class="btn btn-outline-primary mb-3" style="float:right;">Have a Coupon?</button>
 
-    <!-- Coupon Modal -->
     <div id="couponModal" class="coupon-modal-overlay" style="display:none;">
         <div class="coupon-modal-content">
             <button class="coupon-modal-close" id="closeCouponModal" aria-label="Close">&times;</button>

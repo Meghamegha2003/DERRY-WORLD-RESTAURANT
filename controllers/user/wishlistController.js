@@ -4,14 +4,12 @@ const OfferService = require('../../services/offerService');
 const Cart = require('../../models/cartSchema');
 const Offer = require('../../models/offerSchema');
 
-// Utility to get unique product count
-function getUniqueProductCount(cart) {
+exports.getUniqueProductCount = (cart) => {
   if (!cart || !cart.items) return 0;
   return new Set(cart.items.filter(item => item && item.product).map(item => item.product.toString())).size;
 }
 
-// Render wishlist page
-const renderWishlist = async (req, res) => {
+exports.renderWishlist = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({
@@ -20,12 +18,10 @@ const renderWishlist = async (req, res) => {
             });
         }
 
-        // 🛒 Get user's cart and cart product count
         let cartCount = 0;
         const cart = await Cart.findOne({ user: req.user._id });
         cartCount = getUniqueProductCount(cart);
 
-        // 🔍 Load user with wishlist + product details
         const user = await User.findById(req.user._id)
             .populate({
                 path: 'wishlist.product',
@@ -40,12 +36,10 @@ const renderWishlist = async (req, res) => {
             });
         }
 
-        // 🧹 Clean undefined wishlist
         if (!Array.isArray(user.wishlist)) {
             user.wishlist = [];
         }
 
-        // ✅ Remove duplicate products from wishlist
         const uniqueProductIds = new Set();
         const uniqueWishlistItems = user.wishlist.filter(item => {
             if (!item || !item.product) return false;
@@ -55,13 +49,11 @@ const renderWishlist = async (req, res) => {
             return true;
         });
 
-        // 💾 Save deduplicated wishlist if needed
         if (uniqueWishlistItems.length !== user.wishlist.length) {
             user.wishlist = uniqueWishlistItems;
             await user.save();
         }
 
-        // 🏷️ Process each product with offer details
         const validWishlistItems = uniqueWishlistItems.map(async (item) => {
             try {
                 const productData = await OfferService.getProductWithOffer(item.product._id);
@@ -78,12 +70,10 @@ const renderWishlist = async (req, res) => {
             }
         });
 
-        // 📦 Wait for all product data to finish loading
         const wishlistItems = (await Promise.all(validWishlistItems))
             .filter(item => item !== null)
             .sort((a, b) => b.addedAt - a.addedAt);
 
-        // 🔄 Clean wishlist if invalid items were removed
         if (wishlistItems.length !== uniqueWishlistItems.length) {
             user.wishlist = wishlistItems.map(item => ({
                 product: item._id,
@@ -92,13 +82,11 @@ const renderWishlist = async (req, res) => {
             await user.save();
         }
 
-        // ✅ Inject isInCart flag
         const cartProductIds = cart?.items?.map(item => item.product.toString()) || [];
         wishlistItems.forEach(item => {
             item.isInCart = cartProductIds.includes(item._id.toString());
         });
 
-        // 🏷️ Optional: fetch active offers if needed for badge
         const now = new Date();
         const offers = await Offer.find({
             isActive: true,
@@ -106,7 +94,6 @@ const renderWishlist = async (req, res) => {
             validUntil: { $gte: now }
         }).lean();
 
-        // If JSON request, return JSON
         if (req.xhr || req.headers.accept?.includes('application/json')) {
             return res.json({
                 success: true,
@@ -115,7 +102,6 @@ const renderWishlist = async (req, res) => {
             });
         }
 
-        // 👀 Render wishlist view
         res.render('user/wishlist', {
             offers,
             wishlistItems,
@@ -135,9 +121,7 @@ const renderWishlist = async (req, res) => {
     }
 };
 
-
-// Toggle product in wishlist
-const toggleWishlist = async (req, res) => {
+exports.toggleWishlist = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({
@@ -227,8 +211,7 @@ const toggleWishlist = async (req, res) => {
     }
 };
 
-// Remove from wishlist
-const removeFromWishlist = async (req, res) => {
+exports.removeFromWishlist = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({
@@ -280,10 +263,4 @@ const removeFromWishlist = async (req, res) => {
             message: error.message || 'Error removing from wishlist'
         });
     }
-};
-
-module.exports = {
-    renderWishlist,
-    toggleWishlist,
-    removeFromWishlist
 };

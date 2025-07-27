@@ -16,6 +16,7 @@ const ORDER_STATUS = {
 const PAYMENT_STATUS = {
   PENDING: 'Pending',
   PAID: 'Paid',
+  FAILED: 'Failed',
   REFUNDED: 'Refunded'
 };
 
@@ -180,9 +181,26 @@ const OrderSchema = new Schema({
   },
   paymentStatus: {
     type: String,
-    enum: ['Pending', 'Paid', 'Refunded'],
+    enum: ['Pending', 'Paid', 'Failed', 'Refunded'],
     default: 'Pending'
-  }
+  },
+  razorpay: {
+  orderId: String,
+  paymentId: String,
+  signature: String,
+  status: {
+    type: String,
+    enum: ['created', 'attempted', 'failed', 'captured', 'refunded'],
+    default: 'created'
+  },
+  failureReason: String,
+  attemptCount: {
+    type: Number,
+    default: 0
+  },
+  lastAttemptedAt: Date
+},
+
 }, {
   timestamps: true
 });

@@ -15,14 +15,14 @@ const SORT_OPTIONS = {
 };
 
 // Filtering logic removed. Always return base query.
-const buildQuery = () => ({
+exports.buildQuery = () => ({
     isListed: true,
     isBlocked: false,
    
 });
 
 // Helper function to get active categories
-const getActiveCategories = async () => {
+exports.getActiveCategories = async () => {
     return await Category.find({
         isListed: true,
         isBlocked: false
@@ -30,7 +30,7 @@ const getActiveCategories = async () => {
 };
 
 // Apply offers only, no price filtering
-const applyOffersAndFilter = async (products) => {
+exports.applyOffersAndFilter = async (products) => {
     return await Promise.all(products.map(async (product) => {
         const offerDetails = await OfferService.getBestOffer(product);
         return {
@@ -42,7 +42,7 @@ const applyOffersAndFilter = async (products) => {
 };
 
 // Add wishlist status to products
-const addWishlistStatus = async (products, userId) => {
+exports.addWishlistStatus = async (products, userId) => {
     if (!userId) return products;
 
     const user = await User.findById(userId).select('wishlist').lean();
@@ -56,20 +56,20 @@ const addWishlistStatus = async (products, userId) => {
 
 
 // Utility to get unique product count
-function getUniqueProductCount(cart) {
+exports.getUniqueProductCount = (cart) => {
   if (!cart || !cart.items) return 0;
   return new Set(cart.items.filter(item => item && item.product).map(item => item.product.toString())).size;
 }
 
 // Render menu page
-const renderMenuPage = async (req, res) => {
+exports.renderMenuPage = async (req, res) => {
     // DEBUG: Log incoming query params
     try {
         // Get filter parameters
         const { page = 1, search, sort, category, dietaryType, minPrice, maxPrice } = req.query;
         
         // Build base query
-        const query = buildQuery();
+        const query = exports.buildQuery();
         // Add search by product name (starts with, case-insensitive)
         if (search && typeof search === 'string' && search.trim()) {
             query.name = { $regex: '^' + search.trim(), $options: 'i' };
@@ -94,7 +94,7 @@ const renderMenuPage = async (req, res) => {
             .populate('category')
             .lean();
         // Apply offers to compute finalPrice
-        let productsWithOffers = await applyOffersAndFilter(allProducts);
+        let productsWithOffers = await exports.applyOffersAndFilter(allProducts);
         // Compute dynamic slider range from finalPrice
         const finalPrices = productsWithOffers.map(p => p.finalPrice);
         const priceRangeMin = finalPrices.length ? Math.min(...finalPrices) : 0;
@@ -127,10 +127,10 @@ const renderMenuPage = async (req, res) => {
         const paginated = productsWithOffers.slice(startIdx, startIdx + ITEMS_PER_PAGE);
         const products = paginated;
         // Get categories for filter
-        const categories = await getActiveCategories();
+        const categories = await exports.getActiveCategories();
         
         // Add wishlist status
-        const processedProducts = await addWishlistStatus(products, req.user?._id);
+        const processedProducts = await exports.addWishlistStatus(products, req.user?._id);
 
         // Calculate pagination info
         const totalPages = Math.ceil(totalProducts / ITEMS_PER_PAGE);
@@ -139,35 +139,48 @@ const renderMenuPage = async (req, res) => {
         let cartCount = 0;
         if (req.user) {
           const cart = await Cart.findOne({ user: req.user._id });
-          cartCount = getUniqueProductCount(cart);
+          cartCount = exports.getUniqueProductCount(cart);
         }
         
+        // Ensure we have valid products array
+        const finalProducts = Array.isArray(processedProducts) ? processedProducts : [];
+        
+        // Log for debugging
+        console.log(`Rendering ${finalProducts.length} products`);
+        if (finalProducts.length === 0) {
+            console.log('No products found with query:', query);
+        }
+
         // Render page
         res.render('user/menu', {
             title: 'Menu',
-            products: processedProducts,
+            products: finalProducts,
             categories,
             filters: {
-                search,
-                page,
-                sort,
-                category,
-                dietaryType,
-                minPrice,
-                maxPrice
+                search: search || '',
+                page: parseInt(page) || 1,
+                sort: sort || '',
+                category: category || '',
+                dietaryType: dietaryType || '',
+                minPrice: minPrice || '',
+                maxPrice: maxPrice || ''
             },
             pagination: {
-                currentPage: parseInt(page),
-                totalPages,
+                currentPage: parseInt(page) || 1,
+                totalPages: totalPages || 1,
                 hasNextPage: page < totalPages,
                 hasPrevPage: page > 1,
-                nextPage: parseInt(page) + 1,
-                prevPage: parseInt(page) - 1
+                nextPage: (parseInt(page) || 1) + 1,
+                prevPage: Math.max(1, (parseInt(page) || 1) - 1)
             },
             cartCount,
             user: req.user || null,
-
-            activeSort: sort || 'default'
+            activeSort: sort || 'default',
+            // Add price range for the slider
+            priceRange: {
+                min: Math.floor(priceRangeMin || 0),
+                max: Math.ceil(priceRangeMax || 1000)
+            }
         });
     } catch (error) {
         console.error('Error in renderMenuPage:', error);
@@ -179,7 +192,7 @@ const renderMenuPage = async (req, res) => {
 };
 
 // Render category menu
-const renderCategoryMenu = async (req, res) => {
+exports.renderCategoryMenu = async (req, res) => {
     try {
         const { categoryId } = req.params;
         const { page = 1 } = req.query;
@@ -216,14 +229,14 @@ const renderCategoryMenu = async (req, res) => {
             .lean();
             
         // Apply offers
-        let processedProducts = await applyOffersAndFilter(products);
+        let processedProducts = await exports.applyOffersAndFilter(products);
         
         // Add wishlist status
-        processedProducts = await addWishlistStatus(processedProducts, req.user?._id);
+        processedProducts = await exports.addWishlistStatus(processedProducts, req.user?._id);
 
         // Filter by price range (effective price: offer price if present, otherwise sales price)
         let minPriceNum = parseFloat(minPrice);
-        let maxPriceNum = parseFloat(maxPrice);
+        let maxPriceNum = parseFloat(maxPrice); 
         if (!isNaN(minPriceNum) || !isNaN(maxPriceNum)) {
             processedProducts = processedProducts.filter(p => {
                 if (typeof p.finalPrice !== 'number') return false;
@@ -235,7 +248,7 @@ const renderCategoryMenu = async (req, res) => {
         
         // Sort products if needed
         if (sort) {
-            processedProducts = sortProducts(processedProducts, sort);
+            processedProducts = exports.sortProducts(processedProducts, sort);
         }
         
         // Calculate pagination info
@@ -277,18 +290,84 @@ const renderCategoryMenu = async (req, res) => {
 };
 
 
-// Filtering endpoint removed. No longer used.
-const filterProducts = async (req, res) => {
-    res.status(410).json({ success: false, message: 'Filtering is disabled.' });
+// Search products
+exports.searchProducts = async (req, res) => {
+    try {
+        const { query } = req.query;
+        const userId = req.user?._id;
+
+        if (!query || query.trim() === '') {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Search query is required' 
+            });
+        }
+
+        // Search in product name and description
+        const products = await Product.find({
+            $and: [
+                { $or: [
+                    { name: { $regex: query, $options: 'i' } },
+                    { description: { $regex: query, $options: 'i' } }
+                ]},
+                { isListed: true },
+                { isBlocked: false }
+            ]
+        }).lean();
+
+        // Apply offers to products
+        const productsWithOffers = await Promise.all(products.map(async (product) => {
+            const offerDetails = await OfferService.getBestOffer(product);
+            return {
+                ...product,
+                offerDetails,
+                finalPrice: offerDetails?.finalPrice ?? (product.salesPrice || product.regularPrice)
+            };
+        }));
+
+        // Add wishlist status if user is logged in
+        let finalProducts = productsWithOffers;
+        if (userId) {
+            finalProducts = await exports.addWishlistStatus(productsWithOffers, userId);
+        }
+
+        // Get active categories for the sidebar
+        const categories = await exports.getActiveCategories();
+
+        if (req.xhr || req.headers.accept?.includes('application/json')) {
+            return res.json({
+                success: true,
+                products: finalProducts,
+                categories,
+                query
+            });
+        }
+
+        res.render('user/menu', {
+            title: `Search Results for "${query}"`,
+            products: finalProducts,
+            categories,
+            currentCategory: null,
+            query,
+            user: req.user,
+            cartCount: userId ? await exports.getUniqueProductCount(await Cart.findOne({ user: userId })) : 0
+        });
+    } catch (error) {
+        console.error('Error in searchProducts:', error);
+        if (req.xhr || req.headers.accept?.includes('application/json')) {
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Error searching products' 
+            });
+        }
+        res.status(500).render('error', { 
+            message: 'Error searching products',
+            error: { status: 500 }
+        });
+    }
 };
 
-
-module.exports = {
-    renderMenuPage,
-    renderCategoryMenu: (req, res) => { res.status(501).send('Not implemented'); },
-    searchProducts: (req, res) => { res.status(501).send('Not implemented'); },
-    filterProducts: (req, res) => { res.status(501).send('Not implemented'); },
-    renderCategoryMenu,
-
-    filterProducts
+// Filtering endpoint removed. No longer used.
+exports.filterProducts = async (req, res) => {
+    res.status(200).json({ success: true, message: 'Filtering is no longer supported. All items are now shown.' });
 };

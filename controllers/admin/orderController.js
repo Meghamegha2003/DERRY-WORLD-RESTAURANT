@@ -4,7 +4,6 @@ const User = require('../../models/userSchema');
 const Product = require('../../models/productSchema');
 const Wallet = require('../../models/walletSchema');
 
-// Define status transitions map
 const STATUS_TRANSITIONS = {
     'Pending': ['Processing', 'Cancelled'],
     'Processing': ['Shipped', 'Cancelled'],
@@ -17,16 +16,14 @@ const STATUS_TRANSITIONS = {
     'Cancelled': [] 
 };
 
-// Helper functions
-const isStatusUpdateAllowed = (currentStatus) => {
-    return STATUS_TRANSITIONS[currentStatus]?.length > 0;
-};
 
-const getAvailableStatuses = (currentStatus) => {
+
+exports.getAvailableStatuses = (currentStatus) => {
     return STATUS_TRANSITIONS[currentStatus] || [];
 };
 
-const getNextStatuses = (currentStatus) => {
+
+exports.getNextStatuses = (currentStatus) => {
     switch (currentStatus) {
         case ORDER_STATUS.PENDING:
             return [ORDER_STATUS.PROCESSING, ORDER_STATUS.CANCELLED];
@@ -39,7 +36,7 @@ const getNextStatuses = (currentStatus) => {
         case ORDER_STATUS.RETURN_REQUESTED:
             return [ORDER_STATUS.RETURN_APPROVED, ORDER_STATUS.RETURN_REJECTED];
         case ORDER_STATUS.RETURN_APPROVED:
-            return [ORDER_STATUS.CANCELLED];
+            return [];
         case ORDER_STATUS.RETURN_REJECTED:
             return [];
         case ORDER_STATUS.CANCELLED:
@@ -49,7 +46,7 @@ const getNextStatuses = (currentStatus) => {
     }
 };
 
-const getStatusBadgeClass = (status) => {
+exports.getStatusBadgeClass = (status) => {
     switch (status) {
         case 'Pending':
             return 'bg-warning';
@@ -78,36 +75,8 @@ const getStatusBadgeClass = (status) => {
     }
 };
 
-const getStatusColor = (status) => {
-    switch (status) {
-        case 'Pending':
-            return 'warning';
-        case 'Processing':
-            return 'info';
-        case 'Shipped':
-            return 'primary';
-        case 'Out for Delivery':
-            return 'info';
-        case 'Delivery Attempted':
-            return 'warning';
-        case 'Delivered':
-            return 'success';
-        case 'Return Requested':
-            return 'warning';
-        case 'Return Approved':
-            return 'info';
-        case 'Return Picked Up':
-            return 'info';
-        case 'Return Completed':
-            return 'success';
-        case 'Cancelled':
-            return 'danger';
-        default:
-            return 'secondary';
-    }
-};
 
-const getPaymentStatusColor = (status) => {
+exports.getPaymentStatusColor = (status) => {
     switch (status) {
         case PAYMENT_STATUS.PENDING:
             return 'text-warning';
@@ -122,7 +91,7 @@ const getPaymentStatusColor = (status) => {
     }
 };
 
-const formatPaymentMethod = (method) => {
+exports.formatPaymentMethod = (method) => {
     switch (method) {
         case 'CREDIT_CARD':
             return 'Credit Card';
@@ -137,8 +106,7 @@ const formatPaymentMethod = (method) => {
     }
 };
 
-// Get all orders with filtering
-const getOrders = async (req, res) => {
+exports.getOrders = async (req, res) => {
     try {
         // Parse query parameters
         const page = parseInt(req.query.page) || 1;
@@ -234,10 +202,10 @@ const getOrders = async (req, res) => {
                 returnReason,
                 userName: order.user?.name || 'N/A',
                 userEmail: order.user?.email || 'N/A',
-                statusBadgeClass: getStatusBadgeClass(order.orderStatus),
-                paymentStatusColor: getPaymentStatusColor(order.paymentStatus),
-                formattedPaymentMethod: formatPaymentMethod(order.paymentMethod),
-                nextStatuses: getNextStatuses(order.orderStatus)
+                statusBadgeClass: exports.getStatusBadgeClass(order.orderStatus),
+                paymentStatusColor: exports.getPaymentStatusColor(order.paymentStatus),
+                formattedPaymentMethod: exports.formatPaymentMethod(order.paymentMethod),
+                nextStatuses: exports.getNextStatuses(order.orderStatus)
             };
         });
 
@@ -265,10 +233,10 @@ const getOrders = async (req, res) => {
             query: req.query,
             orderStatuses: ORDER_STATUS,
             paymentStatuses: PAYMENT_STATUS,
-            getStatusBadgeClass,
-            getPaymentStatusColor,
-            formatPaymentMethod,
-            getNextStatuses,
+            getStatusBadgeClass: exports.getStatusBadgeClass,
+            getPaymentStatusColor: exports.getPaymentStatusColor,
+            formatPaymentMethod: exports.formatPaymentMethod,
+            getNextStatuses: exports.getNextStatuses,
             ORDER_STATUS,
             path : '/admin/orders'
         });
@@ -288,13 +256,11 @@ const getOrders = async (req, res) => {
     }
 };
 
-// Update order status
-const updateOrderStatus = async (req, res) => {
+exports.updateOrderStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { status, note } = req.body;
 
-        // Validate order exists
         const order = await Order.findById(id);
         if (!order) {
             return res.status(404).json({
@@ -303,8 +269,14 @@ const updateOrderStatus = async (req, res) => {
             });
         }
 
-        // Validate status transition is allowed
-        const allowedStatuses = getAvailableStatuses(order.orderStatus);
+        if (order.paymentMethod === 'online' && order.paymentStatus !== PAYMENT_STATUS.PAID) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot update status: payment not completed'
+            });
+        }
+
+        const allowedStatuses = exports.getAvailableStatuses(order.orderStatus);
         if (!allowedStatuses.includes(status)) {
             return res.status(400).json({
                 success: false,
@@ -312,7 +284,6 @@ const updateOrderStatus = async (req, res) => {
             });
         }
 
-        // Update order status
         order.orderStatus = status;
         if (note) {
             order.notes.push({
@@ -321,23 +292,17 @@ const updateOrderStatus = async (req, res) => {
             });
         }
 
-        // Handle special status transitions
         if (status === 'Cancelled') {
-            // Handle cancellation logic (e.g., refund, inventory update)
             await handleOrderCancellation(order);
         } else if (status === 'Return Completed') {
-            // Handle return completion logic
             await handleReturnCompletion(order);
         } else if (status === ORDER_STATUS.DELIVERED) {
-            // Set deliveryDate to current time if delivered
             order.deliveryDate = new Date();
         }
 
         await order.save();
 
-        // If return approved via status update, refund full order and emit wallet update
         if (status === ORDER_STATUS.RETURN_APPROVED) {
-            // Re-add returned items to inventory
             for (const item of order.items) {
                 if (item.product) {
                     await Product.findByIdAndUpdate(item.product, { $inc: { quantity: item.quantity } });
@@ -346,7 +311,6 @@ const updateOrderStatus = async (req, res) => {
             }
             console.log('[ADMIN] Processing Return Approved for order', order._id);
             console.log('[ADMIN] User ID:', order.user.toString());
-            // Refund user wallet
             let wallet = await Wallet.findOne({ user: order.user });
             if (!wallet) {
                 console.log('[ADMIN] No wallet found, initializing new wallet');
@@ -358,7 +322,6 @@ const updateOrderStatus = async (req, res) => {
             wallet.transactions.push({ type: 'credit', amount: refundAmount, description: `Refund for order ${order._id}`, date: new Date(), orderId: order._id.toString(), status: 'completed' });
             await wallet.save();
             await User.findByIdAndUpdate(order.user, { wallet: wallet._id });
-            // Emit real-time wallet update
             const io = req.app.get('io');
             const activeUsers = req.app.get('activeUsers');
             console.log('[ADMIN] ActiveUsers map:', Array.from(activeUsers.entries()));
@@ -372,15 +335,14 @@ const updateOrderStatus = async (req, res) => {
             }
         }
 
-        // Return response based on request type
         if (req.xhr || req.headers.accept?.includes('application/json')) {
             return res.json({
                 success: true,
                 message: 'Order status updated successfully',
                 order: {
                     ...order.toObject(),
-                    statusBadgeClass: getStatusBadgeClass(status),
-                    nextStatuses: getNextStatuses(status)
+                    statusBadgeClass: exports.getStatusBadgeClass(status),
+                    nextStatuses: exports.getNextStatuses(status)
                 }
             });
         }
@@ -401,8 +363,7 @@ const updateOrderStatus = async (req, res) => {
     }
 };
 
-// Get order details
-const getOrderDetails = async (req, res) => {
+exports.getOrderDetails = async (req, res) => {
     try {
         const order = await Order.findById(req.params.id)
             .populate('user', 'name email phone')
@@ -448,9 +409,9 @@ const getOrderDetails = async (req, res) => {
             error
         });
     }
-}; // <--- Added closing brace and semicolon
+}; 
 
-const handleRefund = async (order, item) => {
+exports.handleRefund = async (order, item) => {
     try {
         console.log('[REFUND][DEBUG] Attempting refund for order:', order._id, 'item:', item._id);
         let wallet = await Wallet.findOne({ user: order.user });
@@ -459,13 +420,11 @@ const handleRefund = async (order, item) => {
             wallet = new Wallet({ user: order.user, balance: 0, transactions: [] });
         }
 
-        // Calculate refund based on unit price and quantity
         const unitPrice = item.offerPrice != null ? item.offerPrice : item.price;
         const refundAmount = unitPrice * (item.quantity || 1);
 
         if (refundAmount > 0) {
             console.log('[REFUND][DEBUG] Wallet before save:', JSON.stringify(wallet));
-            // Debit return price instead of credit
             wallet.balance -= refundAmount;
             wallet.transactions.push({
                 type: 'debit',
@@ -479,11 +438,9 @@ const handleRefund = async (order, item) => {
             console.log('[REFUND][DEBUG] Wallet after save:', JSON.stringify(wallet));
             await User.findByIdAndUpdate(order.user, { wallet: wallet._id });
 
-            // Update item refund fields
             item.refundAmount = refundAmount;
             item.refundStatus = 'Completed';
             item.refundDate = new Date();
-            // CRITICAL: Save the order so item changes persist!
             await order.save();
             console.log('[REFUND][DEBUG] Refund processed and wallet/order saved:', {
                 user: order.user,
@@ -500,8 +457,7 @@ const handleRefund = async (order, item) => {
     }
 };
 
-// Handle return request
-const handleReturnAction = async (req, res) => {
+exports.handleReturnAction = async (req, res) => {
     try {
         const { orderId, itemId } = req.params;
         const { action } = req.body;
@@ -525,7 +481,6 @@ const handleReturnAction = async (req, res) => {
         if (action === 'approve') {
             item.returnStatus = 'Approved';
             await handleRefund(order, item);
-            // Re-add returned item to inventory
             try {
                 const prodId = item.product._id ? item.product._id : item.product;
                 await Product.findByIdAndUpdate(prodId, { $inc: { quantity: item.quantity } });
@@ -543,7 +498,6 @@ const handleReturnAction = async (req, res) => {
         }
 
         await order.save();
-        // Emit real-time wallet update to user when return approved
         if (action === 'approve') {
             const wallet = await Wallet.findOne({ user: order.user });
             const io = req.app.get('io');
@@ -578,21 +532,18 @@ const handleReturnAction = async (req, res) => {
     }
 };
 
-const handleOrderCancellation = async (order, reason = 'Cancelled by admin') => {
+exports.handleOrderCancellation = async (order, reason = 'Cancelled by admin') => {
     try {
-        // Mark order as cancelled
         order.orderStatus = ORDER_STATUS.CANCELLED;
         order.cancelReason = reason;
         order.cancelledAt = new Date();
 
-        // Restore product quantities
         for (const item of order.items) {
             if (item.product) {
                 await Product.findByIdAndUpdate(item.product, { $inc: { quantity: item.quantity } });
             }
         }
 
-        // Refund the user if prepaid
         if (order.paymentStatus === PAYMENT_STATUS.COMPLETED && order.paymentMethod !== 'COD') {
             let wallet = await Wallet.findOne({ user: order.user });
             if (!wallet) {
@@ -633,11 +584,3 @@ const handleOrderCancellation = async (order, reason = 'Cancelled by admin') => 
 };
 
 
-module.exports = {
-    getOrders,
-    updateOrderStatus,
-    getOrderDetails,
-    handleReturnAction,
-    handleRefund,
-    handleOrderCancellation
-};

@@ -52,6 +52,7 @@
         <tr>
           <th scope="col">Order ID</th>
           <th scope="col">Customer</th>
+          <th scope="col">Address</th>
           <th scope="col">Total Amount</th>
           <th scope="col">Order Date</th>
           <th scope="col">Status</th>
@@ -66,6 +67,25 @@
             <tr>
               <td>#<%= order._id.toString().slice(-8).toUpperCase() %></td>
               <td><%= order.user ? order.user.email : 'N/A' %></td>
+              <td>
+                <% if (order.shippingAddress) { %>
+                  <button type="button" class="btn btn-sm btn-outline-primary address-btn" 
+                          data-bs-toggle="modal" 
+                          data-bs-target="#addressModal"
+                          data-address-type="<%= order.shippingAddress.addressType || 'Home' %>"
+                          data-full-name="<%= order.shippingAddress.fullName || '' %>"
+                          data-phone="<%= order.shippingAddress.phone || '' %>"
+                          data-address-line1="<%= order.shippingAddress.addressLine1 || '' %>"
+                          data-address-line2="<%= order.shippingAddress.addressLine2 || '' %>"
+                          data-city="<%= order.shippingAddress.city || '' %>"
+                          data-state="<%= order.shippingAddress.state || '' %>"
+                          data-pincode="<%= order.shippingAddress.pincode || '' %>">
+                    <i class="bi bi-geo-alt"></i> View Address
+                  </button>
+                <% } else { %>
+                  <span class="text-muted">No Address</span>
+                <% } %>
+              </td>
               <td>₹<%= (order.totalAmount || order.total || 0).toFixed(2) %></td>
               <td><%= new Date(order.createdAt).toLocaleDateString('en-IN') %></td>
               <td>
@@ -83,12 +103,14 @@
               </td>
               <td><%= order.paymentMethod %></td>
               <td>
-                <select class="form-select status-select" data-order-id="<%= order._id %>">
+                <select class="form-select status-select" data-order-id="<%= order._id %>" <%= (order.paymentMethod === 'online' && order.paymentStatus !== 'Paid') ? 'disabled' : '' %>>
                   <option value="<%= order.orderStatus %>" selected><%= order.orderStatus %></option>
+                  <% if (!(order.paymentMethod === 'online' && order.paymentStatus !== 'Paid')) { %>
                   <% const nextStatuses = getNextStatuses(order.orderStatus); %>
                   <% nextStatuses.forEach(status => { %>
                       <option value="<%= status %>"><%= status %></option>
                   <% }); %>
+                  <% } %>
                 </select>
               </td>
             </tr>
@@ -192,6 +214,58 @@
   </div>
 </div>
 
+<!-- Address Modal -->
+<div class="modal fade" id="addressModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Shipping Address Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label fw-bold">Address Type:</label>
+              <p id="addressType" class="mb-0"></p>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Full Name:</label>
+              <p id="fullName" class="mb-0"></p>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Phone:</label>
+              <p id="phone" class="mb-0"></p>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label fw-bold">Address:</label>
+              <p id="addressLine1" class="mb-1"></p>
+              <p id="addressLine2" class="mb-1 text-muted"></p>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">City:</label>
+              <p id="city" class="mb-0"></p>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">State:</label>
+              <p id="state" class="mb-0"></p>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Pincode:</label>
+              <p id="pincode" class="mb-0"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <%- include('../partials/admin/footer') %>
 
 <script>
@@ -208,7 +282,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!orders || !orders.length) {
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="text-center py-4">
+                    <td colspan="8" class="text-center py-4">
                         <div class="text-muted">
                             <i class="fas fa-inbox fa-3x mb-3"></i>
                             <p>No orders found</p>
@@ -223,6 +297,23 @@ document.addEventListener('DOMContentLoaded', function() {
             <tr>
                 <td>#${order._id.toString().slice(-8).toUpperCase()}</td>
                 <td>${order.user ? order.user.email : 'N/A'}</td>
+                <td>
+                    ${order.shippingAddress ? `
+                        <button type="button" class="btn btn-sm btn-outline-primary address-btn" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#addressModal"
+                                data-address-type="${order.shippingAddress.addressType || 'Home'}"
+                                data-full-name="${order.shippingAddress.fullName || ''}"
+                                data-phone="${order.shippingAddress.phone || ''}"
+                                data-address-line1="${order.shippingAddress.addressLine1 || ''}"
+                                data-address-line2="${order.shippingAddress.addressLine2 || ''}"
+                                data-city="${order.shippingAddress.city || ''}"
+                                data-state="${order.shippingAddress.state || ''}"
+                                data-pincode="${order.shippingAddress.pincode || ''}">
+                            <i class="bi bi-geo-alt"></i> View Address
+                        </button>
+                    ` : '<span class="text-muted">No Address</span>'}
+                </td>
                 <td>₹${(order.totalAmount || order.total || 0).toFixed(2)}</td>
                 <td>${new Date(order.createdAt).toLocaleDateString('en-IN')}</td>
                 <td>
@@ -240,11 +331,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 </td>
                 <td>${order.paymentMethod}</td>
                 <td>
-                    <select class="form-select status-select" data-order-id="${order._id}">
+                    <select class="form-select status-select" data-order-id="${order._id}" ${order.paymentMethod === 'online' && order.paymentStatus === 'Failed' ? 'disabled' : ''}>
                         <option value="${order.orderStatus}" selected>${order.orderStatus}</option>
-                        ${getNextStatuses(order.orderStatus).map(status => 
-                            `<option value="${status}">${status}</option>`
-                        ).join('')}
+                        ${!(order.paymentMethod === 'online' && order.paymentStatus === 'Failed') ? getNextStatuses(order.orderStatus).map(status => `<option value="${status}">${status}</option>`).join('') : ''}
                     </select>
                 </td>
             </tr>
@@ -360,6 +449,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initial attachment of event listeners
     attachEventListeners();
+
+    // Address modal event listener
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.address-btn')) {
+            const button = e.target.closest('.address-btn');
+            
+            // Get address data from button attributes
+            const addressType = button.getAttribute('data-address-type') || 'N/A';
+            const fullName = button.getAttribute('data-full-name') || 'N/A';
+            const phone = button.getAttribute('data-phone') || 'N/A';
+            const addressLine1 = button.getAttribute('data-address-line1') || 'N/A';
+            const addressLine2 = button.getAttribute('data-address-line2') || '';
+            const city = button.getAttribute('data-city') || 'N/A';
+            const state = button.getAttribute('data-state') || 'N/A';
+            const pincode = button.getAttribute('data-pincode') || 'N/A';
+            
+            // Populate modal fields
+            document.getElementById('addressType').textContent = addressType;
+            document.getElementById('fullName').textContent = fullName;
+            document.getElementById('phone').textContent = phone;
+            document.getElementById('addressLine1').textContent = addressLine1;
+            document.getElementById('addressLine2').textContent = addressLine2;
+            document.getElementById('addressLine2').style.display = addressLine2 ? 'block' : 'none';
+            document.getElementById('city').textContent = city;
+            document.getElementById('state').textContent = state;
+            document.getElementById('pincode').textContent = pincode;
+        }
+    });
 });
 </script>
 

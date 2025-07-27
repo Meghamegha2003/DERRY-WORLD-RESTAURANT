@@ -1,6 +1,5 @@
 const Wallet = require('../../models/walletSchema');
 
-// Admin manual refund to user wallet
 exports.manualRefund = async (req, res) => {
     const { userId } = req.params;
     const { amount, description } = req.body;

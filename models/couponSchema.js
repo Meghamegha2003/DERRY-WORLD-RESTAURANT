@@ -29,10 +29,6 @@ const couponSchema = new mongoose.Schema({
         min: [0, 'Minimum purchase amount cannot be negative'],
         default: 0
     },
-    maxDiscount: {
-        type: Number,
-        min: [0, 'Maximum discount cannot be negative']
-    },
     validFrom: {
         type: Date,
         required: true,

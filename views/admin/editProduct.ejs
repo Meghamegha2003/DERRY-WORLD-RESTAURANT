@@ -306,6 +306,17 @@
 
   function handleImageSelect(event) {
     const file = event.target.files[0];
+    // Validate file exists and is an image
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Invalid File Type',
+        text: 'Only image files are allowed'
+      });
+      event.target.value = '';
+      return;
+    }
     if (!file) return;
 
     const reader = new FileReader();

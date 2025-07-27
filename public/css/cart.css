@@ -171,3 +171,14 @@
 .applied-coupon .btn-close:hover {
     opacity: 0.8;
 }
+
+/* Page border */
+body {
+    border: 2px solid #ffc107;
+    padding: 10px;
+}
+
+/* Override green text to amber */
+.text-success {
+    color: #ffc107 !important;
+}

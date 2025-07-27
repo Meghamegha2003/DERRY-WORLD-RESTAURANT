@@ -10,7 +10,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Render contact page
-const renderContactPage = async (req, res) => {
+exports.renderContactPage = async (req, res) => {
   try {
     res.render('contact', {
       user: req.user,
@@ -25,7 +25,7 @@ const renderContactPage = async (req, res) => {
 };
 
 // Handle contact form submission
-const handleContactForm = async (req, res) => {
+exports.handleContactForm = async (req, res) => {
   try {
     const { name, email, phone, subject, message } = req.body;
 
@@ -78,9 +78,4 @@ const handleContactForm = async (req, res) => {
     console.error('Error handling contact form:', error);
     res.redirect('/contact?error=There was an error sending your message. Please try again.');
   }
-};
-
-module.exports = {
-  renderContactPage,
-  handleContactForm
 };

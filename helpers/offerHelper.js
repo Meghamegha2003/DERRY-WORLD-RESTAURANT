@@ -38,12 +38,10 @@ const getBestOffer = async (product) => {
             };
         }
 
-        // Get base price (use sales price if available, otherwise regular price)
         const basePrice = product.salesPrice && product.salesPrice < product.regularPrice
             ? product.salesPrice
             : product.regularPrice;
 
-        // Calculate discount for each offer and find the best one
         const bestOffer = offers.reduce((best, current) => {
             let currentDiscount = 0;
             
@@ -52,8 +50,8 @@ const getBestOffer = async (product) => {
                 if (current.maxDiscount) {
                     currentDiscount = Math.min(currentDiscount, current.maxDiscount);
                 }
-            } else { // fixed amount
-                currentDiscount = Math.min(current.discountValue, basePrice); // Don't exceed item price
+            } else { 
+                currentDiscount = Math.min(current.discountValue, basePrice);
             }
 
             if (!best.discount || currentDiscount > best.discount) {

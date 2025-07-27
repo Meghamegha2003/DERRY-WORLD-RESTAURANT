@@ -80,7 +80,7 @@ cartSchema.methods.calculateTotals = function() {
     const subtotal = this.items.reduce((total, item) => {
         return total + (item.price * item.quantity);
     }, 0);
-    const deliveryCharge = subtotal >= 500 ? 0 : 40;
+    const deliveryCharge = 0;
     const couponDiscount = this.couponDiscount || 0;
     const totalSavings = this.items.reduce((savings, item) => {
         const originalTotal = item.originalPrice * item.quantity;

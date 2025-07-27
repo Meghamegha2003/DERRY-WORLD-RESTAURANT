@@ -34,20 +34,30 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
-    <!-- Socket.IO -->
-    <script src="/socket.io/socket.io.js"></script>
     <script>
-      // Connect to Socket.IO with configuration
-      console.log('[DEBUG] Initializing socket.io connection...');
-      const socket = io({
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        timeout: 20000,
+      // Check if user is blocked on page load
+      document.addEventListener('DOMContentLoaded', function() {
+        // Check for blocked status in URL query params
+        const urlParams = new URLSearchParams(window.location.search);
+        const isBlocked = urlParams.get('blocked');
+        
+        if (isBlocked === 'true') {
+          // Clear user token
+          document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+          
+          // Show blocked message
+          Swal.fire({
+            title: 'Account Blocked',
+            text: 'Your account has been blocked. Please contact support for more information.',
+            icon: 'error',
+            confirmButtonText: 'OK',
+            allowOutsideClick: false
+          }).then(() => {
+            // Redirect to login page
+            window.location.href = '/login';
+          });
+        }
       });
-
-      // Track connection state
       let isConnected = false;
       let userId = null;
 
@@ -159,48 +169,7 @@
       });
     </script>
     
-    <script>
-    async function handleLogout(event) {
-      event.preventDefault();
-      
-      try {
-        const response = await fetch('/logout', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          credentials: 'same-origin'
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          // Show success message
-          await Swal.fire({
-            icon: 'success',
-            title: 'Success!',
-            text: 'Logged out successfully',
-            showConfirmButton: false,
-            timer: 1500,
-            timerProgressBar: true
-          });
-          
-          // Redirect to login page
-          window.location.href = '/login';
-        } else {
-          throw new Error(data.message || 'Logout failed');
-        }
-      } catch (error) {
-        console.error('Logout error:', error);
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: error.message || 'Something went wrong during logout'
-        });
-      }
-    }
-    </script>
+
     
     <style>
       .header_section {
@@ -323,15 +292,17 @@
                 <li class="nav-item <%= locals.path === '/' ? 'active' : '' %>">
                   <a class="nav-link" href="/">Home</a>
                 </li>
-                <li class="nav-item <%= locals.path === '/menu' ? 'active' : '' %>">
-                  <a class="nav-link" href="/menu">Menu</a>
-                </li>
-                <li class="nav-item <%= locals.path === '/about' ? 'active' : '' %>">
-                  <a class="nav-link" href="/about">About</a>
-                </li>
-                <li class="nav-item <%= locals.path === '/contact' ? 'active' : '' %>">
-                  <a class="nav-link" href="/contact">Contact</a>
-                </li>
+                <% if (locals.user) { %>
+                  <li class="nav-item <%= locals.path === '/menu' ? 'active' : '' %>">
+                    <a class="nav-link" href="/menu">Menu</a>
+                  </li>
+                  <li class="nav-item <%= locals.path === '/about' ? 'active' : '' %>">
+                    <a class="nav-link" href="/about">About</a>
+                  </li>
+                  <li class="nav-item <%= locals.path === '/contact' ? 'active' : '' %>">
+                    <a class="nav-link" href="/contact">Contact</a>
+                  </li>
+                <% } %>
               </ul>
               <div class="user_option">
                 <% if (locals.user) { %>
@@ -347,10 +318,29 @@
                       <a class="dropdown-item" href="/addresses">Addresses</a>
                       <a class="dropdown-item" href="/wallet">Wallet</a>
                       <div class="dropdown-divider"></div>
-                      <a class="dropdown-item" href="#" onclick="handleLogout(event)">Logout</a>
+                      <a class="dropdown-item" href="#" id="logout-link">Logout</a>
+                      <script>
+                        document.getElementById('logout-link').addEventListener('click', function(e) {
+                          e.preventDefault();
+                          Swal.fire({
+                            title: 'Logout',
+                            text: 'Are you sure you want to logout?',
+                            icon: 'question',
+                            showCancelButton: true,
+                            confirmButtonColor: '#ffbe33',
+                            cancelButtonColor: '#6c757d',
+                            confirmButtonText: 'Yes, logout',
+                            cancelButtonText: 'Cancel',
+                            reverseButtons: true
+                          }).then((result) => {
+                            if (result.isConfirmed) {
+                              window.location.href = '/logout';
+                            }
+                          });
+                        });
+                      </script>
                     </div>
                   </div>
-                  <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
                   <a href="/cart" class="cart_link">
                     <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 456.029 456.029" xml:space="preserve">
                       <g><g><path d="M345.6,338.862c-29.184,0-53.248,23.552-53.248,53.248c0,29.184,23.552,53.248,53.248,53.248c29.184,0,53.248-23.552,53.248-53.248C398.336,362.926,374.784,338.862,345.6,338.862z" /></g></g>

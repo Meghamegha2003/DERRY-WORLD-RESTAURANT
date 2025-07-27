@@ -1,6 +1,5 @@
 <%- include('../partials/admin/header') %>
 <script>
-  // Global stub for coupon code uniqueness
   window.checkCouponCodeExists = window.checkCouponCodeExists || function(code, id) {
     return Promise.resolve(false);
   };
@@ -20,7 +19,6 @@
             <thead class="table-dark">
                 <tr>
                     <th>Code</th>
-                    <th>Description</th>
                     <th>Discount</th>
                     <th>Min Purchase</th>
                     <th>Usage</th>
@@ -33,7 +31,6 @@
                 <% coupons.forEach(coupon => { %>
                     <tr>
                         <td><%= coupon.code %></td>
-                        <td><%= coupon.description %></td>
                         <td>
                             <% if (coupon.discountValue !== undefined) { %>
                                 <%= coupon.discountType === 'percentage' ? coupon.discountValue + '%' : '₹' + coupon.discountValue %>
@@ -152,10 +149,7 @@
                             <input type="date" class="form-control" id="validUntil" name="validUntil" required>
                             <div class="invalid-feedback">Please select an expiry date</div>
                         </div>
-                        <div class="col-12">
-                            <label for="description" class="form-label">Description</label>
-                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-                        </div>
+
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -220,10 +214,7 @@
                             <input type="date" class="form-control" name="validUntil" required>
                             <div class="invalid-feedback">Please select an expiry date</div>
                         </div>
-                        <div class="col-12">
-                            <label for="description" class="form-label">Description</label>
-                            <textarea class="form-control" name="description" rows="2"></textarea>
-                        </div>
+
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -262,7 +253,6 @@
             // Set form values
             form.querySelector('input[name="couponId"]').value = coupon._id;
             form.querySelector('input[name="code"]').value = coupon.code;
-            form.querySelector('textarea[name="description"]').value = coupon.description || '';
             form.querySelector('select[name="discountType"]').value = coupon.discountType;
             form.querySelector('input[name="discountValue"]').value = coupon.discountValue;
             form.querySelector('input[name="minPurchase"]').value = coupon.minPurchase;

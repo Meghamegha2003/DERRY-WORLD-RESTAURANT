@@ -2,46 +2,11 @@ const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
-const http = require('http');
-const { Server } = require('socket.io');
 const passport = require('passport');
 require('dotenv').config();
 require('./config/passport');
 
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
-
-const activeUsers = new Map();
-
-io.on('connection', (socket) => {
-
-    socket.on('storeUserId', (userId) => {
-        if (userId) {
-           
-            for (const [existingUserId, existingSocketId] of activeUsers.entries()) {
-                if (existingUserId === userId && existingSocketId !== socket.id) {
-                   
-                    activeUsers.delete(existingUserId);
-                }
-            }
-            activeUsers.set(userId, socket.id);
-            socket.emit('socketStored', { userId, socketId: socket.id });
-        }
-    });
-
-    socket.on('disconnect', () => {
-        for (const [userId, socketId] of activeUsers.entries()) {
-            if (socketId === socket.id) {
-                activeUsers.delete(userId);
-                break;
-            }
-        }
-    });
-});
-
-app.set('io', io);
-app.set('activeUsers', activeUsers);
 
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
@@ -96,9 +61,10 @@ const adminOrderRoutes = require('./routes/admin/orderRoutes');
 const adminProductRoutes = require('./routes/admin/productRoutes');
 const userCouponRoutes = require('./routes/user/couponRoutes');
 const { auth, adminAuth } = require('./middlewares/authMiddleware');
-
-// Create admin router group
+const paymentRoutes = require('./routes/user/paymentRoutes');
 const adminWalletRoutes = require('./routes/admin/walletRoutes');
+
+
 const adminGroup = express.Router();
 adminGroup.use('/offers', adminOfferRoutes);
 adminGroup.use('/orders', adminOrderRoutes);
@@ -107,11 +73,9 @@ adminGroup.use('/categories', adminCategoryRoutes);
 adminGroup.use('/coupons', adminCouponRoutes);
 adminGroup.use('/wallet', adminWalletRoutes);
 
-// Mount admin routes with proper middleware
 app.use('/admin', adminRouter);  
 app.use('/admin', adminGroup);  
-
-// Mount user routes with proper middleware
+app.use('/payment', paymentRoutes);
 app.use('/auth/google', googleOAuthRoutes);
 app.use('/cart', auth, cartRouter);
 app.use('/', userRouter);
@@ -121,7 +85,6 @@ app.use('/orders', auth, userOrderRoutes);
 
 
 
-// Error handler for 404 Not Found
 app.use((req, res, next) => {
     res.status(404).render('error', {
         title: 'Page Not Found',
@@ -135,7 +98,6 @@ app.use((req, res, next) => {
     });
 });
 
-// Error handler for all other errors
 app.use((err, req, res, next) => {
     console.error('Error:', err);
 
@@ -158,33 +120,8 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Set up mongoose connection
+
+
 mongoose.connect(process.env.MONGODB_URI)
-    .then(async () => {
-        console.log('Connected to MongoDB');
-        try {
-            await mongoose.connection.db.collection('users').dropIndex('wishlist.product_1');
-        } catch (err) {
-            if (err.codeName !== 'IndexNotFound') console.error('Error dropping wishlist.product_1 index:', err);
-        }
-    })
-    .catch(err => {
-        console.error('MongoDB connection error:', err);
-        process.exit(1);
-    });
-
-// Start server
-const port = process.env.PORT || 3000;
-
-server.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-}).on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-        console.error(`Port ${port} is already in use. Please free up port ${port} or use a different port.`);
-        process.exit(1);
-    }
-    console.error('Server error:', err);
-    process.exit(1);
-});
-
-module.exports = app;
+.then(()=>app.listen(3000,()=>console.log( `server run on http://localhost:3000/`)))
+.catch((err)=>console.error(err))

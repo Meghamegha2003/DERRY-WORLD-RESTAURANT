@@ -1,8 +1,9 @@
 const Category = require('../../models/categorySchema');
+const Product = require('../../models/productSchema')
 
-const categoryController = {
-    // List all categories with pagination
-    listCategories: async (req, res) => {
+
+    
+   exports.listCategories = async (req, res) => {
         try {
             const page = parseInt(req.query.page) || 1;
             const limit = 10;
@@ -16,7 +17,6 @@ const categoryController = {
             const totalCategories = await Category.countDocuments();
             const totalPages = Math.ceil(totalCategories / limit);
 
-            // Check if it's an API request
             if (req.xhr || req.headers.accept?.includes('application/json')) {
                 return res.json({
                     success: true,
@@ -28,7 +28,6 @@ const categoryController = {
                 });
             }
 
-            // Regular page render
             res.render('admin/category', {
                 categories,
                 currentPage: page,
@@ -56,8 +55,7 @@ const categoryController = {
         }
     },
 
-    // Add new category
-    addCategory: async (req, res) => {
+   exports.addCategory = async (req, res) => {
         try {
             const { name, description } = req.body;
             
@@ -104,8 +102,7 @@ const categoryController = {
         }
     },
 
-    // Edit category
-    editCategory: async (req, res) => {
+   exports.editCategory = async (req, res) => {
         try {
             const { categoryId } = req.params;
             const { name, description } = req.body;
@@ -164,20 +161,22 @@ const categoryController = {
         }
     },
 
-    // Toggle category status
-    toggleStatus: async (req, res) => {
+    exports.toggleStatus = async (req, res) => {
         try {
             const { categoryId } = req.params;
             const category = await Category.findById(categoryId);
+
             if (!category) {
                 return res.status(404).json({
                     success: false,
                     message: 'Category not found'
                 });
             }
-            // Toggle the status
+
+            // Toggle the category status
             category.isBlocked = !category.isBlocked;
             await category.save();
+            
             return res.json({
                 success: true,
                 message: `Category ${category.isBlocked ? 'blocked' : 'unblocked'} successfully`,
@@ -192,6 +191,3 @@ const categoryController = {
             });
         }
     }
-};
-
-module.exports = categoryController;

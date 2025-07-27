@@ -408,65 +408,92 @@
             </div>
         <% } else if (orders && orders.length > 0) { %>
         
-    <% orders.forEach(function(order) { %>
-        <div class="order-card">
-            <div class="d-flex flex-row align-items-stretch">
-                <!-- Product Image -->
-                <div style="width:110px; background:#f8f9fa; border-right:1px solid #eee; display:flex; align-items:center; justify-content:center;">
-                    <img src="<%= order.items[0] && order.items[0].product.productImage && order.items[0].product.productImage[0] ? order.items[0].product.productImage[0] : 'https://via.placeholder.com/100x100?text=No+Image' %>" alt="<%= order.items[0] && order.items[0].product.name ? order.items[0].product.name : 'Product' %>" style="width:90px; height:90px; object-fit:cover; border-radius:8px;">
-                </div>
-                <!-- Details -->
-                <div class="flex-grow-1 p-3 d-flex flex-column justify-content-between">
-                    <div>
-                        <div class="fw-semibold fs-6 mb-1">
-                            <span class="text-secondary small">Order ID: <strong>#<%= order._id.toString().slice(-8).toUpperCase() %></strong></span><br>
-                            <%= order.items[0] && order.items[0].product.name ? order.items[0].product.name : 'Product Name' %>
-                            <% if (order.items.length > 1) { %>
-                                <span class="text-muted small">+ <%= order.items.length-1 %> more</span>
-                            <% } %>
+   <% orders.forEach(function(order) { %>
+    <div class="order-card">
+        <div class="d-flex flex-row align-items-stretch">
+            <!-- Product Image -->
+            <% 
+                const item = order.items[0];
+                const product = item && item.product;
+                const productImage = product && product.productImage && product.productImage[0] 
+                    ? product.productImage[0] 
+                    : 'https://via.placeholder.com/100x100?text=No+Image';
+                const productName = product && product.name ? product.name : 'Product';
+            %>
+            <div style="width:110px; background:#f8f9fa; border-right:1px solid #eee; display:flex; align-items:center; justify-content:center;">
+                <img src="<%= productImage %>" alt="<%= productName %>" style="width:90px; height:90px; object-fit:cover; border-radius:8px;">
+            </div>
+
+            <!-- Details -->
+            <div class="flex-grow-1 p-3 d-flex flex-column justify-content-between">
+                <div>
+                    <% if (order.paymentStatus === 'Failed') { %>
+                        <div class="alert alert-danger mb-2 d-flex align-items-center gap-2 py-1 px-2" style="font-size: 0.9rem;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span><strong>Payment Failed:</strong> This order was not completed successfully.</span>
                         </div>
-                        <% if (order.items[0] && (order.items[0].product.color || order.items[0].product.size)) { %>
-                            <div class="text-muted small mb-1">
-                                <% if (order.items[0].product.color) { %>Color: <%= order.items[0].product.color %><% } %>
-                                <% if (order.items[0].product.size) { %> Size: <%= order.items[0].product.size %><% } %>
-                            </div>
+                    <% } %>
+
+                    <div class="fw-semibold fs-6 mb-1">
+                        <span class="text-secondary small">Order ID: <strong>#<%= order._id.toString().slice(-8).toUpperCase() %></strong></span><br>
+                        <%= productName %>
+                        <% if (order.items.length > 1) { %>
+                            <span class="text-muted small">+ <%= order.items.length - 1 %> more</span>
                         <% } %>
-    </div>
-    <div class="fw-bold text-primary">₹<%= order.total ? order.total.toFixed(2) : '0.00' %></div>
                     </div>
-                    <div class="d-flex align-items-center gap-2 mt-2">
-    <button class="btn btn-outline-primary btn-sm" onclick="viewOrderDetails('<%= order._id %>')">View Details</button>
-                        <span class="badge status-<%= order.orderStatus.toLowerCase().replace(/\s+/g, '-') %>">
-                            <%= order.orderStatus %>
-                        </span>
-                        <% if (order.orderStatus === 'Delivered') { %>
-                            <span class="text-success small"><i class="fa fa-check-circle"></i> Delivered on <%= order.deliveryDate ? (new Date(order.deliveryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })) : '' %></span>
-                            <% if (order.orderStatus === 'Delivered' && order.deliveryDate) { %>
-    <% if ((order.deliveredAt || order.deliveryDate) && order.canReturn) { %>
-		<span class="mx-1">|</span>
-		<a href="#" class="btn btn-link p-0 text-decoration-underline text-info small" onclick="window.openReturnModal('<%= order._id %>', <%= order.total %>)">Return</a>
-		<span class="text-warning small">(<%= order.returnWindowText %>)</span>
-<% } else if (!(order.deliveredAt || order.deliveryDate)) { %>
-		<span class="text-danger small">Return not available (order not delivered)</span>
-<% } else { %>
-		<span class="text-danger small">(<%= order.returnWindowText %>)</span>
-<% } %>
-<% } %>
-                            <% if (!order.items[0].rating) { %>
-    <a href="#" class="btn btn-link p-0 text-decoration-underline text-primary small" onclick="openRatingModal('<%= order.items[0].product._id %>', '<%= order._id %>')">Rate & Review Product</a>
-<% } else { %>
-    <span class="text-success small"><i class="fa fa-star"></i> Reviewed</span>
-<% } %>
-                        <% } else if (order.orderStatus === 'Cancelled') { %>
-                            <span class="text-danger small"><i class="fa fa-times-circle"></i> Cancelled on <%= order.cancelledAt ? (new Date(order.cancelledAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })) : '' %></span>
-                        <% } else if (order.orderStatus === 'Pending') { %>
-    <a href="#" class="btn btn-outline-danger btn-sm" onclick="cancelOrder('<%= order._id %>')"><i class="fas fa-times"></i> Cancel</a>
-<% } %>
-                    </div>
+
+                    <% if (product && (product.color || product.size)) { %>
+                        <div class="text-muted small mb-1">
+                            <% if (product.color) { %>Color: <%= product.color %><% } %>
+                            <% if (product.size) { %> Size: <%= product.size %><% } %>
+                        </div>
+                    <% } %>
                 </div>
+
+                <div class="fw-bold text-primary">₹<%= order.total ? order.total.toFixed(2) : '0.00' %></div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex align-items-center gap-2 mt-2">
+                <button class="btn btn-outline-primary btn-sm" onclick="viewOrderDetails('<%= order._id %>')">View Details</button>
+
+                <span class="badge status-<%= order.orderStatus.toLowerCase().replace(/\s+/g, '-') %>">
+                    <%= order.orderStatus %>
+                </span>
+
+                <% if (order.orderStatus === 'Delivered') { %>
+                    <span class="text-success small">
+                        <i class="fa fa-check-circle"></i> Delivered on 
+                        <%= order.deliveryDate ? (new Date(order.deliveryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })) : '' %>
+                    </span>
+
+                    <% if ((order.deliveredAt || order.deliveryDate) && order.canReturn) { %>
+                        <span class="mx-1">|</span>
+                        <a href="#" class="btn btn-link p-0 text-decoration-underline text-info small" onclick="window.openReturnModal('<%= order._id %>', <%= order.total %>)">Return</a>
+                        <span class="text-warning small">(<%= order.returnWindowText %>)</span>
+                    <% } else if (!(order.deliveredAt || order.deliveryDate)) { %>
+                        <span class="text-danger small">Return not available (order not delivered)</span>
+                    <% } else { %>
+                        <span class="text-danger small">(<%= order.returnWindowText %>)</span>
+                    <% } %>
+
+                    <% if (!item.rating) { %>
+                        <a href="#" class="btn btn-link p-0 text-decoration-underline text-primary small" onclick="openRatingModal('<%= product && product._id %>', '<%= order._id %>')">Rate & Review Product</a>
+                    <% } else { %>
+                        <span class="text-success small"><i class="fa fa-star"></i> Reviewed</span>
+                    <% } %>
+                <% } else if (order.orderStatus === 'Cancelled') { %>
+                    <span class="text-danger small"><i class="fa fa-times-circle"></i> Cancelled on 
+                        <%= order.cancelledAt ? (new Date(order.cancelledAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })) : '' %>
+                    </span>
+                <% } else if (order.orderStatus === 'Pending') { %>
+                    <a href="#" class="btn btn-outline-danger btn-sm" onclick="cancelOrder('<%= order._id %>')"><i class="fas fa-times"></i> Cancel</a>
+                <% } %>
             </div>
         </div>
-    <% }); %>
+    </div>
+<% }); %>
+
 
     <!-- Pagination Controls -->
     <% if (pagination && pagination.totalPages > 1) { %>
@@ -574,106 +601,149 @@
     returnModal.show();
 };
 
-        async function submitReturn() {
-    event.preventDefault();
-    const orderIdEl = document.getElementById('returnOrderId');
-    const reasonEl = document.getElementById('returnReason');
-    const otherReasonEl = document.getElementById('otherReason');
-    const amount = document.getElementById('returnOrderTotal').value;
-    if (!orderIdEl || !reasonEl || !otherReasonEl) {
-        Swal.fire('Error: Return modal elements not found. Please reload the page.');
-        return;
+       async function submitReturn() {
+  event.preventDefault();
+
+  const orderIdEl = document.getElementById('returnOrderId');
+  const reasonEl = document.getElementById('returnReason');
+  const otherReasonEl = document.getElementById('otherReason');
+  const amount = document.getElementById('returnOrderTotal').value;
+
+  if (!orderIdEl || !reasonEl || !otherReasonEl) {
+    Swal.fire('Error', 'Return modal elements not found. Please reload the page.', 'error');
+    return;
+  }
+
+  const orderId = orderIdEl.value;
+  const reason = reasonEl.value;
+  let finalReason = reason;
+
+  // If "Other" selected, ensure user typed something
+  if (reason === 'Other') {
+    const customReason = otherReasonEl.value.trim();
+    if (!customReason) {
+      Swal.fire('Please enter the custom reason.');
+      return;
     }
-    const orderId = orderIdEl.value;
-    const reason = reasonEl.value;
-    const otherReason = otherReasonEl.value;
-    if (!reason) {
-        Swal.fire('Please select a reason for return.');
-        return;
+    finalReason = customReason;
+  }
+
+  try {
+    const response = await fetch(`/orders/${orderId}/return`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: finalReason, amount })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      await Swal.fire({
+        title: 'Success!',
+        text: 'Return request submitted successfully',
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false
+      });
+      location.reload();
+    } else {
+      Swal.fire({
+        title: 'Error!',
+        text: data.message || 'Failed to submit return request',
+        icon: 'error'
+      });
     }
-    try {
-        const response = await fetch(`/orders/${orderId}/return`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reason, otherReason, amount })
-        });
-        const data = await response.json();
-        if (data.success) {
-            await Swal.fire({
-                title: 'Success!',
-                text: 'Return request submitted successfully',
-                icon: 'success',
-                timer: 2000,
-                showConfirmButton: false
-            });
-            location.reload();
-        } else {
-            Swal.fire({
-                title: 'Error!',
-                text: data.message || 'Failed to submit return request',
-                icon: 'error'
-            });
-        }
-        returnModal.hide();
-    } catch (err) {
-        Swal.fire('Network or server error. Please try again.');
-        console.error('Return request error:', err);
-    }
+
+    returnModal.hide();
+  } catch (err) {
+    Swal.fire('Network or server error. Please try again.');
+    console.error('Return request error:', err);
+  }
 }
 
-        async function cancelOrder(orderId) {
-            event.stopPropagation();
-            const { value: reason } = await Swal.fire({
-                title: 'Cancel Order',
-                text: 'Please provide a reason for cancellation',
-                input: 'select',
-                inputOptions: {
-                    'Changed my mind': 'Changed my mind',
-                    'Found better price elsewhere': 'Found better price elsewhere',
-                    'Ordered by mistake': 'Ordered by mistake',
-                    'Other': 'Other'
-                },
-                inputPlaceholder: 'Select a reason',
-                showCancelButton: true,
-                confirmButtonText: 'Yes, cancel it!',
-                cancelButtonText: 'No, keep it',
-                inputValidator: (value) => {
-                    if (!value) {
-                        return 'Please select a reason for cancellation';
-                    }
-                }
-            });
 
-            if (reason) {
-                const response = await fetch(`/orders/${orderId}/cancel`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ reason })
-                });
+async function cancelOrder(orderId) {
+  event.stopPropagation();
 
-                const data = await response.json();
+  const { value: reason } = await Swal.fire({
+    title: 'Cancel Order',
+    text: 'Please provide a reason for cancellation',
+    input: 'select',
+    inputOptions: {
+      'Changed my mind': 'Changed my mind',
+      'Found better price elsewhere': 'Found better price elsewhere',
+      'Ordered by mistake': 'Ordered by mistake',
+      'Other': 'Other'
+    },
+    inputPlaceholder: 'Select a reason',
+    showCancelButton: true,
+    confirmButtonText: 'Next',
+    cancelButtonText: 'Cancel',
+    inputValidator: (value) => {
+      if (!value) {
+        return 'Please select a reason for cancellation';
+      }
+    }
+  });
 
-                if (data.success) {
-                    await Swal.fire({
-                        title: 'Success!',
-                        text: data.message,
-                        icon: 'success',
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
-                    location.reload();
-                } else {
-                    Swal.fire({
-                        title: 'Error!',
-                        text: data.message || 'Failed to cancel order',
-                        icon: 'error'
-                    });
-                }
-            }
-        }
-    </script>
+  if (!reason) return;
+
+  let finalReason = reason;
+
+  // If "Other" selected, ask for custom reason
+  if (reason === 'Other') {
+    const { value: customReason } = await Swal.fire({
+      title: 'Other Reason',
+      input: 'text',
+      inputLabel: 'Please enter your reason',
+      inputPlaceholder: 'Type your custom reason...',
+      showCancelButton: true,
+      confirmButtonText: 'Submit',
+      inputValidator: (value) => {
+        if (!value) return 'Custom reason is required';
+      }
+    });
+
+    if (!customReason) return;
+    finalReason = customReason;
+  }
+
+  // Now send the cancellation request with final reason
+  try {
+    const response = await fetch(`/orders/${orderId}/cancel`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ reason: finalReason })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      await Swal.fire({
+        title: 'Success!',
+        text: data.message,
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false
+      });
+      location.reload();
+    } else {
+      Swal.fire({
+        title: 'Error!',
+        text: data.message || 'Failed to cancel order',
+        icon: 'error'
+      });
+    }
+  } catch (err) {
+    Swal.fire('Network or server error. Please try again.');
+    console.error('Cancel order error:', err);
+  }
+}
+
+   
+   </script>
 
 
     <%- include('../partials/user/footer') %>

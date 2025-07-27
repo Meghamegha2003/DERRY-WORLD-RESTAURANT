@@ -11,7 +11,7 @@ const saveBase64Image = async (base64Image, fileName, folderPath) => {
     const filePath = path.join(folderPath, fileName);
 
     fs.writeFileSync(filePath, imageBuffer);
-    return `/${fileName}`; // Return the relative path to store in the database
+    return `/${fileName}`;
   } catch (error) {
     console.error("Error saving base64 image:", error);
     throw new Error("Failed to save image");

@@ -4,7 +4,6 @@ const { auth } = require('../../middlewares/authMiddleware');
 const Coupon = require('../../models/couponSchema');
 const Cart = require('../../models/cartSchema');
 
-// Get available coupons
 router.get('/available', auth, async (req, res) => {
     try {
         const userId = req.user._id.toString();
@@ -50,7 +49,6 @@ router.get('/available', auth, async (req, res) => {
     }
 });
 
-// Apply coupon to cart
 router.post('/apply', auth, async (req, res) => {
     try {
         const { code } = req.body;
@@ -143,7 +141,6 @@ router.post('/apply', auth, async (req, res) => {
     }
 });
 
-// Remove coupon from cart
 router.post('/remove', auth, async (req, res) => {
     try {
         const userId = req.user._id;

@@ -110,6 +110,7 @@
                 <p class="text-center mb-4">Please enter the OTP sent to your email</p>
                 
                 <form id="otpForm" onsubmit="handleOtpSubmit(event)">
+                    <input type="hidden" id="otpToken" name="otpToken" value="<%= typeof token !== 'undefined' ? token : '' %>">
                     <div class="d-flex justify-content-center mb-4">
                         <input type="text" class="otp-input" maxlength="1" required>
                         <input type="text" class="otp-input" maxlength="1" required>
@@ -197,11 +198,20 @@
         function handleOtpSubmit(event) {
             event.preventDefault();
             
+            // Show loading state
+            const submitButton = event.target.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.innerHTML;
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Verifying...';
+            
             // Collect OTP digits
             const otp = Array.from(otpInputs).map(input => input.value).join('');
             
             // Validate OTP format
             if (!/^\d{6}$/.test(otp)) {
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonText;
+                
                 Swal.fire({
                     icon: 'error',
                     title: 'Invalid OTP',
@@ -211,85 +221,173 @@
                 return;
             }
 
+            // Get the OTP token from hidden input or URL parameter
+            let otpToken = document.getElementById('otpToken').value;
+            
+            // If token is not in the form, try to get it from URL
+            if (!otpToken) {
+                const urlParams = new URLSearchParams(window.location.search);
+                otpToken = urlParams.get('token');
+            }
+            
+            if (!otpToken) {
+                // As a last resort, try to get from cookie
+                const getCookie = (name) => {
+                    const value = `; ${document.cookie}`;
+                    const parts = value.split(`; ${name}=`);
+                    if (parts.length === 2) return parts.pop().split(';').shift();
+                };
+                otpToken = getCookie('otpToken');
+            }
+            
+            if (!otpToken) {
+                window.location.href = '/register?error=Verification session expired. Please register again.';
+                return;
+            }
+
             fetch('/verify-otp', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
-                body: JSON.stringify({ otp }),
+                body: JSON.stringify({ 
+                    otp,
+                    token: otpToken // Include token in the request body
+                }),
                 credentials: 'same-origin'
             })
-            .then(response => {
+            .then(async response => {
                 const contentType = response.headers.get('content-type');
+                
+                // Handle JSON response
                 if (contentType && contentType.includes('application/json')) {
-                    return response.json();
-                } else {
-                    // Handle redirect
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        // Show success message and redirect to login
+                        await Swal.fire({
+                            icon: 'success',
+                            title: 'Registration Successful!',
+                            text: 'Your email has been verified. Please login to continue.',
+                            confirmButtonColor: '#ffbe33',
+                            confirmButtonText: 'Login Now',
+                            allowOutsideClick: false
+                        });
+                        
+                        window.location.href = '/login';
+                    } else {
+                        throw new Error(data.message || 'Failed to verify OTP');
+                    }
+                } 
+                // Handle redirect
+                else if (response.redirected) {
                     window.location.href = response.url;
+                } 
+                // Handle other response types
+                else {
+                    const text = await response.text();
+                    throw new Error(text || 'An error occurred during verification');
                 }
             })
-            .then(data => {
-                if (data.success) {
-                    // Show success message and redirect to login
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Registration Successful!',
-                        text: 'Your email has been verified. Please login to continue.',
-                        confirmButtonColor: '#ffbe33',
-                        confirmButtonText: 'Login Now'
-                    });
-                    
-                    window.location.href = '/login';
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Verification Failed',
-                        text: data.message || 'Failed to verify OTP. Please try again.',
-                        confirmButtonColor: '#ffbe33'
-                    });
-                }
-            });
+            .catch(error => {
+                console.error('OTP verification error:', error);
+                
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Verification Failed',
+                    text: error.message || 'Failed to verify OTP. Please try again.',
+                    confirmButtonColor: '#ffbe33'
+                });
+            })
+            .finally(() => {
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonText;
+            });;
         }
 
         async function handleResendOTP() {
-            fetch('/resend-otp', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                credentials: 'same-origin'
-            })
-            .then(response => response.json())
-            .then(data => {
+            // Get the token from the same sources as the form
+            let otpToken = document.getElementById('otpToken').value;
+            if (!otpToken) {
+                const urlParams = new URLSearchParams(window.location.search);
+                otpToken = urlParams.get('token');
+            }
+            
+            if (!otpToken) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Session expired. Please start the registration process again.',
+                    confirmButtonColor: '#ffbe33'
+                });
+                window.location.href = '/register';
+                return;
+            }
+            
+            // Disable the resend link and show loading state
+            const resendLink = document.getElementById('resendLink');
+            resendLink.style.pointerEvents = 'none';
+            resendLink.style.opacity = '0.7';
+            
+            // Show loading state
+            const originalText = resendLink.textContent;
+            resendLink.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            
+            try {
+                const response = await fetch('/resend-otp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ token: otpToken }),
+                    credentials: 'same-origin'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                
+                const data = await response.json();
+                
                 if (data.success) {
                     // Reset timer
                     timeLeft = 60;
+                    document.getElementById('countdown').textContent = timeLeft;
                     timerContainer.style.display = 'block';
                     resendLink.style.display = 'none';
                     updateTimer();
                     
                     // Clear OTP inputs
+                    const otpInputs = document.querySelectorAll('.otp-input');
                     otpInputs.forEach(input => input.value = '');
                     otpInputs[0].focus();
                     
                     // Show success message
-                    Swal.fire({
+                    await Swal.fire({
                         icon: 'success',
                         title: 'OTP Resent',
-                        text: 'A new OTP has been sent to your email',
+                        text: 'A new OTP has been sent to your email.',
                         confirmButtonColor: '#ffbe33'
                     });
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: data.message || 'Failed to resend OTP. Please try again.',
-                        confirmButtonColor: '#ffbe33'
-                    });
+                    throw new Error(data.message || 'Failed to resend OTP');
                 }
-            });
+            } catch (error) {
+                console.error('Error resending OTP:', error);
+                await Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.message || 'Failed to resend OTP. Please try again.',
+                    confirmButtonColor: '#ffbe33'
+                });
+            } finally {
+                // Re-enable the resend link
+                resendLink.style.pointerEvents = 'auto';
+                resendLink.style.opacity = '1';
+            }
         }
     </script>
 </body>

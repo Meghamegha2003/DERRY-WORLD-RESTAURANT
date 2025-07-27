@@ -28,7 +28,7 @@
           <th scope="col">Target Name</th>
           <th scope="col">Discount</th>
           <th scope="col">Min Purchase</th>
-          <th scope="col">Usage</th>
+          
           <th scope="col">Validity</th>
           <th scope="col">Status</th>
           <th scope="col">Actions</th>
@@ -65,7 +65,7 @@
             <% } %>
           </td>
           <td>₹<%= offer.minPurchase.toLocaleString('en-IN') %></td>
-          <td><%= offer.usageCount || '0/12' %></td>
+          
           <td>
             <% 
               const now = new Date();
@@ -156,7 +156,6 @@
               >
                 <option value="">Select Type</option>
                 <option value="percentage">Percentage</option>
-                <option value="amount">Amount</option>
               </select>
             </div>
             <div class="col-md-6">
@@ -310,7 +309,6 @@
               >
                 <option value="">Select Type</option>
                 <option value="percentage">Percentage</option>
-                <option value="amount">Amount</option>
               </select>
             </div>
             <div class="col-md-6">
@@ -531,7 +529,7 @@
             productSelect.value = productId;
             
             // Now fetch all products to add them to the dropdown
-            fetch('/admin/offers/active-products')
+            fetch('/admin/offers/active-products', { credentials: 'include' })
               .then(response => response.json())
               .then(data => {
                 if (data.success && data.products) {
@@ -577,7 +575,7 @@
             categorySelect.value = categoryId;
             
             // Now fetch all categories to add them to the dropdown
-            fetch('/admin/offers/active-categories')
+            fetch('/admin/offers/active-categories', { credentials: 'include' })
               .then(response => response.json())
               .then(data => {
                 if (data.success && data.categories) {

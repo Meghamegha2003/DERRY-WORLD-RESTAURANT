@@ -2,7 +2,8 @@ const Offer = require('../../models/offerSchema');
 const Product = require('../../models/productSchema');
 const Category = require('../../models/categorySchema');
 
-const viewOffers = async (req, res) => {
+
+exports.viewOffers = async (req, res) => {
     try {
         const offers = await Offer.find()
             .populate('targetProducts', 'name price')
@@ -45,9 +46,9 @@ const viewOffers = async (req, res) => {
     }
 };
 
-const getActiveProducts = async (req, res) => {
+exports.getActiveProducts = async (req, res) => {
     try {
-        const products = await Product.find({ isActive: true })
+        const products = await Product.find({ isListed: true, isBlocked: false })
             .select('name price category')
             .populate('category', 'name')
             .sort({ name: 1 });
@@ -65,9 +66,9 @@ const getActiveProducts = async (req, res) => {
     }
 };
 
-const getActiveCategories = async (req, res) => {
+exports.getActiveCategories = async (req, res) => {
     try {
-        const categories = await Category.find({ isActive: true })
+        const categories = await Category.find({ isListed: true, isBlocked: false })
             .select('name')
             .sort({ name: 1 });
 
@@ -84,84 +85,7 @@ const getActiveCategories = async (req, res) => {
     }
 };
 
-const createOffer = async (req, res) => {
-    try {
-        console.log("Received offer data:", req.body); 
-        
-        const {
-            name,
-            description,
-            discountType,
-            discountValue,
-            minPurchase,
-            startDate,
-            endDate,
-            targetType,
-            targetProduct,
-            targetCategory
-        } = req.body;
-
-        if (!name || !discountType || !discountValue || !startDate || !endDate || !targetType) {
-            return res.status(400).json({
-                success: false,
-                message: 'Missing required fields'
-            });
-        }
-
-        if (discountType === 'percentage' && (discountValue <= 0 || discountValue > 100)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid discount percentage'
-            });
-        }
-
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        if (start >= end) {
-            return res.status(400).json({
-                success: false,
-                message: 'End date must be after start date'
-            });
-        }
-
-        let products = [];
-        let categories = [];
-        
-        if (targetType === 'product' && targetProduct) {
-            products = [targetProduct]; 
-        } else if (targetType === 'category' && targetCategory) {
-            categories = [targetCategory]; 
-        }
-
-        const offer = new Offer({
-            name, 
-            description,
-            discountType,
-            discountValue,
-            minPurchase: minPurchase || 0,
-            validFrom: start, 
-            validUntil: end,  
-            targetProducts: products,
-            targetCategories: categories
-        });
-
-        await offer.save();
-
-        res.status(201).json({
-            success: true,
-            message: 'Offer created successfully',
-            offer
-        });
-    } catch (error) {
-        console.error('Error creating offer:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to create offer'
-        });
-    }
-};
-
-const getOffer = async (req, res) => {
+exports.getOffer = async (req, res) => {
     try {
         const offer = await Offer.findById(req.params.id)
             .populate('targetProducts', 'name price')
@@ -186,50 +110,47 @@ const getOffer = async (req, res) => {
         });
     }
 };
-
-const updateOffer = async (req, res) => {
+// Create a new offer
+exports.createOffer = async (req, res) => {
     try {
-        console.log('Update offer request body:', req.body); // Debug log
-        
         const {
             name,
-            description,
             discountType,
             discountValue,
-            minPurchase,
+            minPurchase = 0,
             maxDiscount,
             startDate,
             endDate,
             targetType,
-            targetProduct,
-            targetCategory,
-            offerId
+            targetId
         } = req.body;
 
-        const offer = await Offer.findById(req.params.id);
-        if (!offer) {
-            return res.status(404).json({
-                success: false,
-                message: 'Offer not found'
-            });
-        }
-
-        if (!name || !discountType || !discountValue || !startDate || !endDate) {
+        // Basic validation
+        if (!name || !discountType || !discountValue || !startDate || !endDate || !targetType || !targetId) {
             return res.status(400).json({
                 success: false,
                 message: 'Missing required fields'
             });
         }
 
+        // Validate discount value based on type
         if (discountType === 'percentage' && (discountValue <= 0 || discountValue > 100)) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid discount percentage'
+                message: 'Invalid discount percentage. Must be between 1 and 100.'
+            });
+        } else if (discountType === 'amount' && discountValue <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid discount amount. Must be greater than 0.'
             });
         }
 
+        // Validate dates
         const start = new Date(startDate);
         const end = new Date(endDate);
+        const now = new Date();
+
         if (start >= end) {
             return res.status(400).json({
                 success: false,
@@ -237,21 +158,176 @@ const updateOffer = async (req, res) => {
             });
         }
 
+        if (end < now) {
+            return res.status(400).json({
+                success: false,
+                message: 'End date must be in the future'
+            });
+        }
+
+        // Prepare offer data
+        const offerData = {
+            name,
+            discountType,
+            discountValue: Number(discountValue),
+            minPurchase: Number(minPurchase) || 0,
+            validFrom: start,
+            validUntil: end,
+            isActive: true
+        };
+
+        // Add max discount for percentage type
+        if (discountType === 'percentage' && maxDiscount) {
+            offerData.maxDiscount = Number(maxDiscount);
+        }
+
+        // Set target based on type
+        if (targetType === 'product') {
+            // Verify product exists
+            const product = await Product.findById(targetId);
+            if (!product) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Product not found'
+                });
+            }
+            offerData.targetProducts = [targetId];
+        } else if (targetType === 'category') {
+            // Verify category exists
+            const category = await Category.findById(targetId);
+            if (!category) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Category not found'
+                });
+            }
+            offerData.targetCategories = [targetId];
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid target type'
+            });
+        }
+
+        // Create the offer
+        const offer = new Offer(offerData);
+        await offer.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'Offer created successfully',
+            offer
+        });
+
+    } catch (error) {
+        console.error('Error creating offer:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create offer',
+            error: error.message
+        });
+    }
+};
+
+// Update an existing offer
+exports.updateOffer = async (req, res) => {
+    try {
+        const offerId = req.params.id;
+        const {
+            name,
+            discountType,
+            discountValue,
+            minPurchase = 0,
+            maxDiscount,
+            startDate,
+            endDate,
+            targetType,
+            targetId
+        } = req.body;
+
+        // Find the offer
+        const offer = await Offer.findById(offerId);
+        if (!offer) {
+            return res.status(404).json({
+                success: false,
+                message: 'Offer not found'
+            });
+        }
+
+        // Basic validation
+        if (!name || !discountType || !discountValue || !startDate || !endDate || !targetType || !targetId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields'
+            });
+        }
+
+        // Validate discount value based on type
+        if (discountType === 'percentage' && (discountValue <= 0 || discountValue > 100)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid discount percentage. Must be between 1 and 100.'
+            });
+        } else if (discountType === 'amount' && discountValue <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid discount amount. Must be greater than 0.'
+            });
+        }
+
+        // Validate dates
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const now = new Date();
+
+        if (start >= end) {
+            return res.status(400).json({
+                success: false,
+                message: 'End date must be after start date'
+            });
+        }
+
+        // Update offer data
         offer.name = name;
-        offer.description = description || '';
         offer.discountType = discountType;
         offer.discountValue = Number(discountValue);
-        offer.minPurchase = minPurchase ? Number(minPurchase) : 0;
-        offer.maxDiscount = maxDiscount ? Number(maxDiscount) : null;
+        offer.minPurchase = Number(minPurchase) || 0;
         offer.validFrom = start;
         offer.validUntil = end;
-        
-        if (targetType === 'product' && targetProduct) {
-            offer.targetProducts = [targetProduct];
+
+        // Update max discount for percentage type
+        if (discountType === 'percentage' && maxDiscount) {
+            offer.maxDiscount = Number(maxDiscount);
+        } else {
+            offer.maxDiscount = undefined;
+        }
+
+        // Update target based on type
+        if (targetType === 'product') {
+            const product = await Product.findById(targetId);
+            if (!product) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Product not found'
+                });
+            }
+            offer.targetProducts = [targetId];
             offer.targetCategories = [];
-        } else if (targetType === 'category' && targetCategory) {
-            offer.targetCategories = [targetCategory];
+        } else if (targetType === 'category') {
+            const category = await Category.findById(targetId);
+            if (!category) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Category not found'
+                });
+            }
+            offer.targetCategories = [targetId];
             offer.targetProducts = [];
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid target type'
+            });
         }
 
         await offer.save();
@@ -261,16 +337,19 @@ const updateOffer = async (req, res) => {
             message: 'Offer updated successfully',
             offer
         });
+
     } catch (error) {
         console.error('Error updating offer:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to update offer'
+            message: 'Failed to update offer',
+            error: error.message
         });
     }
 };
 
-const toggleOfferStatus = async (req, res) => {
+
+exports.toggleOfferStatus = async (req, res) => {
     try {
         const offer = await Offer.findById(req.params.id);
         if (!offer) {
@@ -301,14 +380,4 @@ const toggleOfferStatus = async (req, res) => {
             message: 'Failed to toggle offer status'
         });
     }
-};
-
-module.exports = {
-    viewOffers,
-    getActiveProducts,
-    getActiveCategories,
-    createOffer,
-    getOffer,
-    updateOffer,
-    toggleOfferStatus
 };
