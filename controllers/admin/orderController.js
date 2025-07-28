@@ -108,23 +108,19 @@ exports.formatPaymentMethod = (method) => {
 
 exports.getOrders = async (req, res) => {
     try {
-        // Parse query parameters
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
         const filter = {};
 
-        // Apply status filter (show all if 'all' or not set)
         if (req.query.status && req.query.status !== 'all' && Object.values(ORDER_STATUS).includes(req.query.status)) {
             filter.orderStatus = req.query.status;
         }
 
-        // Apply payment status filter
         if (req.query.paymentStatus && Object.values(PAYMENT_STATUS).includes(req.query.paymentStatus)) {
             filter.paymentStatus = req.query.paymentStatus;
         }
 
-        // Apply date range filter
         if (req.query.startDate && req.query.endDate) {
             filter.createdAt = {
                 $gte: new Date(req.query.startDate),
@@ -132,28 +128,21 @@ exports.getOrders = async (req, res) => {
             };
         }
 
-        // Robust search logic based on searchType
         const { search, searchType } = req.query;
         if (search && search.trim()) {
             const searchValue = search.trim();
             if (searchType === 'orderId') {
-                // Support search by last 8 chars (displayed ID), with or without #
-                // Remove leading # if present
                 let idPart = searchValue.replace(/^#/, '').toUpperCase();
-                // Find orders where last 8 of _id matches (case-insensitive)
                 const allOrders = await Order.find({}, '_id');
                 const matchedOrderIds = allOrders
                   .filter(o => o._id.toString().slice(-8).toUpperCase() === idPart)
                   .map(o => o._id);
-                // If found, filter by _id
                 if (matchedOrderIds.length > 0) {
                   filter._id = { $in: matchedOrderIds };
                 } else {
-                  // No matches, force empty result
                   filter._id = { $in: [] };
                 }
             } else if (searchType === 'customer') {
-                // Find users by email or name
                 const userRegex = new RegExp(searchValue, 'i');
                 const users = await User.find({
                   $or: [
@@ -174,10 +163,8 @@ exports.getOrders = async (req, res) => {
             }
         }
 
-        // Get total count for pagination
         const totalOrders = await Order.countDocuments(filter);
 
-        // Get orders with pagination and sorting
         const orders = await Order.find(filter)
             .sort({ createdAt: -1 })
             .skip(skip)
@@ -185,9 +172,7 @@ exports.getOrders = async (req, res) => {
             .populate('user', 'name email')
             .lean();
 
-        // Format orders for response
         const formattedOrders = orders.map(order => {
-            // Fallback for cancelReason and returnReason if missing at order level
             let cancelReason = order.cancelReason;
             let returnReason = order.returnReason;
             if (!cancelReason && order.items && order.items.length > 0) {
@@ -209,7 +194,6 @@ exports.getOrders = async (req, res) => {
             };
         });
 
-        // Check if it's an API request
         if (req.xhr || req.headers.accept?.includes('application/json')) {
             return res.json({
                 success: true,
@@ -223,7 +207,6 @@ exports.getOrders = async (req, res) => {
             });
         }
 
-        // Render the orders page
         res.render('admin/orders', {
             title: 'Order Management',
             orders: formattedOrders,
@@ -322,17 +305,7 @@ exports.updateOrderStatus = async (req, res) => {
             wallet.transactions.push({ type: 'credit', amount: refundAmount, description: `Refund for order ${order._id}`, date: new Date(), orderId: order._id.toString(), status: 'completed' });
             await wallet.save();
             await User.findByIdAndUpdate(order.user, { wallet: wallet._id });
-            const io = req.app.get('io');
-            const activeUsers = req.app.get('activeUsers');
-            console.log('[ADMIN] ActiveUsers map:', Array.from(activeUsers.entries()));
-            const socketId = activeUsers.get(order.user.toString());
-            console.log('[ADMIN] socketId found:', socketId);
-            if (socketId) {
-                console.log('[ADMIN] Emitting walletUpdated event');
-                io.to(socketId).emit('walletUpdated', { userId: order.user.toString(), balance: wallet.balance });
-            } else {
-                console.log('[ADMIN] No active socket for user, event not sent');
-            }
+            console.log('[ADMIN] Refund processed successfully for user:', order.user.toString());
         }
 
         if (req.xhr || req.headers.accept?.includes('application/json')) {

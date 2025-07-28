@@ -4,7 +4,7 @@ const OfferService = require('../../services/offerService');
 const Cart = require('../../models/cartSchema');
 const Offer = require('../../models/offerSchema');
 
-exports.getUniqueProductCount = (cart) => {
+const getUniqueProductCount = (cart) => {
   if (!cart || !cart.items) return 0;
   return new Set(cart.items.filter(item => item && item.product).map(item => item.product.toString())).size;
 }

@@ -10,28 +10,22 @@ const Wallet = require("../../models/walletSchema");
 const { getBestOffer } = require("../../helpers/offerHelper");
 const PDFDocument = require("pdfkit");
 
-
-// Initialize Razorpay
 const Razorpay = require("razorpay");
 
-// Initialize Razorpay instance
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// Get user orders
 exports.getUserOrders = async (req, res) => {
   try {
     if (!req.user) {
       return res.redirect("/login");
     }
 
-    // Get accurate cart count
     const { getCartCount } = require("./userController");
     const cartCount = await getCartCount(req.user._id);
 
-    // Debug: Log current session user and all order user IDs
     const allOrders = await Order.find({});
 
     let userId = req.user._id;
@@ -39,12 +33,10 @@ exports.getUserOrders = async (req, res) => {
       userId = new mongoose.Types.ObjectId(userId);
     }
 
-    // Pagination logic
     const page = parseInt(req.query.page) > 0 ? parseInt(req.query.page) : 1;
     const limit = parseInt(req.query.limit) > 0 ? parseInt(req.query.limit) : 5;
     const skip = (page - 1) * limit;
 
-    // Get total count for pagination
     const totalOrders = await Order.countDocuments({ user: userId });
     const totalPages = Math.ceil(totalOrders / limit);
 
@@ -62,7 +54,6 @@ exports.getUserOrders = async (req, res) => {
       .skip(skip)
       .limit(limit);
 
-    // Process orders to ensure all required fields
     const processedOrders = await Promise.all(
       orders.map(async (order) => {
         const orderObj = order.toObject();
@@ -78,7 +69,6 @@ exports.getUserOrders = async (req, res) => {
               };
             }
 
-            // Get offer details for the product
             const offerDetails = await getBestOffer(item.product);
 
             const regularPrice =
@@ -104,11 +94,10 @@ exports.getUserOrders = async (req, res) => {
           })
         );
 
-        // Calculate order totals (checkout logic)
         const subtotal = items.reduce(
           (sum, item) => sum + item.price * item.quantity,
           0
-        ); // use offer/sale/final price
+        );
         const productDiscount = items.reduce((sum, item) => {
           const itemDiscount =
             item.offerDetails && item.offerDetails.hasOffer
@@ -119,9 +108,8 @@ exports.getUserOrders = async (req, res) => {
         const couponDiscount = orderObj.couponDiscount || 0;
         const deliveryCharge = orderObj.deliveryCharge || 0;
         const totalSavings = productDiscount + couponDiscount;
-        const total = Math.max(0, subtotal - couponDiscount + deliveryCharge); // match checkout logic
+        const total = Math.max(0, subtotal - couponDiscount + deliveryCharge);
 
-        // Add deliveryDate, canReturn, and returnWindowText for food orders
         let deliveryDate =
           orderObj.deliveryDate || orderObj.deliveredAt || orderObj.updatedAt;
         let canReturn = false;
@@ -129,7 +117,7 @@ exports.getUserOrders = async (req, res) => {
         if (orderObj.orderStatus === "Delivered" && deliveryDate) {
           const deliveryTime = new Date(deliveryDate);
           const now = new Date();
-          const returnWindowMs = 15 * 60 * 1000; // 15 minutes (1/4 hour)
+          const returnWindowMs = 15 * 60 * 1000;
           const msLeft =
             deliveryTime.getTime() + returnWindowMs - now.getTime();
           if (msLeft > 0) {
@@ -196,7 +184,6 @@ exports.getOrderDetails = async (req, res) => {
 
     const orderId = req.params.orderId;
 
-    // Find order and populate product details
     const order = await Order.findOne({
       _id: orderId,
       user: req.user._id,
@@ -218,11 +205,9 @@ exports.getOrderDetails = async (req, res) => {
       });
     }
 
-    // Get user's cart count
     const user = await User.findById(req.user._id).select("cart");
     const cartCount = user?.cart?.length || 0;
 
-    // Process order items
     const processedOrder = order.toObject();
     processedOrder.items = await Promise.all(
       processedOrder.items.map(async (item) => {
@@ -236,7 +221,6 @@ exports.getOrderDetails = async (req, res) => {
           };
         }
 
-        // Get offer details for the product
         const offerDetails = await getBestOffer(item.product);
 
         const regularPrice =
@@ -260,7 +244,6 @@ exports.getOrderDetails = async (req, res) => {
       })
     );
 
-    // Calculate order totals
     const subtotal = processedOrder.items.reduce(
       (sum, item) => sum + item.regularPrice * item.quantity,
       0
@@ -287,7 +270,6 @@ exports.getOrderDetails = async (req, res) => {
     processedOrder.totalSavings = totalSavings;
     processedOrder.total = total;
 
-    // Calculate return window eligibility and timer
     let deliveryDate = processedOrder.deliveryDate || processedOrder.deliveredAt || processedOrder.updatedAt;
     let canReturn = false;
     let returnWindowText = "";
@@ -354,7 +336,6 @@ exports.cancelOrder = async (req, res) => {
       });
     }
 
-    // Update order status and reason
     const updatedOrder = await Order.findOneAndUpdate(
       { _id: req.params.orderId, user: req.user._id },
       {
@@ -375,7 +356,6 @@ exports.cancelOrder = async (req, res) => {
       throw new Error("Failed to update order");
     }
 
-    // Restore inventory for cancelled order
     if (updatedOrder.items && updatedOrder.items.length) {
       for (const item of updatedOrder.items) {
         const pid = item.product._id ? item.product._id : item.product;
@@ -395,7 +375,6 @@ exports.cancelOrder = async (req, res) => {
       const refundAmount = updatedOrder.totalAmount || updatedOrder.total;
 
       try {
-        // Find or create the user's wallet
         let wallet = await Wallet.findOne({ user: req.user._id });
         if (!wallet) {
           wallet = new Wallet({
@@ -417,7 +396,6 @@ exports.cancelOrder = async (req, res) => {
           date: new Date(),
         });
         await wallet.save();
-        // Emit real-time wallet update if socket.io is available
         const io = req.app.get && req.app.get("io");
         const activeUsers = req.app.get && req.app.get("activeUsers");
         if (io && activeUsers) {
@@ -458,6 +436,35 @@ exports.cancelOrder = async (req, res) => {
   }
 };
 
+// Process refund to wallet
+exports.processRefund = async (userId, amount) => {
+  try {
+    let wallet = await Wallet.findOne({ user: userId });
+    if (!wallet) {
+      wallet = new Wallet({
+        user: userId,
+        balance: 0,
+        transactions: [],
+      });
+    }
+
+    wallet.balance += Number(amount);
+    wallet.transactions.push({
+      type: "credit",
+      amount: Number(amount),
+      description: "Refund from returned order",
+      date: new Date(),
+      status: "completed",
+    });
+
+    await wallet.save();
+    return true;
+  } catch (error) {
+    console.error("Error processing refund:", error);
+    return false;
+  }
+};
+
 // Cancel order item
 exports.cancelOrderItem = async (req, res) => {
   try {
@@ -476,7 +483,6 @@ exports.cancelOrderItem = async (req, res) => {
       });
     }
 
-    // Find the item in the order
     const item = order.items.id(itemId);
     if (!item) {
       return res.status(404).json({
@@ -485,7 +491,6 @@ exports.cancelOrderItem = async (req, res) => {
       });
     }
 
-    // Check if item can be cancelled
     if (item.status === "Cancelled") {
       return res.status(400).json({
         success: false,
@@ -500,7 +505,6 @@ exports.cancelOrderItem = async (req, res) => {
       });
     }
 
-    // Return item quantity to inventory
     if (item.product) {
       let productId = item.product._id ? item.product._id : item.product;
       if (typeof productId === "object" && productId.toString)
@@ -529,22 +533,19 @@ exports.cancelOrderItem = async (req, res) => {
       }
     }
 
-    // Calculate refund amount
     const refundAmount = item.price * item.quantity;
 
-    // Update item status and reason
     item.status = "Cancelled";
     item.cancelReason = reason;
     item.cancelledAt = new Date();
     item.refundAmount = refundAmount;
     item.refundStatus = "Pending";
 
-    // If payment was made, process refund via helper
     if (
       order.paymentMethod !== "cod" &&
       order.paymentStatus === PAYMENT_STATUS.PAID
     ) {
-      const refundSuccess = await processRefund(userId, refundAmount);
+      const refundSuccess = await exports.processRefund(userId, refundAmount);
       if (!refundSuccess) {
         console.error(`[CANCEL_ITEM] Refund processing failed for order ${order._id}`);
       } else {
@@ -553,13 +554,17 @@ exports.cancelOrderItem = async (req, res) => {
       }
     }
 
-    // Update order total
-    order.total -= refundAmount;
+    // Ensure the order total doesn't go below zero
+    order.total = Math.max(0, order.total - refundAmount);
 
-    // If all items are cancelled, cancel the entire order
     const allItemsCancelled = order.items.every(
       (item) => item.status === "Cancelled"
     );
+    
+    // If total becomes zero after cancellation, update payment status if needed
+    if (order.total === 0 && order.paymentStatus === PAYMENT_STATUS.PAID) {
+      order.paymentStatus = PAYMENT_STATUS.REFUNDED;
+    }
     if (allItemsCancelled) {
       order.orderStatus = ORDER_STATUS.CANCELLED;
       order.cancelledAt = new Date();
@@ -597,7 +602,6 @@ exports.requestItemReturn = async (req, res) => {
     const { reason } = req.body;
     const userId = req.user._id;
 
-    // Validate input
     if (!orderId || !itemId || !reason) {
       return res.status(400).json({
         success: false,
@@ -619,8 +623,6 @@ exports.requestItemReturn = async (req, res) => {
       });
     }
 
-    // Find the item in the order
-    // Find the item in the order by its subdocument id
     const item = order.items.id(itemId);
 
     if (!item) {
@@ -630,7 +632,6 @@ exports.requestItemReturn = async (req, res) => {
       });
     }
 
-    // Check if item can be returned
     if (item.status !== "Active") {
       return res.status(400).json({
         success: false,
@@ -638,10 +639,8 @@ exports.requestItemReturn = async (req, res) => {
       });
     }
 
-    // Calculate potential refund amount
     const refundAmount = item.price * item.quantity;
 
-    // Update the item with return request
     item.status = "Returned";
     item.returnStatus = "Pending";
     item.returnReason = reason;
@@ -664,43 +663,12 @@ exports.requestItemReturn = async (req, res) => {
   }
 };
 
-// Process refund to wallet
-exports.processRefund = async (userId, amount) => {
-  try {
-    // Find or create wallet
-    let wallet = await Wallet.findOne({ user: userId });
-    if (!wallet) {
-      wallet = new Wallet({
-        user: userId,
-        balance: 0,
-        transactions: [],
-      });
-    }
-
-    // Add refund amount to wallet
-    wallet.balance += Number(amount);
-    wallet.transactions.push({
-      type: "credit",
-      amount: Number(amount),
-      description: "Refund from returned order",
-      date: new Date(),
-      status: "completed",
-    });
-
-    await wallet.save();
-    return true;
-  } catch (error) {
-    console.error("Error processing refund:", error);
-    return false;
-  }
-};
 
 // Admin: Approve return request
 exports.approveReturn = async (req, res) => {
   try {
     const { orderId, itemId } = req.params;
 
-    // Update return status in document
     await Order.updateOne(
       { _id: orderId, "items.product": itemId },
       {
@@ -711,7 +679,6 @@ exports.approveReturn = async (req, res) => {
       }
     );
 
-    // Re-fetch order with populated products
     const updatedOrder = await Order.findById(orderId).populate(
       "items.product"
     );
@@ -727,7 +694,6 @@ exports.approveReturn = async (req, res) => {
       );
     }
 
-    // Process refund
     const refundSuccess = await processRefund(
       updatedOrder.user,
       returnedItem.total
@@ -770,7 +736,6 @@ exports.rejectReturn = async (req, res) => {
       });
     }
 
-    // Update return status
     await Order.updateOne(
       {
         _id: orderId,
@@ -803,7 +768,6 @@ exports.submitRating = async (req, res) => {
     const { productId, rating, orderId } = req.body;
     const userId = req.user._id;
 
-    // Validate input
     if (!productId || !rating || !orderId) {
       return res.status(400).json({
         success: false,
@@ -825,7 +789,6 @@ exports.submitRating = async (req, res) => {
       });
     }
 
-    // Find the item in the order
     const orderItem = order.items.find(
       (item) => item.product.toString() === productId.toString()
     );
@@ -844,7 +807,6 @@ exports.submitRating = async (req, res) => {
       });
     }
 
-    // Update the order item with rating
     const updatedOrder = await Order.findOneAndUpdate(
       {
         _id: orderId,
@@ -863,7 +825,6 @@ exports.submitRating = async (req, res) => {
       throw new Error("Failed to update order rating");
     }
 
-    // Add rating to product's ratings array
     const product = await Product.findByIdAndUpdate(
       productId,
       {
@@ -881,7 +842,6 @@ exports.submitRating = async (req, res) => {
       throw new Error("Failed to update product rating");
     }
 
-    // Calculate and update product's average rating
     const avgRating =
       product.ratings.reduce((sum, r) => sum + r.rating, 0) /
       product.ratings.length;

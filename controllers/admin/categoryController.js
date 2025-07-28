@@ -17,6 +17,7 @@ const Product = require('../../models/productSchema')
             const totalCategories = await Category.countDocuments();
             const totalPages = Math.ceil(totalCategories / limit);
 
+//  returns a JSON error response instead of rendering a page. 
             if (req.xhr || req.headers.accept?.includes('application/json')) {
                 return res.json({
                     success: true,
@@ -59,7 +60,6 @@ const Product = require('../../models/productSchema')
         try {
             const { name, description } = req.body;
             
-            // Validate category name
             if (!name || !name.trim()) {
                 return res.status(400).json({
                     success: false,
@@ -67,7 +67,6 @@ const Product = require('../../models/productSchema')
                 });
             }
 
-            // Check if category already exists
             const existingCategory = await Category.findOne({ 
                 name: { $regex: new RegExp('^' + name.trim() + '$', 'i') }
             });
@@ -79,7 +78,6 @@ const Product = require('../../models/productSchema')
                 });
             }
 
-            // Create new category
             const category = new Category({
                 name: name.trim(),
                 description: description ? description.trim() : '',
@@ -107,7 +105,6 @@ const Product = require('../../models/productSchema')
             const { categoryId } = req.params;
             const { name, description } = req.body;
 
-            // Validate category name
             if (!name || !name.trim()) {
                 return res.status(400).json({
                     success: false,
@@ -115,7 +112,6 @@ const Product = require('../../models/productSchema')
                 });
             }
 
-            // Check if category exists
             const existingCategory = await Category.findById(categoryId);
             if (!existingCategory) {
                 return res.status(404).json({
@@ -124,7 +120,6 @@ const Product = require('../../models/productSchema')
                 });
             }
 
-            // Check if name is already taken by another category
             const duplicateCategory = await Category.findOne({
                 _id: { $ne: categoryId },
                 name: { $regex: new RegExp('^' + name.trim() + '$', 'i') }
@@ -137,7 +132,7 @@ const Product = require('../../models/productSchema')
                 });
             }
 
-            // Update category
+            
             const updatedCategory = await Category.findByIdAndUpdate(
                 categoryId,
                 {
@@ -173,7 +168,6 @@ const Product = require('../../models/productSchema')
                 });
             }
 
-            // Toggle the category status
             category.isBlocked = !category.isBlocked;
             await category.save();
             

@@ -102,6 +102,15 @@ exports.getWallet = async function(req, res) {
         const limit = 3;
         const skip = (page - 1) * limit;
 
+        // Get cart count for the user
+        let cartCount = 0;
+        if (req.user) {
+            const cart = await Cart.findOne({ user: req.user._id });
+            if (cart) {
+                cartCount = cart.items.reduce((count, item) => count + item.quantity, 0);
+            }
+        }
+
         // Always fetch the latest wallet and all transactions
         let wallet = await Wallet.findOne({ user: userId });
         if (!wallet) {
@@ -127,13 +136,16 @@ exports.getWallet = async function(req, res) {
             user.referralCode = generateReferralCode(user._id);
             await user.save();
         }
+        
         // Dynamically compute referral stats
         const referralCount = await User.countDocuments({ referredBy: userId });
         const referralEarnings = wallet.transactions
             .filter(tx => tx.description && tx.description.includes('Referral bonus'))
             .reduce((sum, tx) => sum + tx.amount, 0);
+            
         res.render('user/wallet', {
             user: user,
+            cartCount: cartCount,
             wallet: {
                 ...wallet.toObject(),
                 transactions: {

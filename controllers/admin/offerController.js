@@ -110,7 +110,7 @@ exports.getOffer = async (req, res) => {
         });
     }
 };
-// Create a new offer
+
 exports.createOffer = async (req, res) => {
     try {
         const {
@@ -229,7 +229,6 @@ exports.createOffer = async (req, res) => {
     }
 };
 
-// Update an existing offer
 exports.updateOffer = async (req, res) => {
     try {
         const offerId = req.params.id;

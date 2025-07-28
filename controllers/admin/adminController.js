@@ -91,7 +91,20 @@ exports.loginAdmin = async (req, res) => {
       roles: { $in: ["admin"] },
     });
 
-    if (!user) {
+    // First check if user exists but is not an admin
+    const regularUser = await User.findOne({ email: email.toLowerCase() });
+    
+    if (!user && regularUser) {
+      // User exists but is not an admin
+      if (req.xhr || req.headers.accept?.includes("application/json")) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied. Please use the user login page."
+        });
+      }
+      return res.redirect('/admin/login?error=' + encodeURIComponent('Access denied. Please use the user login page.'));
+    } else if (!user) {
+      // User doesn't exist at all
       return handleLoginError(req, res, "Invalid credentials");
     }
 
@@ -371,7 +384,6 @@ const topCategories = await Order.aggregate([
 };
 
 
-
 exports.customerList = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -421,95 +433,43 @@ exports.customerList = async (req, res) => {
   }
 };
 
-exports.blockCustomer = async (req, res) => {
+exports.toggleCustomerStatus = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const user = await User.findByIdAndUpdate(
-      id,
-      { 
-        isActive: false,
-        blockedAt: new Date(),
-        blockReason: 'Blocked by administrator'
-      },
-      { new: true }
-    );
-
+    const userId = req.params.id;
+    const user = await User.findById(userId);
+    
     if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-    }
-
-    // Invalidate all active sessions for this user
-    await User.findByIdAndUpdate(id, { $inc: { sessionVersion: 1 } });
-
-    res.json({ success: true, message: "User blocked successfully" });
-  } catch (error) {
-    console.error('Error blocking user:', error);
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
-};
-
-exports.unblockCustomer = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const user = await User.findByIdAndUpdate(
-      id,
-      { isActive: true },
-      { new: true }
-    );
-
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-    }
-
-    res.json({ success: true, message: "User unblocked successfully" });
-  } catch (error) {
-    console.error("Error unblocking customer:", error);
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
-};
-
-exports.exportCustomerData = async (req, res) => {
-  try {
-    const customers = await User.find({}, "-password");
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Customers");
-
-    worksheet.columns = [
-      { header: "Name", key: "name" },
-      { header: "Email", key: "email" },
-      { header: "Phone", key: "phone" },
-      { header: "Status", key: "status" },
-      { header: "Joined Date", key: "createdAt" },
-    ];
-
-    customers.forEach((customer) => {
-      worksheet.addRow({
-        name: customer.name,
-        email: customer.email,
-        phone: customer.phone,
-        status: customer.status,
-        createdAt: customer.createdAt.toLocaleDateString(),
+      return res.status(404).json({ 
+        success: false, 
+        message: "User not found" 
       });
+    }
+    
+    user.isActive = !user.isActive;
+    
+    if (user.isActive) {
+      user.blockedAt = undefined;
+      user.blockReason = undefined;
+    } else {
+      user.blockedAt = new Date();
+      user.blockReason = 'Blocked by administrator';
+    }
+    
+    user.sessionVersion += 1;
+    
+    await user.save();
+    
+    res.json({ 
+      success: true, 
+      message: `User ${user.isActive ? 'unblocked' : 'blocked'} successfully`,
+      isActive: user.isActive
     });
-
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-    res.setHeader("Content-Disposition", "attachment; filename=customers.xlsx");
-    await workbook.xlsx.write(res).then(() => {
-      console.log("Excel file successfully written and response ended.");
-      res.end();
-    });
+    
   } catch (error) {
-    console.error("Error exporting customer data:", error);
-    res.status(500).json({ success: false, message: "Internal server error" });
+    console.error('Error toggling user status:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to update user status' 
+    });
   }
 };
-
-

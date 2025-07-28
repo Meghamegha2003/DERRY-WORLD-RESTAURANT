@@ -6,12 +6,12 @@ const Order = require("../../models/orderSchema");
 const Category = require("../../models/categorySchema");
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
-const OfferService = require("../../services/offerService"); // Added this line
-const mongoose = require("mongoose"); // Import mongoose
+const OfferService = require("../../services/offerService");
+const mongoose = require("mongoose");
 const Coupon = require("../../models/couponSchema");
 const Wallet = require("../../models/walletSchema"); 
 
-// Initialize Razorpay
+
 const razorpay =
   process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET
     ? new Razorpay({
@@ -77,14 +77,14 @@ exports.renderProductDetails = async (req, res) => {
     if (req.user) {
       const user = await User.findById(req.user._id);
 
-      // Check if product is in wishlist
+
       isInWishlist =
         user.wishlist &&
         user.wishlist.some(
           (item) => item.product && item.product.toString() === productId
         );
 
-      // Get cart items safely
+
       const cart = await Cart.findOne({ user: req.user._id });
       if (cart && cart.items && Array.isArray(cart.items)) {
         cartItems = cart.items.map((item) => item.product.toString());

@@ -2,13 +2,8 @@
 
 <!-- Main Content -->
 <main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
-    <h1 class="mb-3 mb-md-0">Customer List</h1>
-    <div class="d-flex gap-2">
-      <button class="btn btn-outline-secondary mb-3 mb-md-0" onclick="exportCustomerData()">
-        <i class="bi bi-download"></i> Export Data
-      </button>
-    </div>
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Customer List</h1>
   </div>
   
   <div class="table-responsive">
@@ -135,7 +130,7 @@
       });
 
       if (result.isConfirmed) {
-        const response = await fetch(`/admin/customers/${customerId}/${action}`, {
+        const response = await fetch(`/admin/customers/${customerId}/toggle-status`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -150,14 +145,28 @@
         const data = await response.json();
 
         if (data.success) {
+          // Update the UI without reloading the page
+          const statusBadge = button.closest('tr').querySelector('.badge');
+          const isNowActive = data.isActive;
+          
+          // Update button text and style
+          button.textContent = isNowActive ? 'Block' : 'Unblock';
+          button.className = `btn btn-sm ${isNowActive ? 'btn-danger' : 'btn-success'}`;
+          
+          // Update status badge
+          statusBadge.textContent = isNowActive ? 'Active' : 'Blocked';
+          statusBadge.className = `badge ${isNowActive ? 'bg-success' : 'bg-danger'}`;
+          
+          // Update the button's onclick handler with the new status
+          button.setAttribute('onclick', `handleCustomerAction(this, '${customerId}', ${isNowActive})`);
+          
           await Swal.fire({
             icon: 'success',
             title: 'Success!',
-            text: `Customer ${action}ed successfully`,
+            text: `Customer ${isNowActive ? 'unblocked' : 'blocked'} successfully`,
             showConfirmButton: false,
             timer: 1500
           });
-          window.location.reload();
         } else {
           throw new Error(data.message || `Failed to ${action} customer`);
         }
@@ -168,47 +177,6 @@
         icon: 'error',
         title: 'Error!',
         text: error.message || 'An error occurred'
-      });
-    }
-  }
-
-  async function exportCustomerData() {
-    try {
-      const response = await fetch('/admin/customers/export', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'same-origin'
-      });
-
-      if (!response.ok) {
-        throw new Error('Export failed');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'customers.csv';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      await Swal.fire({
-        icon: 'success',
-        title: 'Export Successful',
-        text: 'Customer data has been exported successfully.',
-        showConfirmButton: false,
-        timer: 1500
-      });
-    } catch (error) {
-      console.error('Export error:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Export Failed',
-        text: error.message || 'Failed to export customer data'
       });
     }
   }

@@ -3,15 +3,10 @@ const { Order, ORDER_STATUS } = require("../../models/orderSchema");
 const PDFDocument = require("pdfkit");
 const ExcelJS = require("exceljs");
 
-// const calculateGrowth = (current, previous) => {
-//   if (!previous || previous === 0) return 0;
-//   return (((current - previous) / previous) * 100).toFixed(1);
-// };
 exports.getDateRange = (startDate, endDate) => {
   const start = startDate ? new Date(startDate) : new Date();
   const end = endDate ? new Date(endDate) : new Date();
 
-  // Set start to beginning of day and end to end of day
   start.setHours(0, 0, 0, 0);
   end.setHours(23, 59, 59, 999);
 
@@ -148,15 +143,12 @@ exports.getSalesReportData = async (req, res) => {
     const limit = 10;
     const skip = (page - 1) * limit;
 
-    // Get filter parameters
     const { startDate, endDate, paymentMethod } = req.query;
 
-    // Build filter query
     let query = {
       orderStatus: { $in: ["Delivered", "Return Rejected"] },
     };
 
-    // Add date filter if dates are provided
     if (startDate && endDate) {
       const dateRange = exports.getDateRange(startDate, endDate);
       query.createdAt = {
@@ -164,7 +156,6 @@ exports.getSalesReportData = async (req, res) => {
         $lte: dateRange.end,
       };
     }
-    // Add payment method filter
     if (paymentMethod && paymentMethod !== "all") {
       query.paymentMethod = paymentMethod;
     }
@@ -172,17 +163,14 @@ exports.getSalesReportData = async (req, res) => {
       query.orderStatus = orderStatus;
     }
 
-    // Fetch orders
     const orders = await Order.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean();
 
-    // Get total count for pagination
     const total = await Order.countDocuments(query);
 
-    // Calculate stats
     const totalRevenue = orders.reduce(
       (sum, order) => sum + order.totalAmount,
       0
@@ -216,15 +204,12 @@ exports.getSalesReportData = async (req, res) => {
 
 exports.exportSalesReportPDF = async (req, res) => {
   try {
-    // Get filter parameters
     const { startDate, endDate, paymentMethod, orderStatus } = req.query;
 
-    // Build filter query
     let query = {
       orderStatus: { $in: ["Delivered", "Return Rejected"] },
     };
 
-    // Add date filter if dates are provided
     if (startDate && endDate) {
       const dateRange = exports.getDateRange(startDate, endDate);
       query.createdAt = {
@@ -233,7 +218,6 @@ exports.exportSalesReportPDF = async (req, res) => {
       };
     }
 
-    // Add payment method filter
     if (paymentMethod && paymentMethod !== "all") {
       query.paymentMethod = paymentMethod;
     }
@@ -241,30 +225,25 @@ exports.exportSalesReportPDF = async (req, res) => {
       query.orderStatus = orderStatus;
     }
 
-    // Get orders
     const orders = await Order.find(query)
       .sort({ createdAt: -1 })
       .populate("user", "name email")
       .lean();
 
-    // Create PDF document
     const doc = new PDFDocument({
       size: "A4",
       layout: "landscape",
       margins: { top: 60, bottom: 60, left: 60, right: 60 },
     });
 
-    // Set response headers
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
       "attachment; filename=sales-report.pdf"
     );
 
-    // Pipe PDF to response
     doc.pipe(res);
 
-    // Function to draw page border on each page
     function drawPageBorder() {
       doc.save();
       doc.strokeColor("#000000").lineWidth(1);
@@ -278,18 +257,13 @@ exports.exportSalesReportPDF = async (req, res) => {
         .stroke();
       doc.restore();
     }
-    // Initial border for first page
     drawPageBorder();
-    // Listen for new pages to draw border
     doc.on("pageAdded", drawPageBorder);
 
-    // Initialize grid style
     doc.strokeColor("#cccccc").lineWidth(0.5);
 
-    // Add heading and subtitle
     let pageWidth =
       doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    // Main heading
     doc
       .font("Helvetica")
       .fontSize(20)
@@ -297,7 +271,6 @@ exports.exportSalesReportPDF = async (req, res) => {
         width: pageWidth,
         align: "center",
       });
-    // Subtitle for filtered orders
     if (orderStatus && orderStatus !== "all") {
       const subtitle =
         orderStatus === "Delivered"
@@ -313,7 +286,6 @@ exports.exportSalesReportPDF = async (req, res) => {
     }
     doc.moveDown(1.5);
 
-    // Date range if provided
     if (startDate && endDate) {
       doc.fontSize(10).text(`Date Range: ${startDate} to ${endDate}`);
       doc.moveDown();
@@ -368,7 +340,7 @@ exports.exportSalesReportPDF = async (req, res) => {
     const tableWidth = Math.floor(availableWidth * 0.9);
     const tableMarginX =
       pageMargin + Math.floor((availableWidth - tableWidth) / 2);
-    const tableTop = doc.y + 20; // moved down slightly
+    const tableTop = doc.y + 20;
     const noWidth = 30;
     const restWidth = Math.floor(tableWidth - noWidth);
     const colWidths = {
@@ -389,7 +361,6 @@ exports.exportSalesReportPDF = async (req, res) => {
           Math.floor(restWidth * 0.13)),
     };
 
-    // Column X positions
     const itemNoX = tableMarginX;
     const orderIdX = itemNoX + colWidths.no;
     const amountX = orderIdX + colWidths.orderId;
@@ -398,13 +369,11 @@ exports.exportSalesReportPDF = async (req, res) => {
     const statusX = finalAmountX + colWidths.finalAmount;
     const usernameX = statusX + colWidths.status;
     const paymentMethodX = usernameX + colWidths.username;
-    const tableRight = tableMarginX + tableWidth; // global table right edge
+    const tableRight = tableMarginX + tableWidth;
 
-    // Function to draw table header
     function drawTableHeader() {
       const headerHeight = 20;
 
-      // Header background
       doc.save();
       doc
         .fillColor("#f0f0f0")
@@ -461,25 +430,20 @@ exports.exportSalesReportPDF = async (req, res) => {
         ellipsis: true,
         lineBreak: false,
       });
-      // Header underline
       doc
         .strokeColor("#000000")
         .lineWidth(1)
         .moveTo(itemNoX, tableTop + headerHeight)
         .lineTo(tableRight, tableTop + headerHeight)
         .stroke();
-      // Reset to grid style for rows
       doc.strokeColor("#cccccc").lineWidth(0.5);
     }
-    // Draw initial header
     drawTableHeader();
     doc.font("Helvetica").fontSize(12);
 
-    // Rows
     const rowHeight = 20;
     let rowY = tableTop + 20;
     orders.forEach((order, i) => {
-      // Page break if row won't fit
       if (rowY + rowHeight > doc.page.height - doc.page.margins.bottom) {
         doc.addPage();
         drawTableHeader();
@@ -501,7 +465,6 @@ exports.exportSalesReportPDF = async (req, res) => {
       const methodMap = { cod: "COD", razorpay: "Razorpay", wallet: "Wallet" };
       const paymentMethodText =
         methodMap[order.paymentMethod] || order.paymentMethod || "N/A";
-      // Draw cell boxes and text
       doc.rect(itemNoX, rowY, colWidths.no, rowHeight).stroke();
       doc.text(i + 1, itemNoX + 2, rowY + 5, {
         width: colWidths.no - 4,
@@ -587,18 +550,13 @@ exports.exportSalesReportPDF = async (req, res) => {
       rowY += rowHeight;
     });
 
-    // Finalize PDF
-    // Draw table border and vertical grid lines
     const tableBottom = rowY;
     const tableLeft = tableMarginX;
 
-    // Draw outer border around the table
-    // Draw outer border with bold stroke
     doc.strokeColor("#000000").lineWidth(1);
     doc
       .rect(tableLeft, tableTop, tableRight - tableLeft, tableBottom - tableTop)
       .stroke();
-    // Draw vertical grid lines
     [
       itemNoX,
       orderIdX,
@@ -616,12 +574,10 @@ exports.exportSalesReportPDF = async (req, res) => {
     doc.end();
   } catch (error) {
     console.error("Error exporting sales report as PDF:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to export sales report as PDF",
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to export sales report as PDF",
+    });
   }
 };
 
@@ -718,4 +674,3 @@ exports.exportSalesReportExcel = async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to export Excel" });
   }
 };
-

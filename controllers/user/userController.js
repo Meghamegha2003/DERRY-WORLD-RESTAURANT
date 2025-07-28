@@ -42,7 +42,6 @@ const generateToken = (user, cartCount = 0) => {
 };
 
 const handleLoginError = (req, res, message, redirectUrl = '/login', errorType = 'error') => {
-  // For admin login attempts, modify the message to not show the admin login button
   if (errorType === 'admin_login_attempt') {
     message = 'Invalid email or password';
   }
@@ -51,7 +50,7 @@ const handleLoginError = (req, res, message, redirectUrl = '/login', errorType =
     return res.status(401).json({
       success: false,
       message: message,
-      errorType: errorType === 'admin_login_attempt' ? 'error' : errorType // Remove admin_login_attempt type in JSON response
+      errorType: errorType === 'admin_login_attempt' ? 'error' : errorType
     });
   }
   
@@ -59,7 +58,7 @@ const handleLoginError = (req, res, message, redirectUrl = '/login', errorType =
     title: 'Login',
     path: '/login',
     error: message,
-    errorType: errorType === 'admin_login_attempt' ? 'error' : errorType // Use generic error type for admin attempts
+    errorType: errorType === 'admin_login_attempt' ? 'error' : errorType
   });
 };
 
@@ -83,12 +82,6 @@ exports.renderLoginPage = async (req, res) => {
   } catch (error) {
     res.status(HttpStatus.INTERNAL_SERVER_ERROR).send('Something went wrong');
   }
-};
-
-exports.processLoginRequest = (req, res, next) => {
-  // This middleware is a placeholder for any pre-login processing
-  // Currently, it just passes control to the next middleware
-  next();
 };
 
 exports.loginUser = async (req, res) => {
@@ -845,19 +838,17 @@ exports.deleteAddress = async (req, res) => {
   }
 };
 
+//handle offer
 exports.applyOffersToProducts = async (products) => {
   for (const product of products) {
-    // Use sales price as base if it exists and is less than regular price
     const basePrice = (product.salesPrice && product.salesPrice < product.regularPrice) 
       ? product.salesPrice 
       : product.regularPrice;
 
-    // Skip if product doesn't have a valid category
     if (!product.category || !product.category._id) {
       continue;
     }
 
-    // Fetch the best product-specific offer
     const productOffer = await Offer.findOne({
       isActive: true,
       type: 'product',
@@ -866,7 +857,6 @@ exports.applyOffersToProducts = async (products) => {
       endDate: { $gte: new Date() }
     });
 
-    // Fetch the best category-wide offer
     const categoryOffer = await Offer.findOne({
       isActive: true,
       type: 'category',
@@ -878,7 +868,6 @@ exports.applyOffersToProducts = async (products) => {
     let bestOffer = null;
     let bestDiscount = 0;
 
-    // Determine the best applicable offer
     if (productOffer) {
       bestDiscount = productOffer.calculateDiscount(basePrice);
       bestOffer = productOffer;
@@ -891,7 +880,6 @@ exports.applyOffersToProducts = async (products) => {
       }
     }
 
-    // Apply discount only if there's a valid offer
     if (bestOffer) {
       product.offerDetails = {
         hasOffer: true,
@@ -913,80 +901,10 @@ exports.applyOffersToProducts = async (products) => {
   return products;
 };
 
-exports.renderLandingPage = async (req, res) => {
-  try {
-    let cartCount = 0;
-    let userWishlist = [];
-    
-    if (req.user) {
-      cartCount = await getCartCount(req.user._id);
-    }
-
-    // Get featured products with populated category
-    let products = await Product.find({ 
-      isListed: true,
-      isBlocked: false,
-      isAvailable: true 
-    })
-    .populate('category')
-    .populate('ratings')
-    .sort({ createdAt: -1 })
-    .limit(8)
-    .lean();
-
-    // Get top-rated products
-    let topRatedProducts = await Product.find({
-      isListed: true,
-      isBlocked: false,
-      isAvailable: true,
-      'ratings.0': { $exists: true }
-    })
-    .populate('category')
-    .populate('ratings')
-    .sort({ 'ratings.rating': -1 })
-    .limit(4)
-    .lean();
-
-    // Mark wishlist items and ensure price fields
-    const processProducts = (prods) => prods.map(product => ({
-      ...product,
-      price: product.regularPrice || 0,
-      salesPrice: product.salesPrice || product.regularPrice || 0
-    }));
-
-    products = processProducts(products);
-    topRatedProducts = processProducts(topRatedProducts);
-
-    // Get categories
-    const categories = await Category.find({ 
-      isListed: true 
-    })
-    .lean();
-
-    res.render('user/home', {
-      user: req.user || null,
-      products,
-      topRatedProducts,
-      categories,
-      cartCount,
-      path: '/'
-    });
-  } catch (error) {
-    console.error('Error in renderLandingPage:', error);
-    res.status(500).render('error', {
-      message: 'Error loading landing page',
-      error: process.env.NODE_ENV === 'development' ? error : {},
-      cartCount: 0,
-      user: null
-    });
-  }
-};
-
 
 
 exports.resendOTP = async (req, res) => {
   try {
-    // Get OTP token from request body, query params, or cookie
     let otpToken = req.body.token || req.query.token || req.cookies.otpToken;
     
     if (!otpToken) {
@@ -1015,11 +933,9 @@ exports.resendOTP = async (req, res) => {
       return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
     }
 
-    // Generate new OTP with extended expiration time
     const otp = generateOtp();
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
 
-    // Delete old OTP and create new one with creation timestamp
     await OTP.deleteMany({ email: decoded.email });
     await OTP.create({ 
       email: decoded.email, 
@@ -1028,45 +944,38 @@ exports.resendOTP = async (req, res) => {
       createdAt: new Date()
     });
     
-    // Log the new OTP for debugging
     console.log(`New OTP for ${decoded.email}: ${otp} (Expires at: ${expiresAt})`);
 
-    // Send new OTP
     await exports.sendOTPEmail(decoded.email, otp);
 
-    // Generate a new token with the updated expiration
     const newToken = jwt.sign(
       { 
         email: decoded.email, 
         purpose: 'otp_verification',
-        otp // Include OTP in the token for verification
+        otp 
       },
       process.env.JWT_SECRET,
       { expiresIn: '30m' }
     );
 
-    // Set the token in cookie for web requests
     res.cookie('otpToken', newToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 30 * 60 * 1000, // 30 minutes
+      maxAge: 30 * 60 * 1000, 
       path: '/verify-otp'
     });
 
-    // Prepare response data
     const responseData = {
       success: true, 
       message: 'New OTP sent successfully to your email',
-      token: newToken // Include token in response for API clients
+      token: newToken 
     };
 
-    // Return JSON response for AJAX requests
     if (req.accepts('json')) {
       return res.json(responseData);
     }
 
-    // Fallback for non-AJAX requests
     return res.redirect(`/verify-otp?token=${encodeURIComponent(newToken)}&message=${encodeURIComponent('New OTP sent successfully to your email')}`);
 
   } catch (error) {
@@ -1080,7 +989,6 @@ exports.resendOTP = async (req, res) => {
       });
     }
     
-    // If we have a token, include it in the redirect to maintain the verification context
     const redirectUrl = req.cookies.otpToken || req.body.token || req.query.token
       ? `/verify-otp?token=${encodeURIComponent(req.cookies.otpToken || req.body.token || req.query.token)}&error=${encodeURIComponent(errorMsg)}`
       : `/register?error=${encodeURIComponent(errorMsg)}`;
@@ -1091,10 +999,8 @@ exports.resendOTP = async (req, res) => {
 
 
 
-// Render OTP verification page
 exports.renderVerifyOtpPage = async (req, res) => {
   try {
-    // Get token from URL parameter or cookie
     const tokenFromUrl = req.query.token;
     const tokenFromCookie = req.cookies.otpToken;
     const otpToken = tokenFromUrl || tokenFromCookie;
@@ -1105,17 +1011,15 @@ exports.renderVerifyOtpPage = async (req, res) => {
     
     let decoded;
     try {
-      // Verify the token
       decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
       if (decoded.purpose !== 'otp_verification') throw new Error('Invalid token purpose');
       
-      // If token is from URL, set it in cookie for subsequent requests
       if (tokenFromUrl && !tokenFromCookie) {
         res.cookie('otpToken', otpToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
-          maxAge: 30 * 60 * 1000, // 30 minutes
+          maxAge: 30 * 60 * 1000, 
           path: '/verify-otp'
         });
       }
@@ -1125,11 +1029,10 @@ exports.renderVerifyOtpPage = async (req, res) => {
       return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
     }
 
-    // Render the OTP verification page with the token and any messages
     res.render('user/verify-otp', {
       title: 'Verify OTP',
       email: decoded.email,
-      token: otpToken, // Pass the token to the view
+      token: otpToken, 
       error: req.query.error || null,
       message: req.query.message || null
     });
@@ -1143,10 +1046,8 @@ exports.verifyOTP = async (req, res) => {
     try {
         const { otp, token: tokenFromBody } = req.body;
         
-        // Try to get token from body, query param, or cookie (in order of preference)
         const otpToken = tokenFromBody || req.query.token || req.cookies.otpToken;
         
-        // Validate OTP input
         if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
             const errorMsg = 'Please enter a valid 6-digit OTP';
             if (req.accepts('json')) {
@@ -1177,10 +1078,8 @@ exports.verifyOTP = async (req, res) => {
         
         let decoded;
         try {
-            // Verify the token
             decoded = jwt.verify(otpToken, process.env.JWT_SECRET, { ignoreExpiration: false });
             
-            // Check if this is an OTP verification token
             if (decoded.purpose !== 'otp_verification') {
                 const errorMsg = 'Invalid verification request. Please try again.';
                 console.error('Invalid token purpose:', decoded.purpose);
@@ -1198,7 +1097,6 @@ exports.verifyOTP = async (req, res) => {
                 });
             }
             
-            // Verify the OTP from the token matches the one provided
             if (decoded.otp !== otp) {
                 const errorMsg = 'Invalid OTP. Please try again.';
                 console.error('OTP mismatch for:', decoded.email);
@@ -1223,7 +1121,6 @@ exports.verifyOTP = async (req, res) => {
             console.error('JWT verification error:', error.message);
             const errorMsg = 'Verification session expired. Please register again.';
             
-            // Clear the OTP token cookie
             res.clearCookie('otpToken', { path: '/verify-otp' });
             
             if (req.accepts('json')) {
@@ -1235,7 +1132,6 @@ exports.verifyOTP = async (req, res) => {
             return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
         }
         
-        // Find and validate OTP record
         const otpRecord = await OTP.findOne({
             email: { $regex: new RegExp(`^${decoded.email}$`, 'i') },
             otp: otp,
@@ -1262,51 +1158,42 @@ exports.verifyOTP = async (req, res) => {
             });
         }
         
-        // Delete used OTP
         await OTP.deleteOne({ _id: otpRecord._id });
 
-    // This is a registration flow
     const userData = decoded;
     if (userData.name) {
       try {
-        // Create new user - let the pre-save hook handle password hashing
         const newUser = new User({
           name: userData.name,
           email: userData.email.toLowerCase(),
           phone: userData.phone,
-          password: userData.password, // Will be hashed by pre-save hook
+          password: userData.password, 
           referralCode: userData.referralCode,
           referredBy: userData.referredBy,
           isVerified: true,
           isActive: true
         });
         
-        // Save the user - this will trigger the pre-save hook to hash the password
         await newUser.save();
         
         console.log('New user created:', newUser.email);
         
-        // If user was referred, process referral rewards
         if (userData.referredBy) {
           try {
             await processReferralReward(userData.referredBy, newUser._id);
             console.log('Referral reward processed successfully');
           } catch (referralError) {
             console.error('Referral reward processing failed:', referralError);
-            // Don't fail registration for referral errors
           }
         }
         
-        // Clear OTP token
         res.clearCookie('otpToken', { path: '/verify-otp' });
         
-        // Send welcome email in the background (don't wait for it to complete)
         exports.sendWelcomeEmail(userData.email, userData.name)
           .catch(emailError => {
             console.error('Failed to send welcome email:', emailError);
           });
         
-        // Return success response
         if (req.accepts('json')) {
           return res.json({ 
             success: true, 
@@ -1315,7 +1202,6 @@ exports.verifyOTP = async (req, res) => {
           });
         }
         
-        // For non-AJAX requests, redirect to login with success message
         return res.redirect('/login?message=' + encodeURIComponent('Registration successful! Please log in.'));
         
       } catch (error) {
@@ -1332,7 +1218,6 @@ exports.verifyOTP = async (req, res) => {
         return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
       }
     } else {
-      // This shouldn't happen in registration flow, but handle gracefully
       res.clearCookie('otpToken');
       return res.redirect('/login?message=' + encodeURIComponent('Verification successful. Please login to continue.'));
     }
@@ -1358,7 +1243,6 @@ exports.handleForgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
-    // Find user by email
     const user = await User.findOne({ email });
     if (!user) {
       if (req.xhr || req.headers.accept?.includes('application/json')) {
@@ -1373,16 +1257,14 @@ exports.handleForgotPassword = async (req, res) => {
       });
     }
 
-    // Generate password reset token
     const passwordResetToken = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
 
-    // Save reset token and expiry to user document
     user.resetPasswordToken = passwordResetToken;
-    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+    user.resetPasswordExpires = Date.now() + 3600000; 
     await user.save();
 
     const info = await transporter.sendMail({
@@ -1610,62 +1492,6 @@ exports.googleCallback = async (req, res) => {
   }
 };
 
-// Render product details page
-exports.renderProductDetails = async (req, res) => {
-  try {
-    const productId = req.params.id;
-    const product = await Product.findById(productId).populate('category');
-    
-    if (!product) {
-      return res.status(404).render('error', {
-        message: 'Product not found',
-        error: { status: 404 }
-      });
-    }
-
-    const category = await Category.findById(product.category);
-    const relatedProducts = await Product.find({
-      category: product.category,
-      _id: { $ne: product._id }
-    }).limit(4);
-
-    let isInCart = false;
-    if (req.user) {
-      const cart = await Cart.findOne({
-        user: req.user._id,
-        'items.product': product._id
-      });
-      isInCart = !!cart;
-    }
-
-    const offerDetails = await OfferService.getBestOffer(product);
-    product.offerDetails = offerDetails;
-    product.finalPrice = offerDetails ? offerDetails.finalPrice : product.regularPrice;
-
-    // Apply offers to related products
-    for (let relatedProduct of relatedProducts) {
-      const offer = await OfferService.getBestOffer(relatedProduct);
-      relatedProduct.offerDetails = offer;
-      relatedProduct.finalPrice = offer ? offer.finalPrice : relatedProduct.regularPrice;
-    }
-
-    res.render('user/foodDetails', {
-      product,
-      category,
-      relatedProducts,
-      isInCart
-    });
-  } catch (error) {
-    res.status(500).render('error', {
-      message: 'Error loading product details',
-      error: process.env.NODE_ENV === 'development' ? error : {},
-      user: req.user,
-      cartCount: 0
-    });
-  }
-}
-
-// Change password
 exports.changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword, confirmPassword } = req.body;
@@ -1744,7 +1570,6 @@ exports.changePassword = async (req, res) => {
     });
   } catch (error) {
     if (error.name === 'ValidationError' && error.errors && error.errors.password) {
-      // Password validation error: show message to user
       return res.status(400).json({
         success: false,
         message: error.errors.password.message
@@ -1775,7 +1600,6 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-// Verify referral code
 exports.verifyReferralCode = async (req, res) => {
   try {
     const { referralCode } = req.body;
@@ -1787,7 +1611,6 @@ exports.verifyReferralCode = async (req, res) => {
       });
     }
 
-    // Find user with this referral code
     const referrer = await User.findOne({ referralCode: referralCode.toUpperCase() });
 
     if (!referrer) {
@@ -1797,7 +1620,6 @@ exports.verifyReferralCode = async (req, res) => {
       });
     }
 
-    // Return success with reward information
     res.json({
       success: true,
       message: 'Valid referral code',
@@ -1819,217 +1641,6 @@ exports.verifyReferralCode = async (req, res) => {
   }
 };
 
-// Render cart page
-exports.renderCartPage = async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.redirect('/login');
-    }
-
-    // Get cart items
-    const cart = await Cart.findOne({ user: req.user._id }).populate('items.product');
-    let cartItems = [];
-    let subtotal = 0;
-    let total = 0;
-    let deliveryCharge = 0;
-    let couponDiscount = cart ? cart.couponDiscount || 0 : 0;
-
-    if (cart && cart.items.length > 0) {
-      cartItems = await Promise.all(cart.items.map(async item => {
-        const product = item.product;
-        if (!product) return null;
-
-        // Get offer details for the product
-        const offerDetails = await OfferService.getBestOffer(product);
-        const finalPrice = offerDetails.hasOffer ? offerDetails.finalPrice : (product.salesPrice || product.regularPrice);
-        
-        const itemTotal = finalPrice * item.quantity;
-        subtotal += itemTotal;
-
-        return {
-          ...item.toObject(),
-          product: {
-            ...product.toObject(),
-            offerDetails
-          },
-          price: finalPrice,
-          originalPrice: product.regularPrice,
-          total: itemTotal,
-          discountPercentage: ((product.regularPrice - finalPrice) / product.regularPrice) * 100
-        };
-      }));
-
-      // Remove any null items (from deleted products)
-      cartItems = cartItems.filter(item => item !== null);
-
-      // Calculate delivery charge and total
-      deliveryCharge = subtotal >= 500 ? 0 : 40;
-      total = subtotal + deliveryCharge - couponDiscount;
-    }
-
-    // Get cart count
-    const cartCount = cart ? getUniqueProductCount(cart) : 0;
-
-    res.render('user/cart', {
-      cartItems,
-      subtotal,
-      deliveryCharge,
-      total,
-      couponDiscount,
-      cart,
-      user: req.user,
-      cartCount,
-      messages: res.locals.messages,
-
-    });
-  } catch (error) {
-    console.error('Error rendering cart page:', error);
-    res.setMessage('error', 'Failed to load cart');
-    res.redirect('/');
-  }
-};
-
-// Add to cart
-exports.addToCart = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { productId } = req.params;
-    const { quantity = 1 } = req.body;
-
-    // Validate product exists
-    const product = await Product.findById(productId);
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
-    }
-
-    // Get or create cart
-    let cart = await Cart.findOne({ userId });
-    if (!cart) {
-      cart = new Cart({ userId, items: [] });
-    }
-
-    // Check if product already in cart
-    const existingItem = cart.items.find(item => 
-      item.productId.toString() === productId
-    );
-
-    if (existingItem) {
-      existingItem.quantity += parseInt(quantity);
-    } else {
-      cart.items.push({
-        productId,
-        quantity: parseInt(quantity)
-      });
-    }
-
-    await cart.save();
-
-    res.json({
-      success: true,
-      message: 'Added to cart',
-      cartCount: getUniqueProductCount(cart)
-    });
-  } catch (error) {
-    console.error('Error adding to cart:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to add to cart'
-    });
-  }
-};
-
-// Update cart item
-exports.updateCartItem = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { productId } = req.params;
-    const { quantity } = req.body;
-
-    // Validate quantity
-    if (!quantity || quantity < 1) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid quantity'
-      });
-    }
-
-    const cart = await Cart.findOne({ userId });
-    if (!cart) {
-      return res.status(404).json({
-        success: false,
-        message: 'Cart not found'
-      });
-    }
-
-    // Find and update item
-    const cartItem = cart.items.find(item => 
-      item.productId.toString() === productId
-    );
-
-    if (!cartItem) {
-      return res.status(404).json({
-        success: false,
-        message: 'Item not found in cart'
-      });
-    }
-
-    cartItem.quantity = parseInt(quantity);
-    await cart.save();
-
-    res.json({
-      success: true,
-      message: 'Cart updated',
-      quantity: cartItem.quantity,
-      cartCount: getUniqueProductCount(cart)
-    });
-  } catch (error) {
-    console.error('Error updating cart:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update cart'
-    });
-  }
-};
-
-// Remove from cart
-exports.removeFromCart = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { productId } = req.params;
-
-    const cart = await Cart.findOne({ userId });
-    if (!cart) {
-      return res.status(404).json({
-        success: false,
-        message: 'Cart not found'
-      });
-    }
-
-    // Remove item from cart
-    cart.items = cart.items.filter(item => 
-      item.productId.toString() !== productId
-    );
-
-    await cart.save();
-
-    res.json({
-      success: true,
-      message: 'Item removed from cart',
-      cartCount: getUniqueProductCount(cart)
-    });
-  } catch (error) {
-    
-    res.status(500).json({
-      success: false,
-      message: 'Failed to remove item'
-    });
-  }
-};
-
-// Helper function to send welcome email to new users
 exports.sendWelcomeEmail = async (email, name) => {
   try {
     // Create a test account for development
@@ -2071,10 +1682,8 @@ exports.sendWelcomeEmail = async (email, name) => {
   }
 };
 
-// Helper function to send OTP email
 exports.sendOTPEmail = async (email, otp) => {
   try {
-    // Configure nodemailer transporter
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -2083,7 +1692,6 @@ exports.sendOTPEmail = async (email, otp) => {
       }
     });
 
-    // Send OTP email
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
@@ -2109,21 +1717,15 @@ exports.sendOTPEmail = async (email, otp) => {
   }
 };
 
-// Helper function to generate and save OTP
 exports.generateAndSaveOtp = async (email) => {
   try {
-    // Delete any existing OTPs for this email
     await OTP.deleteMany({ email });
    
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log('\n[DEBUG] ============ OTP DETAILS ============');
-    console.log(`[DEBUG] Email: ${email}`);
+  
     console.log(`[DEBUG] OTP: ${otp}`);
-    console.log('[DEBUG] ====================================\n');
-
-    // Save OTP to database
+   
     const newOTP = new OTP({
       email,
       otp,
@@ -2132,7 +1734,6 @@ exports.generateAndSaveOtp = async (email) => {
     await newOTP.save();
     
 
-    // Send OTP email
     await sendOTPEmail(email, otp);
 
     return { otp };
@@ -2142,7 +1743,6 @@ exports.generateAndSaveOtp = async (email) => {
   }
 };
 
-// Helper function to get cart count
 exports.getCartCount = async (userId) => {
   try {
     const cart = await Cart.findOne({ user: userId });
@@ -2156,7 +1756,6 @@ exports.getCartCount = async (userId) => {
 
 
 
-// Password Reset Controllers
 exports.forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
@@ -2172,7 +1771,6 @@ exports.forgotPassword = async (req, res) => {
             return res.redirect('/forgot-password');
         }
 
-        // Find user
         const user = await User.findOne({ email: email.toLowerCase() });
         if (!user) {
             
@@ -2186,7 +1784,6 @@ exports.forgotPassword = async (req, res) => {
             return res.redirect('/forgot-password');
         }
 
-        // Check if user is blocked
         if (!user.isActive) {
             if (req.xhr || req.headers.accept?.includes('application/json')) {
                 return res.status(403).json({
@@ -2198,14 +1795,12 @@ exports.forgotPassword = async (req, res) => {
             return res.redirect('/forgot-password');
         }
 
-        // Generate reset token
         const resetToken = crypto.randomBytes(32).toString('hex');
         const resetTokenHash = crypto
             .createHash('sha256')
             .update(resetToken)
             .digest('hex');
 
-        // Save reset token and expiry to user document
         user.resetPasswordToken = resetTokenHash;
         user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
         await user.save();
@@ -2263,13 +1858,11 @@ exports.resetPassword = async (req, res) => {
             return res.redirect(`/reset-password/${token}`);
         }
 
-        // Hash token
         const resetTokenHash = crypto
             .createHash('sha256')
             .update(token)
             .digest('hex');
 
-        // Find user with valid token
         const user = await User.findOne({
             resetPasswordToken: resetTokenHash,
             resetPasswordExpires: { $gt: Date.now() }
@@ -2287,7 +1880,6 @@ exports.resetPassword = async (req, res) => {
             return res.redirect('/forgot-password');
         }
 
-        // Update password
         user.password = await bcrypt.hash(password, 10);
         user.resetPasswordToken = undefined;
         user.resetPasswordExpires = undefined;
@@ -2295,7 +1887,6 @@ exports.resetPassword = async (req, res) => {
 
         
 
-        // Send confirmation email
         const mailOptions = {
             to: user.email,
             subject: 'Password Reset Successful - Derry World',
@@ -2341,7 +1932,6 @@ exports.resetPassword = async (req, res) => {
     }
 };
 
-// Render password reset pages
 exports.renderForgotPasswordPage = async (req, res) => {
     res.render('user/forgot-password');
 };
@@ -2350,12 +1940,10 @@ exports.renderResetPasswordPage = async (req, res) => {
     res.render('user/reset-password', { token: req.params.token });
 };
 
-// Handle contact form submission
 exports.handleContactForm = async (req, res) => {
     try {
         const { name, email, phone, message } = req.body;
 
-        // Validate input
         if (!name || !email || !phone || !message) {
             return res.status(400).json({
                 success: false,
@@ -2363,7 +1951,6 @@ exports.handleContactForm = async (req, res) => {
             });
         }
 
-        // Validate email format
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             return res.status(400).json({
                 success: false,
@@ -2371,17 +1958,12 @@ exports.handleContactForm = async (req, res) => {
             });
         }
 
-        // Validate phone number format
         if (!/^\d{10}$/.test(phone)) {
             return res.status(400).json({
                 success: false,
                 message: 'Please enter a valid 10-digit phone number'
             });
         }
-
-        // Here you would typically save the contact form to database
-        // and/or send an email notification
-        
        
         res.json({
             success: true,

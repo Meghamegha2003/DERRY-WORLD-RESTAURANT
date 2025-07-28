@@ -5,6 +5,7 @@ const menuController = require('../../controllers/user/menuController');
 const productController = require('../../controllers/user/productController');
 const wishlistController = require('../../controllers/user/wishlistController');
 const walletController = require('../../controllers/user/walletController');
+const cartController = require('../../controllers/user/cartController');
 const { auth, optionalAuth } = require('../../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -12,7 +13,7 @@ const router = express.Router();
 // <====Login Routes====>
 router.get('/', optionalAuth, userController.renderHomePage);
 router.get('/login', userController.renderLoginPage);
-router.post('/login', userController.processLoginRequest, userController.loginUser);
+router.post('/login', userController.loginUser);
 
 // <====Register Routes====>
 router.get('/register', userController.renderRegisterPage);
@@ -57,8 +58,6 @@ router.post('/addresses', auth, userController.addAddress);
 router.patch('/addresses/:id', auth, userController.updateAddress);
 router.delete('/addresses/:id', auth, userController.deleteAddress);
 
-// <====Logout Routes====>
-router.get('/logout', auth, userController.logoutUser);
 
 // <====Profile Routes====>
 router.get('/profile', auth, userController.renderProfilePage);
@@ -66,10 +65,10 @@ router.post('/profile', auth, userController.updateUserProfile);
 router.post('/change-password', auth, userController.changePassword);
 
 // <====Cart Routes====>
-router.get('/cart', auth, userController.renderCartPage);
-router.post('/cart/add', auth, userController.addToCart);
-router.put('/cart/:id', auth, userController.updateCartItem);
-router.delete('/cart/:id', auth, userController.removeFromCart);
+router.get('/cart', auth, cartController.getCartPage);
+router.post('/cart/add', auth, cartController.addToCart);
+router.put('/cart/:id', auth, cartController.updateCart);
+router.delete('/cart/:id', auth, cartController.removeFromCart);
 
 // <====WishList Routes====>
 router.get('/wishlist', auth, wishlistController.renderWishlist);
@@ -80,5 +79,9 @@ router.delete('/wishlist/remove/:productId', auth, wishlistController.removeFrom
 router.get('/wallet', auth, walletController.getWallet);
 router.post('/wallet/add-money', auth, walletController.initializeAddMoney);
 router.post('/wallet/verify-payment', auth, walletController.verifyAndAddMoney);
+
+// <====Logout Routes====>
+router.get('/logout', auth, userController.logoutUser);
+
 
 module.exports = router;

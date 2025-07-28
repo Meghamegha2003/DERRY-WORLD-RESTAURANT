@@ -1,4 +1,3 @@
-// Sweet Alert Configuration
 const Toast = Swal.mixin({
     toast: true,
     position: 'top-end',
@@ -11,7 +10,7 @@ const Toast = Swal.mixin({
     }
 });
 
-// Cart functions
+
 function addToCart(productId, quantity = 1) {
     fetch(`/cart/add/${productId}`, {
         method: 'POST',
@@ -74,7 +73,7 @@ function removeFromCart(productId) {
                 if (response.success) {
                     $(`#cart-item-${productId}`).fadeOut(300, function() {
                         $(this).remove();
-                        // location.reload();
+
                     });
                 }
             })
@@ -134,7 +133,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 const data = await response.json();
 
-                // ✅ SweetAlert Toast
+
                 Swal.fire({
                     toast: true,
                     position: 'top-end',
@@ -156,7 +155,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 });
 
-                // ✅ Auto reload after 1.5s
+
                 setTimeout(() => {
                     location.reload();
                 }, 1500);
