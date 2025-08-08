@@ -163,7 +163,8 @@ if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
         res.status(200).json({
             success: true,
             message: 'Payment verified and order updated',
-            orderId: existingOrder._id
+            orderId: existingOrder._id,
+            redirectUrl: `/orders/${existingOrder._id}/view` // Add redirect URL to order details page
         });
     } catch (error) {
         console.error('Payment verification error:', error);

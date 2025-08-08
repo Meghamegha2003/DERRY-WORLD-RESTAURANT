@@ -6,7 +6,8 @@ const { auth } = require('../../middlewares/authMiddleware');
 router.use(auth);
 
 router.get('/', orderController.getUserOrders);
-router.get('/:orderId', orderController.getOrderDetails);
+router.get('/:orderId/view', orderController.viewOrder);
+router.get('/:orderId/items/:itemId?', orderController.getOrderDetails);
 router.post('/:orderId/cancel', orderController.cancelOrder);
 router.post('/:orderId/items/:itemId/cancel', orderController.cancelOrderItem);
 router.post('/:orderId/items/:itemId/return', orderController.requestItemReturn);

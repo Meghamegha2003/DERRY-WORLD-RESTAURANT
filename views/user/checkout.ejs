@@ -989,7 +989,9 @@ fetch('/checkout/process', {
           });
           const verifyData = await resVerify.json();
           if (verifyData.success) {
-            window.location.href = `/orders/${verifyData.orderId}`;
+            // Use the redirectUrl from verification response or construct the URL
+            const redirectUrl = verifyData.redirectUrl || `/orders/${verifyData.orderId}/view`;
+            window.location.href = redirectUrl;
           } else {
             throw new Error(verifyData.message || 'Verification failed');
           }
@@ -1017,14 +1019,27 @@ fetch('/checkout/process', {
     const rzp = new Razorpay(options);
     rzp.open();
   } else {
-    Swal.fire({
-      icon: 'success',
-      title: 'Order Placed Successfully!',
-      text: 'Thank you for your order.',
-      confirmButtonText: 'View Order'
-    }).then(() => {
-      window.location.href = `/orders/${data.orderId}`;
-    });
+    // For non-online payments, redirect to order details page
+    // Using the redirectUrl from backend which should be /orders/:orderId/view
+    if (data.redirectUrl) {
+      window.location.href = data.redirectUrl;
+    } else {
+      // Fallback to showing success message with options
+      Swal.fire({
+        icon: 'success',
+        title: 'Order Placed Successfully!',
+        html: 'Thank you for your order. You will be redirected to your order details shortly...',
+        showConfirmButton: false,
+        timer: 2000,
+        timerProgressBar: true,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      }).then(() => {
+        // Fallback redirect if still on page after timeout
+        window.location.href = data.orderId ? `/orders/${data.orderId}/view` : '/orders';
+      });
+    }
   }
 })
 .catch(error => {

@@ -220,11 +220,14 @@
 
     // Initialize Bootstrap components
     document.addEventListener('DOMContentLoaded', function() {
-      // Initialize all dropdowns
-      var dropdownElementList = [].slice.call(document.querySelectorAll('.dropdown-toggle'))
-      var dropdownList = dropdownElementList.map(function (dropdownToggleEl) {
-        return new bootstrap.Dropdown(dropdownToggleEl)
-      })
+      // Initialize all dropdowns with proper event delegation
+      document.querySelectorAll('.dropdown-toggle').forEach(function(element) {
+        element.addEventListener('click', function(e) {
+          e.preventDefault();
+          const dropdown = new bootstrap.Dropdown(this);
+          dropdown.toggle();
+        });
+      });
     });
 
     // Track AJAX requests

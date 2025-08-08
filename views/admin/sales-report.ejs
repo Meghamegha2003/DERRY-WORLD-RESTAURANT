@@ -201,7 +201,7 @@
         <% if (orders && orders.length > 0) { %>
           <% orders.forEach(order => { %>
             <tr>
-              <td>#<%= order._id.toString().slice(-8).toUpperCase() %></td>
+              <td><%= order.orderNumber ? order.orderNumber : '#' + order._id.toString().slice(-6).toUpperCase() %></td>
               <td><%= order.user ? order.user.email : 'N/A' %></td>
               <td><%= new Date(order.createdAt).toLocaleDateString('en-IN', { 
                 year: 'numeric', 

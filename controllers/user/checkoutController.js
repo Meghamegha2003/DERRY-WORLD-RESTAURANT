@@ -115,7 +115,7 @@ exports.createOrder = async (user, cart, address, paymentMethod, total) => {
           regularPrice: product.regularPrice,
           offerPrice: offerDetails?.hasOffer ? offerDetails.finalPrice : null,
           total: itemTotal,
-          status: "Active",
+          status: "Pending",
           originalPrice: offerDetails?.regularPrice || product.regularPrice,
           offer: offerObject,
         };
@@ -282,36 +282,12 @@ exports.processCheckout = async (req, res) => {
           success: true,
           message: "Order placed successfully",
           orderId: codOrder._id,
+          redirectUrl: `/orders/${codOrder._id}/view` // Redirect to the specific order view page
         });
         
 
       case "wallet": {
-        // Use the user's single Wallet document
-        let wallet = await Wallet.findOne({ user: user._id });
-        if (!wallet) {
-          return res.status(400).json({
-            success: false,
-            message: "Wallet not found. Please add money to your wallet first.",
-          });
-        }
-        if (wallet.balance < total) {
-          return res.status(400).json({
-            success: false,
-            message:
-              "Insufficient wallet balance. Please add money to your wallet to complete the purchase.",
-          });
-        }
-        // Deduct from wallet
-        wallet.balance -= total;
-        wallet.transactions.push({
-          type: "debit",
-          amount: total,
-          description: `Order payment #${wallet._id}`,
-          date: new Date(),
-          status: "completed",
-        });
-        await wallet.save();
-        // Place order
+        // First create the order
         const walletOrder = await exports.createOrder(
           user,
           cart,
@@ -319,10 +295,40 @@ exports.processCheckout = async (req, res) => {
           "wallet",
           total
         );
+        
+        // Then update the wallet
+        const wallet = await Wallet.findOne({ user: user._id });
+        if (!wallet) {
+          // This should not happen as we already checked the wallet balance
+          console.error('Wallet not found after order creation');
+          return res.status(400).json({
+            success: false,
+            message: "Wallet not found. Please contact support.",
+          });
+        }
+        
+        // Deduct from wallet
+        wallet.balance = parseFloat((wallet.balance - total).toFixed(2));
+        wallet.transactions.push({
+          amount: total,
+          type: 'debit',
+          description: 'Order payment',
+          order: walletOrder._id,
+          balance: wallet.balance,
+          date: new Date()
+        });
+        
+        await wallet.save();
+
+        // Update order status to paid
+        walletOrder.paymentStatus = PAYMENT_STATUS.PAID;
+        await walletOrder.save();
+
         return res.json({
           success: true,
-          message: "Order placed successfully using wallet balance",
+          message: 'Order placed successfully with wallet payment',
           orderId: walletOrder._id,
+          redirectUrl: `/orders/${walletOrder._id}/view` // Redirect to the specific order view page
         });
       }
 

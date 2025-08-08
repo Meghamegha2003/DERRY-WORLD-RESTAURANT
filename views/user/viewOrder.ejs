@@ -1,0 +1,442 @@
+<%- include('../partials/user/header-no-bg', { user, cartCount }) %>
+
+<% 
+// Server-side safe status display function
+function getSafeStatus(status) {
+    if (!status) return { 
+        text: 'Unknown', 
+        class: 'unknown',
+        icon: 'question-circle'
+    };
+    
+    const statusText = String(status).trim();
+    const statusClass = statusText.toLowerCase().replace(/\s+/g, '-');
+    
+    // Map status to icons
+    const statusIcons = {
+        'pending': 'clock',
+        'processing': 'cog fa-spin',
+        'shipped': 'truck',
+        'delivered': 'check-circle',
+        'cancelled': 'times-circle',
+        'returned': 'undo',
+        'refunded': 'money-bill-wave',
+        'failed': 'exclamation-triangle'
+    };
+    
+    return {
+        text: statusText,
+        class: statusClass,
+        icon: statusIcons[statusClass] || 'question-circle'
+    };
+}
+%>
+
+<div class="container my-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Order Details</h2>
+        <a href="/orders" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Orders
+        </a>
+    </div>
+
+    <!-- Order Status Card -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h5 class="card-title mb-1">Order #<%= order._id.toString().slice(-6).toUpperCase() %></h5>
+                    <h6 class="text-muted mb-3">Order Status</h6>
+                    <% const status = getSafeStatus(order.orderStatus); %>
+                    <div class="d-flex align-items-center">
+                        <span class="order-status-badge order-status-<%= status.class %> me-3">
+                            <i class="fas fa-<%= status.icon %> me-2"></i><%= status.text %>
+                        </span>
+                        <% if (order.deliveryDate) { %>
+                            <div class="text-muted">
+                                <i class="far fa-calendar-alt me-1"></i>
+                                <%= new Date(order.deliveryDate).toLocaleDateString('en-US', { 
+                                    year: 'numeric', 
+                                    month: 'long', 
+                                    day: 'numeric' 
+                                }) %>
+                            </div>
+                        <% } %>
+                    </div>
+                </div>
+                <div class="col-md-6 text-md-end mt-3 mt-md-0">
+                    <div class="text-muted mb-1">Order Placed</div>
+                    <div class="fw-bold">
+                        <%= new Date(order.createdAt).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        }) %>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Order Items -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title mb-4">Order Items</h5>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 100px"></th>
+                                    <th>Product</th>
+                                    <th class="text-end">Price</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% order.items.forEach(function(item) { 
+                                    const product = item.product || {};
+                                    
+                                    // Helper function to process image path
+                                    function processImagePath(img) {
+                                        if (!img) return '/images/placeholder.svg';
+                                        
+                                        // Handle string path
+                                        if (typeof img === 'string') {
+                                            return img.startsWith('http') || img.startsWith('/') 
+                                                ? img 
+                                                : '/' + img;
+                                        }
+                                        
+                                        // Handle object with path/url property
+                                        if (img.path || img.url) {
+                                            const path = img.path || img.url;
+                                            return path.startsWith('http') || path.startsWith('/')
+                                                ? path
+                                                : '/' + path;
+                                        }
+                                        
+                                        return '/images/placeholder.svg';
+                                    }
+                                    
+                                    // Try to get image from product.images array first, then product.productImage
+                                    let displayImage = '/images/placeholder.svg';
+                                    
+                                    if (product.images && product.images.length > 0) {
+                                        // Use the first image from the images array
+                                        displayImage = processImagePath(product.images[0]);
+                                    } 
+                                    // Fallback to productImage if available
+                                    else if (product.productImage) {
+                                        if (Array.isArray(product.productImage) && product.productImage.length > 0) {
+                                            displayImage = processImagePath(product.productImage[0]);
+                                        } else if (typeof product.productImage === 'string') {
+                                            displayImage = processImagePath(product.productImage);
+                                        }
+                                    }
+                                %>
+                                <tr>
+                                    <td>
+                                        <img src="<%= displayImage %>" alt="<%= product.name || 'Product' %>" class="img-fluid rounded" style="width: 80px; height: 80px; object-fit: cover;">
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold"><%= product.name || 'Product' %></div>
+                                        <div class="text-muted small">
+                                            <% if (product.category) { %>
+                                                <div><%= product.category.name || '' %></div>
+                                            <% } %>
+                                        </div>
+                                    </td>
+                                    <td class="text-end">₹<%= (item.price || 0).toFixed(2) %></td>
+                                    <td class="text-center"><%= item.quantity || 1 %></td>
+                                    <td class="text-end fw-bold">₹<%= ((item.price || 0) * (item.quantity || 1)).toFixed(2) %></td>
+                                </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order Notes -->
+            <% if (order.notes) { %>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Order Notes</h5>
+                    <p class="mb-0"><%= order.notes %></p>
+                </div>
+            </div>
+            <% } %>
+        </div>
+
+        <!-- Order Summary -->
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title mb-4">Order Summary</h5>
+                    <% 
+                    // Calculate subtotal from order items
+                    const subtotal = order.items.reduce((sum, item) => {
+                        return sum + (item.price * item.quantity);
+                    }, 0);
+                    
+                    // Get coupon discount amount
+                    const couponDiscount = order.couponDiscount || 0;
+                    %>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Subtotal</span>
+                        <span>₹<%= subtotal.toFixed(2) %></span>
+                    </div>
+                    <% if (couponDiscount > 0) { %>
+                    <div class="d-flex justify-content-between mb-2 text-success">
+                        <span>Coupon Discount</span>
+                        <span>-₹<%= couponDiscount.toFixed(2) %></span>
+                    </div>
+                    <% } %>
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Shipping</span>
+                        <span><%= order.shippingCost > 0 ? `₹${order.shippingCost.toFixed(2)}` : 'Free' %></span>
+                    </div>
+                    <% if (order.tax && order.tax > 0) { %>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Tax (GST)</span>
+                        <span>₹<%= order.tax.toFixed(2) %></span>
+                    </div>
+                    <% } %>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-2 fw-bold fs-5">
+                        <span>Total</span>
+                        <% 
+                        // Calculate total: subtotal - couponDiscount + shipping + tax
+                        const shippingCost = order.shippingCost || 0;
+                        const tax = order.tax || 0;
+                        const calculatedTotal = subtotal - couponDiscount + shippingCost + tax;
+                        %>
+                        <span>₹<%= calculatedTotal.toFixed(2) %></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Delivery Address -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Delivery Address</h5>
+                    <% if (order.shippingAddress) { 
+                        const addr = order.shippingAddress;
+                    %>
+                        <p class="mb-1 fw-bold"><%= addr.fullName %></p>
+                        <p class="mb-1"><%= addr.addressLine1 %></p>
+                        <% if (addr.addressLine2) { %>
+                            <p class="mb-1"><%= addr.addressLine2 %></p>
+                        <% } %>
+                        <p class="mb-1">
+                            <%= addr.city %>, <%= addr.state %> <%= addr.postalCode %>
+                        </p>
+                        <p class="mb-0">
+                            <i class="fas fa-phone-alt me-2"></i><%= addr.phoneNumber %>
+                        </p>
+                    <% } else { %>
+                        <p class="text-muted mb-0">No shipping address provided</p>
+                    <% } %>
+                </div>
+            </div>
+
+            <!-- Payment Method -->
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Payment Method</h5>
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <% if (order.paymentMethod === 'online') { %>
+                                <i class="fas fa-credit-card fa-2x text-primary"></i>
+                            <% } else if (order.paymentMethod === 'wallet') { %>
+                                <i class="fas fa-wallet fa-2x text-success"></i>
+                            <% } else { %>
+                                <i class="fas fa-money-bill-wave fa-2x text-info"></i>
+                            <% } %>
+                        </div>
+                        <div>
+                            <p class="mb-0 fw-bold text-capitalize">
+                                <%= order.paymentMethod || 'Cash on Delivery' %>
+                            </p>
+                            <p class="mb-0 text-muted small">
+                                <% if (order.paymentStatus === 'paid') { %>
+                                    <span class="text-success">
+                                        <i class="fas fa-check-circle"></i> Paid
+                                    </span>
+                                <% } else { %>
+                                    <span class="text-warning">
+                                        <i class="fas fa-clock"></i> Pending
+                                    </span>
+                                <% } %>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Actions -->
+    <% if (order.orderStatus === 'delivered') { %>
+    <div class="card mt-4">
+        <div class="card-body text-center">
+            <h5 class="card-title mb-3">How was your order?</h5>
+            <button class="btn btn-outline-primary me-2">
+                <i class="fas fa-undo-alt me-2"></i>Return Items
+            </button>
+            <button class="btn btn-primary">
+                <i class="fas fa-star me-2"></i>Leave a Review
+            </button>
+        </div>
+    </div>
+    <% } %>
+</div>
+
+<%- include('../partials/user/footer') %>
+
+<!-- Add custom CSS for order details page -->
+<style>
+.order-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-radius: 50px;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.order-status-pending {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.order-status-processing {
+    background-color: #cce5ff;
+    color: #004085;
+}
+
+.order-status-shipped {
+    background-color: #e2e3e5;
+    color: #383d41;
+}
+
+.order-status-delivered {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.order-status-cancelled, .order-status-failed {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.order-status-returned, .order-status-refunded {
+    background-color: #e2e3e5;
+    color: #383d41;
+}
+
+.table th {
+    font-weight: 500;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6c757d;
+    border-top: none;
+    padding-top: 1.25rem;
+    padding-bottom: 0.75rem;
+}
+
+.table td {
+    vertical-align: middle;
+    padding: 1.25rem 0.75rem;
+    border-color: #f1f3f7;
+}
+
+.card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1.5rem;
+}
+
+.card-title {
+    font-weight: 600;
+    color: #2e3a59;
+    font-size: 1.1rem;
+}
+
+.btn {
+    border-radius: 6px;
+    font-weight: 500;
+    padding: 0.5rem 1.25rem;
+}
+
+.btn-primary {
+    background-color: #ffbe33;
+    border-color: #ffbe33;
+}
+
+.btn-primary:hover {
+    background-color: #e69c00;
+    border-color: #e69c00;
+}
+
+.btn-outline-primary {
+    color: #ffbe33;
+    border-color: #ffbe33;
+}
+
+.btn-outline-primary:hover {
+    background-color: #ffbe33;
+    border-color: #ffbe33;
+    color: white;
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
+    // Handle print order functionality
+    document.getElementById('printOrderBtn')?.addEventListener('click', function() {
+        window.print();
+    });
+
+    // Handle cancel order button
+    document.getElementById('cancelOrderBtn')?.addEventListener('click', function() {
+        if (confirm('Are you sure you want to cancel this order?')) {
+            // Implement cancel order logic here
+            fetch(`/orders/${'<%= order._id %>'}/cancel`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': '<%= csrfToken %>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.message || 'Failed to cancel order');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while processing your request');
+            });
+        }
+    });
+});
+</script>

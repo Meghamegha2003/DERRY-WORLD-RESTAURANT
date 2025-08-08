@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100%" height="100%" fill="#f8f9fa"/>
+    <rect x="50" y="50" width="100" height="100" fill="#e9ecef" rx="4"/>
+    <path d="M100 90c-5.52 0-10 4.48-10 10s4.48 10 10 10 10-4.48 10-10-4.48-10-10-10zm0 16.67c-3.68 0-6.67-2.99-6.67-6.67s2.99-6.67 6.67-6.67 6.67 2.99 6.67 6.67-2.99 6.67-6.67 6.67z" fill="#adb5bd"/>
+    <path d="M85 70l-15 15v45h100V70H85zm5 10h80v40l-15-15-10 10-10-10-10 10-10-10-10 10-10-10-15 15V80z" fill="#adb5bd"/>
+</svg>

@@ -10,6 +10,7 @@ const ORDER_STATUS = {
   RETURN_REQUESTED: 'Return Requested',
   RETURN_APPROVED: 'Return Approved',
   RETURN_REJECTED: 'Return Rejected',
+  RETURNED: 'Returned',
   CANCELLED: 'Cancelled'
 };
 
@@ -20,7 +21,35 @@ const PAYMENT_STATUS = {
   REFUNDED: 'Refunded'
 };
 
+// Function to generate a unique item ID
+const generateItemId = () => {
+  const prefix = 'ITM';
+  const timestamp = Date.now().toString().slice(-6);
+  const random = Math.floor(1000 + Math.random() * 9000);
+  return `${prefix}${timestamp}${random}`;
+};
+
+// Export the function for use in controllers
+exports.generateItemId = generateItemId;
+
+// Map order status to item status
+const ORDER_TO_ITEM_STATUS = {
+    'Pending': 'Pending',
+    'Processing': 'Pending',
+    'Shipped': 'Shipped',
+    'Delivered': 'Delivered',
+    'Return Requested': 'Return Requested',
+    'Return Approved': 'Return Approved',
+    'Return Rejected': 'Return Rejected',
+    'Cancelled': 'Cancelled'
+};
+
 const orderItemSchema = new Schema({
+  itemId: {
+    type: String,
+    required: true,
+    default: generateItemId
+  },
   product: {
     type: Schema.Types.ObjectId,
     ref: 'Product',
@@ -51,10 +80,10 @@ const orderItemSchema = new Schema({
     min: [0, 'Total cannot be negative']
   },
   status: {
-    type: String,
-    enum: ['Active', 'Cancelled', 'Returned', 'Return Requested', 'Return Approved', 'Return Rejected'],
-    default: 'Active'
-  },
+  type: String,
+  enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Return Requested', 'Return Approved', 'Return Rejected', 'Returned'],
+  default: 'Pending'
+},
   rating: {
     type: Number,
     min: [1, 'Rating must be at least 1'],
@@ -118,7 +147,21 @@ const addressSchema = new Schema({
   }
 });
 
+// Pre-save middleware to generate order number
+const generateOrderNumber = () => {
+  const prefix = 'ORD';
+  const timestamp = Date.now().toString().slice(-6);
+  const random = Math.floor(1000 + Math.random() * 9000);
+  return `${prefix}${timestamp}${random}`;
+};
+
 const OrderSchema = new Schema({
+  orderNumber: {
+    type: String,
+    unique: true,
+    required: true,
+    default: generateOrderNumber
+  },
   user: {
     type: Schema.Types.ObjectId,
     ref: 'User',
@@ -127,7 +170,6 @@ const OrderSchema = new Schema({
   items: [orderItemSchema],
   // Cancellation reason for the whole order
   cancelReason: { type: String },
-
   shippingAddress: addressSchema,
   couponDiscount: {
     type: Number,
@@ -211,6 +253,7 @@ const Order = mongoose.model('Order', OrderSchema);
 // Export both the model and the status enums
 module.exports = {
   Order,
-  ORDER_STATUS,
-  PAYMENT_STATUS
+  ORDER_STATUS, 
+  PAYMENT_STATUS,
+  ORDER_TO_ITEM_STATUS
 };

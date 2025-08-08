@@ -4,18 +4,188 @@ const {
   ORDER_STATUS,
   PAYMENT_STATUS,
 } = require("../../models/orderSchema");
+
+// Local implementation of generateItemId to avoid module import issues
+const generateItemId = () => {
+  const prefix = 'ITM';
+  const timestamp = Date.now().toString().slice(-6);
+  const random = Math.floor(1000 + Math.random() * 9000);
+  return `${prefix}${timestamp}${random}`;
+};
 const User = require("../../models/userSchema");
 const Product = require("../../models/productSchema");
 const Wallet = require("../../models/walletSchema");
+
+// Helper function to get badge class for item status
+const getItemStatusBadgeClass = (status) => {
+    switch (status) {
+        case 'Pending':
+            return 'warning';
+        case 'Processing':
+            return 'info';
+        case 'Shipped':
+            return 'primary';
+        case 'Out for Delivery':
+            return 'info';
+        case 'Delivered':
+            return 'success';
+        case 'Return Requested':
+            return 'secondary';
+        case 'Return Approved':
+            return 'info';
+        case 'Return Picked Up':
+            return 'info';
+        case 'Return Completed':
+            return 'success';
+        case 'Cancelled':
+            return 'danger';
+        default:
+            return 'secondary';
+    }
+};
+
+// Helper function to get status icon class
+const getStatusIcon = (status) => {
+    switch (status) {
+        case 'Pending':
+            return 'fa-clock';
+        case 'Processing':
+            return 'fa-cog fa-spin';
+        case 'Shipped':
+            return 'fa-truck';
+        case 'Out for Delivery':
+            return 'fa-truck-ramp-box';
+        case 'Delivered':
+            return 'fa-check-circle';
+        case 'Return Requested':
+            return 'fa-arrow-rotate-left';
+        case 'Return Approved':
+            return 'fa-box-archive';
+        case 'Return Rejected':
+            return 'fa-ban';
+        case 'Return Completed':
+            return 'fa-circle-check';
+        case 'Cancelled':
+            return 'fa-times-circle';
+        default:
+            return 'fa-question-circle';
+    }
+};
+
 const { getBestOffer } = require("../../helpers/offerHelper");
 const PDFDocument = require("pdfkit");
-
 const Razorpay = require("razorpay");
+const errorHandler = require("../../utils/errorHandler");
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
+
+// View a single order with the new template
+exports.viewOrder = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.redirect('/login');
+    }
+
+    const { orderId, itemId } = req.params;
+    let order = await Order.findOne({
+      _id: orderId,
+      user: req.user._id
+    })
+    .populate({
+      path: 'items.product',
+      select: 'name price regularPrice salesPrice category description images productImage',
+      populate: {
+        path: 'category',
+        select: 'name offer',
+      },
+    })
+    .populate('user', 'name email phone')
+    .lean();
+    
+    // If itemId is provided, filter the items to show only the specific item
+    if (itemId) {
+      order.items = order.items.filter(item => item._id.toString() === itemId);
+      if (order.items.length === 0) {
+        return res.status(404).render('error', {
+          message: 'Order item not found',
+          error: { status: 404 }
+        });
+      }
+      // Set a flag to indicate we're viewing a single item
+      order.singleItemView = true;
+    }
+    
+    // Ensure all items have an itemId
+    if (order && order.items) {
+      let needsUpdate = false;
+      
+      order.items = order.items.map(item => {
+        if (!item.itemId) {
+          item.itemId = generateItemId();
+          needsUpdate = true;
+        }
+        return item;
+      });
+      
+      // If any items were missing itemId, update the order in the database
+      if (needsUpdate) {
+        await Order.updateOne(
+          { _id: order._id },
+          { $set: { items: order.items } }
+        );
+      }
+    }
+
+    if (!order) {
+      return errorHandler.sendError(
+        res,
+        404,
+        'Order not found or you do not have permission to view this order',
+        { type: errorHandler.errorTypes.NOT_FOUND }
+      );
+    }
+
+    // Format dates for display using native Date methods
+    order.formattedDate = new Date(order.createdAt).toLocaleString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    
+    if (order.deliveryDate) {
+      order.formattedDeliveryDate = new Date(order.deliveryDate).toLocaleString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    }
+
+    // Use orderNumber if available, otherwise fall back to _id
+    const displayOrderId = order.orderNumber || order._id;
+    
+    res.render('user/viewOrder', {
+      title: `Order #${displayOrderId}`,
+      order,
+      user: req.user,
+      cartCount: req.cartCount || 0,
+      csrfToken: req.csrfToken ? req.csrfToken() : ''
+    });
+  } catch (error) {
+    console.error('Error in viewOrder:', error);
+    return errorHandler.sendError(
+      res,
+      500,
+      'An error occurred while loading the order details',
+      error
+    );
+  }
+};
 
 exports.getUserOrders = async (req, res) => {
   try {
@@ -40,25 +210,108 @@ exports.getUserOrders = async (req, res) => {
     const totalOrders = await Order.countDocuments({ user: userId });
     const totalPages = Math.ceil(totalOrders / limit);
 
-    const orders = await Order.find({ user: userId })
+    // First, get the orders with basic population
+    let orders = await Order.find({ user: userId })
       .populate({
-        path: "items.product",
-        select:
-          "name productImage price regularPrice salesPrice category description",
+        path: 'items.product',
+        select: 'name price regularPrice salesPrice category description images productImage',
         populate: {
-          path: "category",
-          select: "name offer",
+          path: 'category',
+          select: 'name offer',
         },
       })
       .sort({ orderDate: -1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean(); // Convert to plain JavaScript objects
+
+    // Process orders to ensure images are properly formatted
+    orders = orders.map(order => {
+      // Make sure order.items exists and is an array
+      if (!order.items || !Array.isArray(order.items)) {
+        order.items = [];
+        return order;
+      }
+
+      // Process each item in the order
+      order.items = order.items.map(item => {
+        if (!item.product) {
+          return item; // Skip if no product data
+        }
+
+        // Log product data for debugging
+        console.log('Product data:', {
+          name: item.product.name,
+          images: item.product.images,
+          productImage: item.product.productImage
+        });
+
+        // Use productImage field which is the correct field in the schema
+        // Make sure productImage is an array
+        if (!item.product.productImage || !Array.isArray(item.product.productImage)) {
+          item.product.images = [];
+        } else {
+          // Create a copy of productImage array to avoid modifying the original
+          item.product.images = [...item.product.productImage];
+        }
+
+        // Convert single string to array if needed (for backward compatibility)
+        if (item.product.images.length === 0 && item.product.productImage && typeof item.product.productImage === 'string') {
+          item.product.images = [item.product.productImage];
+        }
+
+        // Ensure all image paths are absolute and properly formatted
+        item.product.images = item.product.images.map(img => {
+          try {
+            // Skip if image is falsy or not a string
+            if (!img) return null;
+            
+            // If it's already a URL, return as is
+            if (typeof img === 'string' && (img.startsWith('http') || img.startsWith('data:image'))) {
+              return img;
+            }
+            
+            // Handle object with path/url property
+            if (typeof img === 'object' && img !== null) {
+              const imgSrc = img.path || img.url;
+              if (typeof imgSrc === 'string') {
+                return imgSrc.startsWith('http') || imgSrc.startsWith('/') 
+                  ? imgSrc 
+                  : '/' + imgSrc;
+              }
+              return null;
+            }
+            
+            // Handle string paths
+            if (typeof img === 'string') {
+              // Convert backslashes to forward slashes for web compatibility
+              let path = img.replace(/\\/g, '/');
+              // Ensure path starts with a forward slash if it's not a full URL
+              if (!path.startsWith('http') && !path.startsWith('/')) {
+                path = '/' + path;
+              }
+              return path;
+            }
+            
+            return null;
+          } catch (error) {
+            console.error('Error processing image path:', error);
+            return null;
+          }
+        }).filter(Boolean); // Remove any null/undefined values
+
+        return item;
+      });
+
+      return order;
+    });
 
     const processedOrders = await Promise.all(
       orders.map(async (order) => {
-        const orderObj = order.toObject();
+        // Check if order is already a plain object (from .lean())
+        const orderObj = order;
         const items = await Promise.all(
-          orderObj.items.map(async (item) => {
+          (orderObj.items || []).map(async (item) => {
             if (!item.product) {
               return {
                 ...item,
@@ -160,6 +413,8 @@ exports.getUserOrders = async (req, res) => {
         totalOrders,
         limit,
       },
+      getStatusIcon, // Make the functions available in the template
+      getItemStatusBadgeClass,
     });
   } catch (error) {
     console.error("[ERROR] Error fetching orders:", error);
@@ -174,43 +429,182 @@ exports.getUserOrders = async (req, res) => {
 
 // Get order details
 exports.getOrderDetails = async (req, res) => {
+  // Initialize response data with defaults
+  const responseData = {
+    user: req.user || null,
+    order: null,
+    cartCount: 0,
+    error: null,
+    message: null
+  };
+
   try {
+    console.log('=== ORDER DETAILS REQUEST ===');
+    console.log('Order ID:', req.params.orderId);
+    console.log('User ID:', req.user?._id || 'Not authenticated');
+    
+    // Check authentication
     if (!req.user) {
-      // Pass intended destination as a query param for stateless redirect
-      return res.redirect(
-        `/login?returnTo=${encodeURIComponent(req.originalUrl)}`
-      );
+      console.log('User not authenticated, redirecting to login');
+      return res.redirect(`/login?returnTo=${encodeURIComponent(req.originalUrl)}`);
     }
 
     const orderId = req.params.orderId;
-
-    const order = await Order.findOne({
-      _id: orderId,
-      user: req.user._id,
-    }).populate({
-      path: "items.product",
-      select: "name productImage price regularPrice salesPrice category",
-      populate: {
-        path: "category",
-        select: "name",
-      },
-    });
-
-    if (!order) {
-      return res.status(404).render("error", {
-        message: "Order not found",
-        error: { status: 404 },
-        user: req.user,
-        cartCount: 0,
-      });
+    const itemId = req.params.itemId; // Get the optional itemId parameter
+    
+    // Validate order ID format
+    if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) {
+      console.log('Invalid order ID format:', orderId);
+      responseData.error = 'Invalid order ID format';
+      return res.status(404).render('user/orderDetails', responseData);
     }
 
-    const user = await User.findById(req.user._id).select("cart");
-    const cartCount = user?.cart?.length || 0;
+    // Fetch order with detailed population
+    console.log('Fetching order from database...');
+    let order;
+    try {
+      order = await Order.findOne({
+        _id: orderId,
+        user: req.user._id
+      })
+      .populate({
+        path: 'items.product',
+        select: 'name productImage price regularPrice salesPrice category images',
+        populate: {
+          path: 'category',
+          select: 'name'
+        }
+      })
+      .lean(); // Convert to plain object
+      
+      if (!order) {
+        console.log('Order not found or access denied');
+        responseData.error = 'Order not found or you do not have permission to view this order';
+        return res.status(404).render('user/orderDetails', responseData);
+      }
+      
+      console.log('Order found with status:', order.orderStatus);
+      console.log('Order items count:', order.items?.length || 0);
+      
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      responseData.error = 'Error fetching order details. Please try again later.';
+      if (process.env.NODE_ENV === 'development') {
+        responseData.error += ` ${dbError.message}`;
+      }
+      return res.status(500).render('user/orderDetails', responseData);
+    }
+    
+    // Get user's cart count
+    try {
+      const user = await User.findById(req.user._id).select('cart').lean();
+      responseData.cartCount = user?.cart?.length || 0;
+    } catch (error) {
+      console.error('Error fetching user cart:', error);
+      // Continue with default cart count of 0
+    }
 
-    const processedOrder = order.toObject();
-    processedOrder.items = await Promise.all(
-      processedOrder.items.map(async (item) => {
+    // Process order items to ensure consistent data structure
+    if (!order.items || !Array.isArray(order.items)) {
+      order.items = [];
+    }
+    
+    // Process each item to ensure all required fields exist
+    order.items = order.items.map(item => {
+      // Ensure product exists
+      if (!item.product) {
+        item.product = {
+          name: 'Product not available',
+          price: 0,
+          regularPrice: 0,
+          salesPrice: 0,
+          images: []
+        };
+      }
+      
+      // Ensure price fields exist
+      item.price = item.price || 0;
+      item.quantity = item.quantity || 0;
+      
+      // Helper function to process image paths
+      const processImagePath = (img) => {
+        if (!img) return null;
+        
+        // If it's already a full URL or data URL, use as is
+        if (typeof img === 'string' && (img.startsWith('http') || img.startsWith('data:image') || img.startsWith('blob:'))) {
+          return img;
+        }
+        
+        // Handle object with path/url property
+        if (typeof img === 'object' && img !== null) {
+          const imgSrc = img.path || img.url || img.src || '';
+          if (imgSrc) {
+            return imgSrc.startsWith('http') || imgSrc.startsWith('/') 
+              ? imgSrc 
+              : '/' + imgSrc.replace(/^[\/\\]+/, '');
+          }
+          return null;
+        }
+        
+        // Handle string paths
+        if (typeof img === 'string') {
+          // Remove any leading slashes or backslashes to prevent double slashes
+          let path = img.replace(/^[\/\\]+/, '');
+          // If it's not a full URL, ensure it has a leading slash
+          if (!path.match(/^(https?:\/\/|data:image|blob:)/)) {
+            path = '/' + path;
+          }
+          return path;
+        }
+        
+        return null;
+      };
+      
+      // Ensure product.images exists and is an array
+      if (!item.product.images || !Array.isArray(item.product.images)) {
+        item.product.images = [];
+      }
+      
+      // Process productImage array (primary source of images)
+      if (Array.isArray(item.product.productImage) && item.product.productImage.length > 0) {
+        // Process all images in productImage array
+        const processedImages = item.product.productImage
+          .map(processImagePath)
+          .filter(img => img !== null);
+        
+        // Add to images array if not already present
+        processedImages.forEach(img => {
+          if (!item.product.images.includes(img)) {
+            item.product.images.unshift(img); // Add to beginning to prioritize productImage
+          }
+        });
+      }
+      
+      // Process any existing images array
+      item.product.images = item.product.images
+        .map(processImagePath)
+        .filter(img => img !== null);
+      
+      // Remove duplicates
+      item.product.images = [...new Set(item.product.images)];
+      
+      // Ensure at least one image exists (use placeholder if none found)
+      if (item.product.images.length === 0) {
+        item.product.images.push('/images/placeholder.svg');
+      }
+      
+      // Set a default image for easy access in templates
+      item.product.mainImage = item.product.images[0];
+      
+      return item;
+    });
+    
+    // Add order to response data
+    responseData.order = order;
+    
+    // Process all items to calculate prices and offers
+    let allItems = await Promise.all(
+      order.items.map(async (item) => {
         if (!item.product) {
           return {
             ...item,
@@ -222,13 +616,10 @@ exports.getOrderDetails = async (req, res) => {
         }
 
         const offerDetails = await getBestOffer(item.product);
-
-        const regularPrice =
-          item.product.regularPrice || item.product.price || 0;
-        const finalPrice =
-          offerDetails && offerDetails.hasOffer
-            ? offerDetails.finalPrice
-            : item.product.salesPrice || regularPrice;
+        const regularPrice = item.product.regularPrice || item.product.price || 0;
+        const finalPrice = offerDetails && offerDetails.hasOffer
+          ? offerDetails.finalPrice
+          : item.product.salesPrice || regularPrice;
 
         return {
           ...item,
@@ -237,43 +628,60 @@ exports.getOrderDetails = async (req, res) => {
           total: finalPrice * item.quantity,
           offerDetails: {
             ...offerDetails,
-            type:
-              offerDetails && offerDetails.hasOffer ? offerDetails.type : null,
+            type: offerDetails && offerDetails.hasOffer ? offerDetails.type : null,
           },
         };
       })
     );
 
-    const subtotal = processedOrder.items.reduce(
-      (sum, item) => sum + item.regularPrice * item.quantity,
+    // Filter items if itemId is provided
+    if (itemId) {
+      const itemToShow = allItems.find(item => item._id.toString() === itemId);
+      if (!itemToShow) {
+        return res.status(404).render('error', {
+          message: 'Item not found in this order',
+          error: { status: 404 },
+          user: req.user,
+          cartCount: 0,
+        });
+      }
+      order.items = [itemToShow];
+      order.isSingleItemView = true;
+    } else {
+      order.items = allItems;
+      order.isSingleItemView = false;
+    }
+
+    const subtotal = order.items.reduce(
+      (sum, item) => sum + (item.regularPrice || 0) * (item.quantity || 0),
       0
     );
-    const productDiscount = processedOrder.items.reduce((sum, item) => {
+    const productDiscount = order.items.reduce((sum, item) => {
       const itemDiscount =
-        item.offerDetails && item.offerDetails.hasOffer
+        item.offerDetails && item.offerDetails.hasOffer && item.regularPrice && item.price && item.quantity
           ? (item.regularPrice - item.price) * item.quantity
           : 0;
       return sum + itemDiscount;
     }, 0);
-    const couponDiscount = processedOrder.couponDiscount || 0;
-    const deliveryCharge = processedOrder.deliveryCharge || 0;
-    const totalSavings = productDiscount + couponDiscount;
-    const total = Math.max(
-      0,
-      subtotal - productDiscount - couponDiscount + deliveryCharge
-    );
 
-    processedOrder.subtotal = subtotal;
-    processedOrder.productDiscount = productDiscount;
-    processedOrder.couponDiscount = couponDiscount;
-    processedOrder.deliveryCharge = deliveryCharge;
-    processedOrder.totalSavings = totalSavings;
-    processedOrder.total = total;
+    // Calculate coupon discount (if any)
+    const couponDiscount = order.couponDiscount || 0;
+    const shippingCharge = order.shippingCharge || 0;
+    const tax = order.tax || 0;
+    const total = subtotal - productDiscount - couponDiscount + shippingCharge + tax;
 
-    let deliveryDate = processedOrder.deliveryDate || processedOrder.deliveredAt || processedOrder.updatedAt;
+    // Add calculated values to order
+    order.subtotal = subtotal;
+    order.productDiscount = productDiscount;
+    order.couponDiscount = couponDiscount;
+    order.shippingCharge = shippingCharge;
+    order.tax = tax;
+    order.total = total;
+
+    let deliveryDate = order.deliveryDate || order.deliveredAt || order.updatedAt;
     let canReturn = false;
     let returnWindowText = "";
-    if (processedOrder.orderStatus === ORDER_STATUS.DELIVERED && deliveryDate) {
+    if (order.orderStatus === ORDER_STATUS.DELIVERED && deliveryDate) {
       const deliveryTime = new Date(deliveryDate);
       const now = new Date();
       const returnWindowMs = 15 * 60 * 1000; // 15 minutes
@@ -287,22 +695,84 @@ exports.getOrderDetails = async (req, res) => {
         returnWindowText = "Return period expired";
       }
     }
-    processedOrder.canReturn = canReturn;
-    processedOrder.returnWindowText = returnWindowText;
+    order.canReturn = canReturn;
+    order.returnWindowText = returnWindowText;
 
-    res.render("user/orderDetails", {
-      order: processedOrder,
+    // Convert order to plain object if it's a Mongoose document
+    const orderObj = order.toObject ? order.toObject() : order;
+    
+    // Add status badge class to each order item
+    const orderWithStatusBadges = {
+      ...orderObj,
+      items: orderObj.items.map(item => {
+        const itemObj = item.toObject ? item.toObject() : item;
+        return {
+          ...itemObj,
+          statusBadgeClass: getItemStatusBadgeClass(itemObj.status || orderObj.orderStatus)
+        };
+      })
+    };
+
+    // Add backToOrderUrl for single item view
+    const viewData = {
+      order: orderWithStatusBadges,
       user: req.user,
-      cartCount,
+      cartCount: responseData.cartCount,
       messages: res.locals.messages || {},
-    });
+    };
+
+    if (itemId) {
+      viewData.backToOrderUrl = `/orders/${orderId}`;
+    }
+
+    console.log('Rendering order details page...');
+    try {
+      res.render("user/orderDetails", viewData);
+    } catch (renderError) {
+      console.error('Error rendering order details:', renderError);
+      return res.status(500).render('error', {
+        message: 'Error rendering order details',
+        error: process.env.NODE_ENV === 'development' ? renderError : {},
+        user: req.user,
+        cartCount: 0
+      });
+    }
   } catch (error) {
     console.error("[ERROR] Error getting order details:", error);
-    res.status(500).render("error", {
-      message: "Error retrieving order details",
-      error: process.env.NODE_ENV === "development" ? error : {},
+    
+    // Log detailed error information
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      params: req.params,
+      user: req.user ? req.user._id : 'Not authenticated'
+    });
+    
+    // Handle specific error types
+    if (error.name === 'CastError') {
+      return res.status(400).render('error', {
+        message: 'Invalid order ID format',
+        error: process.env.NODE_ENV === 'development' ? error : {},
+        user: req.user,
+        cartCount: 0
+      });
+    }
+    
+    // For 500 errors, provide more detailed information in development
+    const errorDetails = process.env.NODE_ENV === 'development' 
+      ? { 
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        } 
+      : {};
+      
+    res.status(500).render('error', {
+      message: 'Error retrieving order details',
+      error: errorDetails,
       user: req.user,
-      cartCount: 0,
+      cartCount: 0
     });
   }
 };
@@ -869,9 +1339,17 @@ exports.submitRating = async (req, res) => {
 // Request return
 exports.requestReturn = async (req, res) => {
   try {
-    const { orderId } = req.params;
+    const { orderId, itemId } = req.params;
     const { reason, comment, rating } = req.body;
     const userId = req.user._id;
+    
+    // Validate itemId if provided
+    if (itemId && !mongoose.Types.ObjectId.isValid(itemId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid item ID format"
+      });
+    }
 
     // Validate reason
     if (!reason) {
@@ -904,25 +1382,82 @@ exports.requestReturn = async (req, res) => {
       });
     }
 
-    // Check if return is possible
-    const currentStatus = (
-      order.orderStatus ||
-      order.status ||
-      ""
-    ).toLowerCase();
-    if (currentStatus !== ORDER_STATUS.DELIVERED.toLowerCase()) {
-      console.warn(`Cannot return order in status: ${currentStatus}`);
-      return res.status(400).json({
-        success: false,
-        message: `Order cannot be returned. Current status: ${currentStatus}`,
-      });
+    // Find the specific item to return if itemId is provided, otherwise check all items
+    let itemsToProcess = [];
+    
+    if (itemId) {
+      // Single item return
+      const item = order.items.id(itemId);
+      if (!item) {
+        return res.status(404).json({
+          success: false,
+          message: "Item not found in this order"
+        });
+      }
+      
+      // Check if the specific item is eligible for return
+      if (!item.status || item.status.toLowerCase() !== ORDER_STATUS.DELIVERED.toLowerCase()) {
+        return res.status(400).json({
+          success: false,
+          message: `This item cannot be returned. Current status: ${item.status || 'unknown'}`,
+          itemStatus: item.status
+        });
+      }
+      
+      itemsToProcess = [item];
+    } else {
+      // Original logic for multiple items (for backward compatibility)
+      itemsToProcess = order.items.filter(item => 
+        item.status && item.status.toLowerCase() === ORDER_STATUS.DELIVERED.toLowerCase()
+      );
+
+      if (itemsToProcess.length === 0) {
+        console.warn(`No items eligible for return in order: ${orderId}`);
+        const statuses = [...new Set(order.items.map(item => item.status || 'unknown'))];
+        
+        if (order.orderStatus === 'Delivered' || order.status === 'Delivered') {
+          console.error(`[ERROR] Order marked as delivered but no delivered items found. Order status: ${order.orderStatus}, Item statuses: ${statuses.join(', ')}`);
+        }
+        
+        return res.status(400).json({
+          success: false,
+          message: `No items eligible for return. Current item statuses: ${statuses.join(', ')}. ` +
+                   `Only items with status '${ORDER_STATUS.DELIVERED}' can be returned.`,
+          debug: {
+            orderStatus: order.orderStatus,
+            itemStatuses: statuses,
+            hasDeliveryDate: !!order.deliveryDate
+          }
+        });
+      }
     }
 
-    // Check if return period is valid \
-    const deliveryDate = order.deliveryDate;
-    const returnPeriod = 7 * 24 * 60 * 60 * 1000; 
+    // Check if return period is valid
+    let deliveryDate = order.deliveryDate;
+    const returnPeriod = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
-    if (!deliveryDate) {
+    // If delivery date is missing but order is marked as delivered, use current date as fallback
+    if (!deliveryDate && (order.orderStatus === 'Delivered' || order.status === 'Delivered' || itemsToProcess.length > 0)) {
+      console.warn(`[WARNING] Delivery date missing for order ${orderId} with status ${order.orderStatus}, using current date as fallback`);
+      deliveryDate = new Date();
+      order.deliveryDate = deliveryDate;
+      
+      // Only update order status to Delivered if we're processing all items
+      if (!itemId) {
+        order.orderStatus = 'Delivered';
+        order.status = 'Delivered';
+      }
+      
+      // Update only the items being processed to Delivered status if not already set
+      itemsToProcess.forEach(item => {
+        if (!item.status || item.status !== 'Delivered') {
+          item.status = 'Delivered';
+        }
+      });
+      
+      await order.save({ validateBeforeSave: false });
+      console.log(`[INFO] Updated order ${orderId} with delivery date and status`);
+    } else if (!deliveryDate) {
       console.warn(
         `Order not delivered yet or delivery date missing for order: ${orderId}`
       );
@@ -944,16 +1479,39 @@ exports.requestReturn = async (req, res) => {
       });
     }
 
-    // Update order status and reason
-    order.orderStatus = ORDER_STATUS.RETURN_REQUESTED;
-    order.status = ORDER_STATUS.RETURN_REQUESTED;
-    order.returnReason = reason;
-
-    // Update all items to return requested
-    order.items.forEach((item) => {
+    // Update order and item statuses for return
+    if (itemId) {
+      // Single item return
+      const item = order.items.id(itemId);
       item.status = "Return Requested";
       item.returnReason = reason;
-    });
+      item.returnRequestDate = new Date();
+      
+      // Update order status to reflect partial return if not all items are being returned
+      const nonReturnedItems = order.items.filter(i => 
+        i._id.toString() !== itemId && 
+        i.status !== 'Return Requested' && 
+        i.status !== 'Returned'
+      );
+      
+      if (nonReturnedItems.length > 0) {
+        order.status = 'Partially Returned';
+      } else {
+        order.status = ORDER_STATUS.RETURN_REQUESTED;
+      }
+    } else {
+      // Multiple items return (original behavior)
+      order.orderStatus = ORDER_STATUS.RETURN_REQUESTED;
+      order.status = ORDER_STATUS.RETURN_REQUESTED;
+      order.returnReason = reason;
+      
+      // Update all eligible items to return requested
+      itemsToProcess.forEach(item => {
+        item.status = "Return Requested";
+        item.returnReason = reason;
+        item.returnRequestDate = new Date();
+      });
+    }
 
     // Add order rating if provided
     if (rating && rating >= 1 && rating <= 5) {

@@ -5,7 +5,10 @@ const orderController = require('../../controllers/admin/orderController');
 
 router.get('/', adminAuth, orderController.getOrders);
 router.get('/:id', adminAuth, orderController.getOrderDetails);
+router.get('/:orderId/items/:itemId', adminAuth, orderController.getOrderItemDetails);
+router.put('/:orderId/items/:itemId/status', adminAuth, orderController.updateOrderItemStatus);
 router.put('/:id/status', adminAuth, orderController.updateOrderStatus);
+router.delete('/:orderId', adminAuth, orderController.deleteOrder);
 router.post('/:orderId/items/:itemId/return/approve', adminAuth, orderController.handleReturnAction);
 router.post('/:orderId/items/:itemId/return/reject', adminAuth, orderController.handleReturnAction);
 router.post('/:orderId/return/:itemId', adminAuth, orderController.handleReturnAction);

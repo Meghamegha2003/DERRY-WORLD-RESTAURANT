@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order #<%= item.orderId.toString().slice(-6).toUpperCase() %> - Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-light: #eef2ff;
+            --secondary: #6c757d;
+            --success: #28a745;
+            --info: #17a2b8;
+            --warning: #ffc107;
+            --danger: #dc3545;
+            --light: #f8f9fa;
+            --dark: #343a40;
+            --border-color: #e9ecef;
+            --card-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.03);
+        }
+        
+        body {
+            background-color: #f5f7fb;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 0.5rem;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .card-header {
+            background: white;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.25rem 1.5rem;
+            font-weight: 600;
+        }
+        
+        .product-image {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .status-badge {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.35rem 0.75rem;
+            border-radius: 50px;
+        }
+        
+        .order-meta {
+            font-size: 0.875rem;
+            color: var(--secondary);
+        }
+        
+        .info-row {
+            display: flex;
+            margin-bottom: 0.75rem;
+        }
+        
+        .info-label {
+            width: 120px;
+            color: var(--secondary);
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <%- include('../partials/admin/header') %>
+        
+        <main class="col-md-10 ms-sm-auto col-lg-10 px-md-4 mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="h4 mb-0 fw-bold">Order Details</h2>
+                <a href="/admin/orders" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i> Back to Orders
+                </a>
+            </div>
+
+            <div class="row">
+                <!-- Order Details -->
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Order Items</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex border-bottom pb-3 mb-3">
+                                <% 
+                                    // Get the first image from productImage array
+                                    let imageUrl = '/images/default-product.png';
+                                    if (item.productDetails.productImage && item.productDetails.productImage.length > 0) {
+                                        // Get the first image URL (it's already a string in the array)
+                                        imageUrl = item.productDetails.productImage[0];
+                                        
+                                        // Ensure the image path is absolute
+                                        if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
+                                            imageUrl = '/' + imageUrl;
+                                        }
+                                    }
+                                %>
+                                <div style="width: 120px; height: 120px; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-right: 1rem; overflow: hidden;">
+                                    <img src="<%= imageUrl %>" 
+                                         alt="<%= item.productDetails.name || 'Product' %>" 
+                                         style="max-width: 100%; max-height: 100%; object-fit: contain;"
+                                         onerror="this.onerror=null; this.src='/images/default-product.png'"
+                                         class="img-fluid">
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <h5 class="mb-1"><%= item.productDetails.name %></h5>
+                                        <div class="d-flex flex-column align-items-end">
+                                            <span class="badge <%= item.statusBadgeClass %> item-status-badge" 
+                                                  style="cursor: pointer;"
+                                                  data-order-id="<%= item.orderId %>"
+                                                  data-item-id="<%= item._id %>"
+                                                  data-status="<%= item.status %>">
+                                                <%= item.status %>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <p class="text-muted mb-2"><%= item.productDetails.category %></p>
+                                    <% if (item.variation) { %>
+                                        <span class="badge bg-light text-dark border mb-2"><%= item.variation %></span>
+                                    <% } %>
+                                    
+                                    <div class="d-flex gap-4 mt-3">
+                                        <div>
+                                            <div class="text-muted small">Price</div>
+                                            <div class="fw-bold">₹<%= item.price.toFixed(2) %></div>
+                                        </div>
+                                        <div>
+                                            <div class="text-muted small">Quantity</div>
+                                            <div class="fw-bold"><%= item.quantity %></div>
+                                        </div>
+                                        <div>
+                                            <div class="text-muted small">Total</div>
+                                            <div class="fw-bold text-primary">₹<%= (item.price * item.quantity).toFixed(2) %></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <% if (item.productDetails.description) { %>
+                                <div class="mt-3 pt-3 border-top">
+                                    <h6 class="mb-2">Product Description</h6>
+                                    <p class="mb-0 text-muted"><%= item.productDetails.description %></p>
+                                </div>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Order Summary -->
+                <div class="col-lg-4">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Order Summary</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="info-row">
+                                <span class="info-label">Order ID:</span>
+                                <span class="info-value">#<%= item.orderId.toString().slice(-6).toUpperCase() %></span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Order Date:</span>
+                                <span class="info-value"><%= new Date(item.orderDate).toLocaleDateString('en-US', { 
+                                    year: 'numeric', 
+                                    month: 'short', 
+                                    day: 'numeric' 
+                                }) %></span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Item Status:</span>
+                                <span class="info-value">
+                                    <span class="badge <%= item.statusBadgeClass %>">
+                                        <%= item.status %>
+                                    </span>
+                                </span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Payment Method:</span>
+                                <span class="info-value">
+                                    <% if (formattedPaymentMethod) { %>
+                                        <span class="badge bg-<%= paymentStatusColor %>">
+                                            <i class="<%= formattedPaymentMethod.icon %> me-1"></i>
+                                            <%= formattedPaymentMethod.text %>
+                                            <% if (item.paymentStatus) { %>
+                                                - <span class="text-capitalize"><%= item.paymentStatus %></span>
+                                            <% } %>
+                                        </span>
+                                    <% } else { %>
+                                        <span class="badge bg-secondary">Not specified</span>
+                                    <% } %>
+                                </span>
+                            </div>
+                            <% if (item.paymentId) { %>
+                                <div class="info-row">
+                                    <span class="info-label">Payment ID:</span>
+                                    <span class="info-value text-muted small"><%= item.paymentId %></span>
+                                </div>
+                            <% } %>
+                            
+                            <div class="border-top mt-3 pt-3">
+                                <% 
+                                    // Set default values to prevent undefined errors
+                                    const price = item.price || 0;
+                                    const quantity = item.quantity || 1;
+                                    const deliveryCharge = item.deliveryCharge || 0;
+                                    const couponDiscount = item.couponDiscount || 0;
+                                    const totalSavings = item.totalSavings || 0;
+                                %>
+                                
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Subtotal:</span>
+                                    <span>₹<%= (price * quantity).toFixed(2) %></span>
+                                </div>
+                                
+                                <% if (couponDiscount > 0) { %>
+                                    <div class="d-flex justify-content-between mb-2 text-success">
+                                        <span>Coupon Discount:</span>
+                                        <span>-₹<%= couponDiscount.toFixed(2) %></span>
+                                    </div>
+                                <% } %>
+                                
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Shipping:</span>
+                                    <span class="<%= deliveryCharge === 0 ? 'text-success' : '' %>">
+                                        <%= deliveryCharge === 0 ? 'FREE' : '₹' + deliveryCharge.toFixed(2) %>
+                                    </span>
+                                </div>
+                                
+                                <% if (totalSavings > 0) { %>
+                                    <div class="d-flex justify-content-between mb-2 text-success">
+                                        <span>Total Savings:</span>
+                                        <span>₹<%= totalSavings.toFixed(2) %></span>
+                                    </div>
+                                <% } %>
+                                
+                                <div class="d-flex justify-content-between fw-bold mt-3 pt-2 border-top">
+                                    <span>Total Amount:</span>
+                                    <span class="text-primary">
+                                        ₹<%= (price * quantity + deliveryCharge - couponDiscount).toFixed(2) %>
+                                    </span>
+                                </div>
+                                
+                                <% if (couponDiscount > 0) { %>
+                                    <div class="mt-2 text-end">
+                                        <span class="badge bg-success bg-opacity-10 text-success">
+                                            <i class="fas fa-tag me-1"></i> 
+                                            Coupon Applied: <%= item.appliedCoupon?.code || 'Discount' %>
+                                        </span>
+                                    </div>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Customer Information -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Customer Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="h6 mb-3">Contact Information</h6>
+                            <p class="mb-2">
+                                <i class="fas fa-user me-2 text-muted"></i>
+                                <%= item.user?.name || 'N/A' %>
+                            </p>
+                            <p class="mb-2">
+                                <i class="fas fa-envelope me-2 text-muted"></i>
+                                <%= item.user?.email || 'N/A' %>
+                            </p>
+                            <p class="mb-3">
+                                <i class="fas fa-phone me-2 text-muted"></i>
+                                <%= item.user?.phone || 'N/A' %>
+                            </p>
+                            
+                            <h6 class="h6 mb-3">Shipping Address</h6>
+                            <address class="mb-0">
+                                <strong><%= item.shippingAddress?.fullName || 'N/A' %></strong><br>
+                                <%= item.shippingAddress?.addressLine1 || 'N/A' %><br>
+                                <% if (item.shippingAddress?.addressLine2) { %>
+                                    <%= item.shippingAddress.addressLine2 %><br>
+                                <% } %>
+                                <%= item.shippingAddress?.city || '' %>, 
+                                <%= item.shippingAddress?.state || '' %> 
+                                <%= item.shippingAddress?.postalCode || '' %><br>
+                                Phone: <%= item.shippingAddress?.phone || 'N/A' %><br>
+                                <% if (item.shippingAddress?.landmark) { %>
+                                    Landmark: <%= item.shippingAddress.landmark %><br>
+                                <% } %>
+                                <span class="badge bg-light text-dark mt-1">
+                                    <i class="fas fa-home me-1"></i> <%= item.shippingAddress?.addressType || 'Other' %>
+                                </span>
+                            </address>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <%- include('../partials/admin/footer') %>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            // Status badge style helper
+            function getStatusBadgeClass(status) {
+                if (!status) return 'bg-secondary';
+                const statusLower = status.toLowerCase();
+                
+                if (statusLower.includes('pending')) return 'bg-warning text-dark';
+                if (statusLower.includes('processing')) return 'bg-info text-dark';
+                if (statusLower.includes('shipped')) return 'bg-primary';
+                if (statusLower.includes('delivered')) return 'bg-success';
+                if (statusLower.includes('cancelled')) return 'bg-danger';
+                if (statusLower.includes('return requested')) return 'bg-warning text-dark';
+                if (statusLower.includes('return approved')) return 'bg-info text-dark';
+                if (statusLower.includes('return rejected')) return 'bg-danger';
+                if (statusLower.includes('refunded')) return 'bg-secondary';
+                return 'bg-secondary';
+            }
+
+            // Get next available statuses based on current status
+            function getNextStatuses(currentStatus) {
+                const statusMap = {
+                    'Pending': ['Processing', 'Cancelled'],
+                    'Processing': ['Shipped', 'Cancelled'],
+                    'Shipped': ['Delivered', 'Return Requested'],
+                    'Delivered': ['Return Requested'],
+                    'Return Requested': ['Return Approved', 'Return Rejected'],
+                    'Return Approved': ['Refunded'],
+                    'Return Rejected': []
+                };
+                
+                // Check if the status exists in our map, otherwise return empty array
+                return statusMap[currentStatus] || [];
+            }
+
+            // Handle status change
+            document.addEventListener('DOMContentLoaded', function() {
+                // Status select change handler
+                document.querySelectorAll('.status-select').forEach(select => {
+                    select.addEventListener('change', async function() {
+                        const orderId = this.dataset.orderId;
+                        const itemId = this.dataset.itemId;
+                        const currentStatus = this.dataset.currentStatus;
+                        const newStatus = this.value;
+                        
+                        if (!orderId || !itemId) {
+                            console.error('Order ID or Item ID is missing');
+                            return;
+                        }
+                        
+                        // Don't do anything if status didn't change
+                        if (newStatus === currentStatus) {
+                            this.value = currentStatus;
+                            return;
+                        }
+                        
+                        try {
+                            const response = await fetch(`/admin/orders/${orderId}/items/${itemId}/status`, {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                },
+                                body: JSON.stringify({ status: newStatus })
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (result.success) {
+                                // Show success message
+                                const Toast = Swal.mixin({
+                                    toast: true,
+                                    position: 'top-end',
+                                    showConfirmButton: false,
+                                    timer: 3000,
+                                    timerProgressBar: true
+                                });
+                                
+                                Toast.fire({
+                                    icon: 'success',
+                                    title: 'Status updated successfully'
+                                });
+                                
+                                // Update the UI
+                                const statusBadge = document.querySelector(`.item-status-badge[data-order-id="${orderId}"][data-item-id="${itemId}"]`);
+                                if (statusBadge) {
+                                    statusBadge.textContent = result.data.status || newStatus;
+                                    statusBadge.className = `badge ${result.data.statusBadgeClass || getStatusBadgeClass(newStatus)} item-status-badge`;
+                                    statusBadge.dataset.status = result.data.status || newStatus;
+                                }
+                                
+                                // Update the current status in the select
+                                this.dataset.currentStatus = result.data.status || newStatus;
+                                
+                                // Update the select options with new status and next available statuses
+                                const nextStatuses = result.data.nextStatuses || [];
+                                const currentStatus = result.data.status || newStatus;
+                                
+                                this.innerHTML = '';
+                                
+                                // Add current status as first option
+                                const currentOption = document.createElement('option');
+                                currentOption.value = currentStatus;
+                                currentOption.textContent = currentStatus;
+                                currentOption.selected = true;
+                                this.appendChild(currentOption);
+                                
+                                // Add next available statuses
+                                nextStatuses.forEach(status => {
+                                    const option = document.createElement('option');
+                                    option.value = status;
+                                    option.textContent = status;
+                                    this.appendChild(option);
+                                });
+                                
+                            } else {
+                                throw new Error(result.message || 'Failed to update status');
+                            }
+                        } catch (error) {
+                            console.error('Error updating status:', error);
+                            
+                            // Show error message
+                            const Toast = Swal.mixin({
+                                toast: true,
+                                position: 'top-end',
+                                showConfirmButton: false,
+                                timer: 3000,
+                                timerProgressBar: true
+                            });
+                            
+                            Toast.fire({
+                                icon: 'error',
+                                title: error.message || 'Failed to update status'
+                            });
+                            
+                            // Reset the select to previous value
+                            this.value = currentStatus;
+                        }
+                    });
+                });
+            });
+        </script>
+        <script>
+            // Add any client-side interactivity here
+        </script>
+</body>
+</html>
