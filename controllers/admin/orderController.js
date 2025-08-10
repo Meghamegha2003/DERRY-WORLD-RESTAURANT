@@ -735,12 +735,26 @@ exports.updateOrderStatus = async (req, res) => {
 
             console.log(`[DEBUG] Updating item ${itemId} from '${currentItemStatus}' to '${itemStatus}'`);
             
-            // Update only the specific item in the database
+            // Get the current item to check its current state
+            const currentItem = order.items.id(itemId);
+            if (!currentItem) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Item not found in this order'
+                });
+            }
+
+            // Prepare the update data
             const updateData = {
                 'items.$.status': itemStatus,
                 'items.$.updatedAt': new Date(),
                 'updatedAt': new Date()
             };
+
+            // Only set the returnRequestDate if this is a new return request
+            if (itemStatus === 'Return Requested' && !currentItem.returnRequestDate) {
+                updateData['items.$.returnRequestDate'] = new Date();
+            }
 
             // Special handling for return approved status
             if (itemStatus === 'Return Approved') {
@@ -751,8 +765,8 @@ exports.updateOrderStatus = async (req, res) => {
             // Update only the specific item in the database
             const result = await Order.updateOne(
                 { 
-                    _id: orderId,  // Use orderId instead of id
-                    'items._id': itemId  // Match the order and the specific item
+                    _id: id,
+                    'items._id': itemId
                 },
                 { $set: updateData }
             );

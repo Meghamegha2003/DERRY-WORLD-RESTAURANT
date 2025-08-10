@@ -342,8 +342,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const orderRow = this.closest('tr');
         const statusBadge = orderRow ? orderRow.querySelector('.item-status-badge') : null;
         
-        if (!orderId || !itemId) {
-          console.error('Order ID or Item ID is missing');
+        if (!orderId) {
+          console.error('Order ID is missing');
           return;
         }
         
@@ -360,23 +360,31 @@ document.addEventListener('DOMContentLoaded', function() {
         this.innerHTML = '<option>Updating...</option>';
         
         try {
-          const url = itemId 
-            ? `/admin/orders/${orderId}/items/${itemId}/status`
-            : `/admin/orders/${orderId}/status`;
+          // Always use the item-specific endpoint when available
+          const url = `/admin/orders/${orderId}/items/${itemId}/status`;
             
           console.log(`[FRONTEND] Sending status update to ${url} with status: ${newStatus}`);
+          
+          // Prepare the request data
+          const requestData = { 
+            status: newStatus,
+            _csrf: (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
+          };
+          
+          // If this is a return request, include the current timestamp
+          if (newStatus === 'Return Requested' && !this.dataset.returnRequested) {
+            requestData.returnRequestDate = new Date().toISOString();
+            this.dataset.returnRequested = 'true';
+          }
             
           const response = await fetch(url, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
               'X-Requested-With': 'XMLHttpRequest',
-              'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+              'X-CSRF-Token': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
             },
-            body: JSON.stringify({ 
-              status: newStatus,
-              _csrf: document.querySelector('meta[name="csrf-token"]')?.content || ''
-            })
+            body: JSON.stringify(requestData)
           });
           
           const result = await response.json();
@@ -431,13 +439,19 @@ document.addEventListener('DOMContentLoaded', function() {
             });
           }
           
-          // Show success message
-          showToast('Success', 'Status updated successfully', 'success');
-          
+          // Success message already shown with Swal
         } catch (error) {
           console.error('Error updating status:', error);
-          showToast('Error', error.message || 'Failed to update status', 'error');
-          this.innerHTML = originalHTML;
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: error.message || 'Failed to update status',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3000
+          });
+          this.value = currentStatus; // Revert to original value
         } finally {
           this.disabled = false;
         }

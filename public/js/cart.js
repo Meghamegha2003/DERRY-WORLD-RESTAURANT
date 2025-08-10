@@ -133,7 +133,111 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 const data = await response.json();
 
-
+                // Update the quantity input
+                quantityInput.value = newQuantity;
+                
+                // Update button states
+                const quantityControls = button.closest('.quantity-controls');
+                let decreaseBtn = quantityControls.querySelector('.decrease-btn');
+                let increaseBtn = quantityControls.querySelector('.increase-btn');
+                const input = quantityControls.querySelector('.quantity-input');
+                const maxStock = parseInt(button.dataset.stock || '5');
+                
+                // Create decrease button if it doesn't exist and we need it
+                if (newQuantity > 1 && !decreaseBtn) {
+                    decreaseBtn = document.createElement('button');
+                    decreaseBtn.className = 'quantity-btn decrease-btn';
+                    decreaseBtn.innerHTML = '<i class="fas fa-minus"></i>';
+                    decreaseBtn.setAttribute('data-product-id', button.dataset.productId);
+                    decreaseBtn.setAttribute('data-action', 'decrease');
+                    decreaseBtn.setAttribute('data-stock', maxStock);
+                    quantityControls.insertBefore(decreaseBtn, input);
+                    
+                    // The event is already handled by the document-level event delegation
+                    // No need to add additional event listeners
+                } 
+                // Remove decrease button if quantity is 1
+                else if (newQuantity <= 1 && decreaseBtn) {
+                    decreaseBtn.remove();
+                }
+                
+                // Create increase button if it doesn't exist and we need it
+                if (newQuantity < Math.min(5, maxStock) && !increaseBtn) {
+                    increaseBtn = document.createElement('button');
+                    increaseBtn.className = 'quantity-btn increase-btn';
+                    increaseBtn.innerHTML = '<i class="fas fa-plus"></i>';
+                    increaseBtn.setAttribute('data-product-id', button.dataset.productId);
+                    increaseBtn.setAttribute('data-action', 'increase');
+                    increaseBtn.setAttribute('data-stock', maxStock);
+                    quantityControls.appendChild(increaseBtn);
+                    
+                    // The event is already handled by the document-level event delegation
+                    // No need to add additional event listeners
+                } 
+                // Remove increase button if we've reached max
+                else if (newQuantity >= Math.min(5, maxStock) && increaseBtn) {
+                    increaseBtn.remove();
+                }
+                
+                // Update button states
+                if (decreaseBtn) {
+                    decreaseBtn.disabled = newQuantity <= 1;
+                    decreaseBtn.style.opacity = newQuantity <= 1 ? '0.5' : '1';
+                }
+                
+                if (increaseBtn) {
+                    increaseBtn.disabled = newQuantity >= Math.min(5, maxStock);
+                    increaseBtn.style.opacity = newQuantity >= Math.min(5, maxStock) ? '0.5' : '1';
+                }
+                
+                // Update the UI with server response data
+                if (data) {
+                    // Update the cart summary
+                    const subtotalEl = document.getElementById('subtotal');
+                    const totalEl = document.getElementById('total');
+                    const deliveryChargeEl = document.getElementById('delivery-charge');
+                    
+                    if (data.subtotal !== undefined && subtotalEl) {
+                        subtotalEl.textContent = '₹' + data.subtotal.toFixed(2);
+                    }
+                    
+                    if (data.total !== undefined && totalEl) {
+                        totalEl.textContent = '₹' + data.total.toFixed(2);
+                    }
+                    
+                    // Update coupon discount if it exists
+                    if (data.couponDiscount > 0) {
+                        let couponDiscountEl = document.getElementById('coupon-discount');
+                        if (!couponDiscountEl) {
+                            // If coupon discount element doesn't exist, create it
+                            const subtotalItem = document.querySelector('.total-item:first-child');
+                            if (subtotalItem) {
+                                const discountItem = document.createElement('div');
+                                discountItem.className = 'total-item discount';
+                                discountItem.innerHTML = `
+                                    <span>Coupon Discount</span>
+                                    <span id="coupon-discount">-₹${data.couponDiscount.toFixed(2)}</span>
+                                `;
+                                subtotalItem.after(discountItem);
+                            }
+                        } else {
+                            couponDiscountEl.textContent = '-₹' + data.couponDiscount.toFixed(2);
+                        }
+                    } else {
+                        // Remove coupon discount if it exists but no discount is applied
+                        const couponDiscountEl = document.getElementById('coupon-discount');
+                        if (couponDiscountEl) {
+                            couponDiscountEl.closest('.total-item').remove();
+                        }
+                    }
+                    
+                    // Update delivery charge
+                    if (data.deliveryCharge !== undefined && deliveryChargeEl) {
+                        deliveryChargeEl.textContent = data.deliveryCharge === 0 ? 'FREE' : '₹' + data.deliveryCharge.toFixed(2);
+                    }
+                }
+                
+                // Show success message
                 Swal.fire({
                     toast: true,
                     position: 'top-end',
@@ -154,11 +258,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         toast.style.fontWeight = 'bold';
                     }
                 });
-
-
-                setTimeout(() => {
-                    location.reload();
-                }, 1500);
             } catch (error) {
                 console.error('Quantity update failed:', error.message);
                 Swal.fire({
