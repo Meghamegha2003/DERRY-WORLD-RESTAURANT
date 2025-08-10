@@ -504,6 +504,99 @@
             color: #ffbe33;
             font-size: 18px;
         }
+
+        /* Product Details Section */
+        .product-details {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .product-details h5 {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .cart-items-container {
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .cart-item {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+            padding: 15px;
+            border: 1px solid #eee;
+        }
+
+        .product-img {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .product-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .product-category {
+            font-size: 0.85rem;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+
+        .product-price {
+            font-weight: 600;
+            color: #ffbe33;
+        }
+
+        .text-decoration-line-through {
+            text-decoration: line-through;
+            color: #95a5a6 !important;
+            font-size: 0.9em;
+        }
+
+        .quantity-display {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 5px 10px;
+            display: inline-block;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .product-total {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        @media (max-width: 768px) {
+            .product-img {
+                width: 60px;
+                height: 60px;
+            }
+            
+            .product-name {
+                font-size: 0.9rem;
+            }
+            
+            .product-category {
+                font-size: 0.8rem;
+            }
+        }
     </style>
 </head>
 
@@ -523,7 +616,8 @@
         <% } %>
         
         <div class="row">
-            <div class="col-md-8">
+            <!-- Left Column -->
+            <div class="col-lg-8">
                 <!-- Address Section -->
                 <div class="delivery-address mb-4">
                     <h5 class="mb-3">Delivery Address</h5>
@@ -560,6 +654,55 @@
                     <% } %>
                 </div>
 
+                <!-- Order Summary Section -->
+                <div class="product-details mb-4">
+                    <h5 class="mb-3">Order Summary</h5>
+                    <div class="cart-items-container">
+                        <div class="cart-items-scroll">
+                            <% cart.items.forEach(item => { %>
+                                <% if (item && item.product) { %>
+                                    <div class="cart-item" data-product-id="<%= item.product._id %>">
+                                        <div class="row align-items-center w-100">
+                                            <div class="col-md-3">
+                                                <img src="<%= item.product.productImage && Array.isArray(item.product.productImage) && item.product.productImage.length > 0 ? item.product.productImage[0] : item.product.productImage %>" 
+                                                     alt="<%= item.product.name %>" 
+                                                     class="product-img">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="product-details">
+                                                    <h6 class="product-name mb-1"><%= item.product.name %></h6>
+                                                    <p class="product-category text-muted mb-1"><%= item.product.category?.name || 'Uncategorized' %></p>
+                                                    <p class="product-price mb-0">
+                                                        ₹<%= (item.product.offerDetails && item.product.offerDetails.finalPrice) || item.product.price %>
+                                                        <% if (item.product.offerDetails && item.product.offerDetails.finalPrice) { %>
+                                                            <span class="text-muted text-decoration-line-through ms-2">₹<%= item.product.price %></span>
+                                                        <% } %>
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="quantity-controls">
+                                                    <div class="quantity-display">
+                                                        <span class="quantity"><%= item.quantity %></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2 text-end">
+                                                <div class="product-total">
+                                                    ₹<%= ((item.product.offerDetails && item.product.offerDetails.finalPrice) || item.product.price) * item.quantity %>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <% } %>
+                            <% }); %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="col-lg-4">
                 <!-- Payment Method Section -->
                 <div class="payment-section mb-4">
                     <h5 class="mb-3">Payment Method</h5>
@@ -593,11 +736,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Payment Section -->
-            </div>
-
-            <div class="col-md-4">
                 <!-- Order Summary -->
                 <div class="order-summary">
                     <h4 class="summary-title">Order Summary</h4>
