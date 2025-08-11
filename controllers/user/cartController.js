@@ -227,10 +227,21 @@ exports.calculateCartTotal = async (cart) => {
     deliveryCharge = 0;
   }
 
+  // Calculate total before coupon
+  let total = subtotal + deliveryCharge;
+  
+  // Apply coupon discount if available
+  if (cart.couponDiscount && cart.couponDiscount > 0) {
+    total -= cart.couponDiscount;
+    // Ensure total doesn't go below 0
+    total = Math.max(0, total);
+  }
+
   return {
     subtotal,
     deliveryCharge,
-    total: (subtotal + deliveryCharge).toFixed(2),
+    couponDiscount: cart.couponDiscount || 0,
+    total: total.toFixed(2),
   };
 };
 

@@ -554,15 +554,34 @@
                         <div class="col-lg-8">
                             <div class="cart-items-container">
                                 <div class="cart-items-scroll">
-                                    <% cartItems.forEach(item => { %>
-                                        <% if (item && item.product) { %>
+                                    <% 
+                                    // Calculate subtotal for all items
+                                    const subtotal = cartItems.reduce((sum, item) => {
+                                        if (!item || !item.product) return sum;
+                                        const price = (item.product.offerDetails && item.product.offerDetails.finalPrice) ||
+                                                    (item.product.salesPrice && item.product.salesPrice < item.product.regularPrice ? item.product.salesPrice : item.product.regularPrice);
+                                        return sum + (price * item.quantity);
+                                    }, 0);
+
+                                    // Calculate coupon discount per item
+                                    const couponDiscount = cart && cart.couponDiscount ? cart.couponDiscount : 0;
+                                    
+                                    cartItems.forEach(item => { 
+                                        if (item && item.product) { 
+                                            const regularPrice = item.product.regularPrice;
+                                            const salePrice = (item.product.salesPrice < regularPrice) ? item.product.salesPrice : regularPrice;
+                                            const itemPrice = (item.product.offerDetails?.finalPrice) || salePrice;
+                                            const itemSubtotal = itemPrice * item.quantity;
+                                            const discountRatio = itemSubtotal / subtotal;
+                                            const itemCouponDiscount = couponDiscount * discountRatio;
+                                    %>
                                             <div class="cart-item" data-product-id="<%= item.product._id %>">
                                                 <div class="row align-items-center w-100">
                                                     <div class="col-md-2">
                                                         <img src="<%= item.product.productImage && Array.isArray(item.product.productImage) && item.product.productImage.length > 0 ? item.product.productImage[0] : item.product.productImage %>" 
                                                              alt="<%= item.product.name %>" 
                                                              class="product-img"
-                                                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y4ZjlmYSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiNhZGI1YmQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4='">
+                                                             onerror="this.src='/images/default-food.png'" />
                                                     </div>
                                                     
                                                     <!-- Product Details -->
@@ -574,14 +593,24 @@
                                                             </div>
                                                         <% } %>
                                                         <div class="product-price">
-                                                            <span class="original-price">₹<%= item.product.regularPrice ? item.product.regularPrice.toFixed(2) : '0.00' %></span>
-                                                        <% if (item.product.offerDetails && item.product.offerDetails.finalPrice) { %>
-                                                            <span class="current-price item-price" data-price="<%= item.product.offerDetails.finalPrice %>">₹<%= item.product.offerDetails.finalPrice %></span>
-                                                        <% } else if (item.product.salesPrice && item.product.salesPrice < item.product.regularPrice) { %>
-                                                            <span class="current-price item-price" data-price="<%= item.product.salesPrice %>">₹<%= item.product.salesPrice %></span>
-                                                        <% } else { %>
-                                                            <span class="current-price item-price" data-price="<%= item.product.regularPrice %>">₹<%= item.product.regularPrice %></span>
-                                                        <% } %>
+                                                            <% 
+                                                            // Using the variables already calculated above
+                                                            
+                                                            if (itemPrice < regularPrice) { 
+                                                            %>
+                                                                <span class="original-price">₹<%= (regularPrice * item.quantity).toFixed(2) %></span>
+                                                            <% } %>
+                                                            <span class="current-price">
+                                                                ₹<%= (itemPrice * item.quantity).toFixed(2) %>
+                                                                <% if (itemCouponDiscount > 0) { %>
+                                                                    <div class="coupon-discount text-success small">
+                                                                        -₹<%= itemCouponDiscount.toFixed(2) %> (Coupon)
+                                                                    </div>
+                                                                    <div class="final-price fw-bold">
+                                                                        ₹<%= ((itemPrice * item.quantity) - itemCouponDiscount).toFixed(2) %>
+                                                                    </div>
+                                                                <% } %>
+                                                            </span>
                                                         </div>
                                                     </div>
 
@@ -662,52 +691,42 @@
 </div>
                                 <div class="cart-totals">
                                     <div class="total-item">
-                                        <span>Subtotal</span>
+                                        <span>Subtotal (<%= cartItems.filter(item => item && item.product).reduce((sum, item) => sum + item.quantity, 0) %> items)</span>
                                         <span id="subtotal">
-                                    ₹<%=
-                                    cartItems && cartItems.length > 0
-                                        ? cartItems.reduce((sum, item) => {
-                                            let price = (item.product.offerDetails && item.product.offerDetails.finalPrice)
-                                            ? item.product.offerDetails.finalPrice
-                                            : (item.product.salesPrice && item.product.salesPrice < item.product.regularPrice)
-                                                ? item.product.salesPrice
-                                                : item.product.regularPrice;
-                                            return sum + (price * item.quantity);
-                                        }, 0).toFixed(2)
-                                        : '0.00'
-                                    %>
-                                    </span>
+                                            ₹<%= subtotal.toFixed(2) %>
+                                        </span>
                                     </div>
-                                    <% if (cart && cart.couponDiscount > 0) { %>
+                                    
+                                    <% if (cartItems.some(item => item.product.salesPrice < item.product.regularPrice)) { %>
                                         <div class="total-item discount">
-                                            <span>Coupon Discount</span>
-                                            <span id="coupon-discount">-₹<%= cart.couponDiscount.toFixed(2) %></span>
+                                            <span>Product Discount</span>
+                                            <span>-₹<%= cartItems.reduce((sum, item) => {
+                                                if (!item || !item.product) return sum;
+                                                const regularPrice = item.product.regularPrice;
+                                                const salePrice = (item.product.salesPrice && item.product.salesPrice < regularPrice) ? item.product.salesPrice : regularPrice;
+                                                const itemPrice = (item.product.offerDetails && item.product.offerDetails.finalPrice) || salePrice;
+                                                return sum + ((regularPrice - itemPrice) * item.quantity);
+                                            }, 0).toFixed(2) %></span>
                                         </div>
                                     <% } %>
+                                    
+                                    <% if (couponDiscount > 0) { %>
+                                        <div class="total-item discount">
+                                            <span>Coupon Discount</span>
+                                            <span id="coupon-discount">-₹<%= couponDiscount.toFixed(2) %></span>
+                                        </div>
+                                    <% } %>
+                                    
                                     <div class="total-item">
                                         <span>Delivery Charge</span>
                                         <span id="delivery-charge">FREE</span>
                                     </div>
+                                    
                                     <div class="total-item total">
-                                        <span>Total</span>
+                                        <span>Total Amount</span>
                                         <span id="total">
-₹<%=
-  cartItems && cartItems.length > 0
-    ? (
-        cartItems.reduce((sum, item) => {
-          let price = (item.product.offerDetails && item.product.offerDetails.finalPrice)
-            ? item.product.offerDetails.finalPrice
-            : (item.product.salesPrice && item.product.salesPrice < item.product.regularPrice)
-              ? item.product.salesPrice
-              : item.product.regularPrice;
-          return sum + (price * item.quantity);
-        }, 0)
-        + (deliveryCharge || 0)
-        - (cart && cart.couponDiscount ? cart.couponDiscount : 0)
-      ).toFixed(2)
-    : '0.00'
-%>
-</span>
+                                            ₹<%= (subtotal - couponDiscount).toFixed(2) %>
+                                        </span>
                                     </div>
                                 </div>
                                 <a href="/checkout" class="checkout-btn">

@@ -330,12 +330,34 @@ exports.getUserOrders = async (req, res) => {
               offerDetails && offerDetails.hasOffer
                 ? offerDetails.finalPrice
                 : item.product.salesPrice || regularPrice;
+            
+            // Calculate item's share of coupon discount
+            const itemSubtotal = finalPrice * item.quantity;
+            
+            // For single item orders, apply the full coupon discount to the item
+            let itemCouponDiscount = 0;
+            if (orderObj.items.length === 1) {
+                itemCouponDiscount = orderObj.couponDiscount || 0;
+            } else {
+                // For multiple items, distribute the coupon proportionally
+                const orderSubtotal = orderObj.items.reduce((sum, i) => {
+                    const iRegularPrice = i.product.regularPrice || i.product.price || 0;
+                    const iFinalPrice = i.product.salesPrice || iRegularPrice;
+                    return sum + (iFinalPrice * i.quantity);
+                }, 0);
+                
+                itemCouponDiscount = orderObj.couponDiscount > 0 && orderSubtotal > 0
+                    ? Math.round((itemSubtotal / orderSubtotal) * orderObj.couponDiscount * 100) / 100 // Round to 2 decimal places
+                    : 0;
+            }
 
             return {
               ...item,
               regularPrice: regularPrice,
               price: finalPrice,
               total: finalPrice * item.quantity,
+              itemCouponDiscount: itemCouponDiscount, // Add item-level coupon discount
+              finalPrice: Math.max(0, (finalPrice * item.quantity) - itemCouponDiscount), // Final price after coupon
               offerDetails: {
                 ...offerDetails,
                 type:
@@ -634,9 +656,75 @@ exports.getOrderDetails = async (req, res) => {
       })
     );
 
-    // Filter items if itemId is provided
+    // First, process all items with coupon distribution
+    order.items = allItems;
+    order.isSingleItemView = false;
+    
+    // Calculate coupon discount (if any) and distribute proportionally
+    const couponDiscount = order.couponDiscount || 0;
+    
+    console.log('=== COUPON DEBUG ===');
+    console.log('Total coupon discount:', couponDiscount);
+    
+    // Calculate subtotal for coupon distribution (after product discounts)
+    const subtotalAfterProductDiscount = order.items.reduce(
+      (sum, item) => sum + (item.price || 0) * (item.quantity || 0),
+      0
+    );
+    
+    console.log('Subtotal after product discounts:', subtotalAfterProductDiscount);
+    
+    // Distribute coupon discount proportionally to each item based on item's subtotal
+    order.items = order.items.map(item => {
+      const itemSubtotal = (item.price || 0) * (item.quantity || 0);
+      
+      // Calculate this item's share of the coupon discount
+      const discountRatio = subtotalAfterProductDiscount > 0 
+        ? itemSubtotal / subtotalAfterProductDiscount 
+        : 0;
+      
+      // Calculate exact coupon discount for this item
+      let itemCouponDiscount = parseFloat((couponDiscount * discountRatio).toFixed(2));
+      
+      // Ensure we don't give more discount than the item's price
+      itemCouponDiscount = Math.min(itemCouponDiscount, itemSubtotal);
+      
+      console.log(`Item (${item.product?.name}):`);
+      console.log('  - Item subtotal:', itemSubtotal);
+      console.log('  - Discount ratio:', discountRatio);
+      console.log('  - Coupon discount:', itemCouponDiscount);
+      console.log('  - Final price:', (itemSubtotal - itemCouponDiscount).toFixed(2));
+      
+      return {
+        ...item,
+        itemCouponDiscount: itemCouponDiscount,
+        finalPrice: Math.max(0, itemSubtotal - itemCouponDiscount)
+      };
+    });
+    
+    // After distributing, check for any rounding differences and adjust the last item if needed
+    const totalDistributed = order.items.reduce((sum, item) => sum + item.itemCouponDiscount, 0);
+    const roundingDifference = parseFloat((couponDiscount - totalDistributed).toFixed(2));
+    
+    if (roundingDifference !== 0 && order.items.length > 0) {
+      // Apply rounding difference to the last item
+      const lastItem = order.items[order.items.length - 1];
+      const lastItemSubtotal = (lastItem.price || 0) * (lastItem.quantity || 0);
+      const newDiscount = Math.min(
+        lastItem.itemCouponDiscount + roundingDifference,
+        lastItemSubtotal
+      );
+      const actualAdjustment = newDiscount - lastItem.itemCouponDiscount;
+      
+      lastItem.itemCouponDiscount = parseFloat(newDiscount.toFixed(2));
+      lastItem.finalPrice = Math.max(0, lastItemSubtotal - lastItem.itemCouponDiscount);
+      
+      console.log('Adjusted last item coupon discount by:', actualAdjustment);
+    }
+    
+    // Now filter items if itemId is provided
     if (itemId) {
-      const itemToShow = allItems.find(item => item._id.toString() === itemId);
+      const itemToShow = order.items.find(item => item._id.toString() === itemId);
       if (!itemToShow) {
         return res.status(404).render('error', {
           message: 'Item not found in this order',
@@ -647,15 +735,14 @@ exports.getOrderDetails = async (req, res) => {
       }
       order.items = [itemToShow];
       order.isSingleItemView = true;
-    } else {
-      order.items = allItems;
-      order.isSingleItemView = false;
     }
 
+    // Calculate order totals
     const subtotal = order.items.reduce(
       (sum, item) => sum + (item.regularPrice || 0) * (item.quantity || 0),
       0
     );
+    
     const productDiscount = order.items.reduce((sum, item) => {
       const itemDiscount =
         item.offerDetails && item.offerDetails.hasOffer && item.regularPrice && item.price && item.quantity
@@ -663,9 +750,12 @@ exports.getOrderDetails = async (req, res) => {
           : 0;
       return sum + itemDiscount;
     }, 0);
-
-    // Calculate coupon discount (if any)
-    const couponDiscount = order.couponDiscount || 0;
+    
+    // Calculate the total after product and coupon discounts
+    const totalAfterDiscounts = order.items.reduce(
+      (sum, item) => sum + (item.finalPrice || 0),
+      0
+    );
     const shippingCharge = order.shippingCharge || 0;
     const tax = order.tax || 0;
     const total = subtotal - productDiscount - couponDiscount + shippingCharge + tax;
@@ -676,7 +766,20 @@ exports.getOrderDetails = async (req, res) => {
     order.couponDiscount = couponDiscount;
     order.shippingCharge = shippingCharge;
     order.tax = tax;
-    order.total = total;
+    // Recalculate total based on distributed coupon discounts
+    const totalAfterCouponDiscount = order.items.reduce(
+      (sum, item) => {
+        const itemTotal = (item.finalPrice || 0);
+        console.log(`Adding item ${item.product?.name} total:`, itemTotal);
+        return sum + itemTotal;
+      },
+      0
+    );
+    console.log('Total after coupon discounts:', totalAfterCouponDiscount);
+    console.log('Shipping charge:', shippingCharge);
+    console.log('Tax:', tax);
+    order.total = totalAfterCouponDiscount + shippingCharge + tax;
+    console.log('Final total:', order.total);
 
     let deliveryDate = order.deliveryDate || order.deliveredAt || order.updatedAt;
     let canReturn = false;
@@ -701,24 +804,29 @@ exports.getOrderDetails = async (req, res) => {
     // Convert order to plain object if it's a Mongoose document
     const orderObj = order.toObject ? order.toObject() : order;
     
-    // Add status badge class to each order item
+    // Add status badge class and icon to each order item
     const orderWithStatusBadges = {
       ...orderObj,
       items: orderObj.items.map(item => {
-        const itemObj = item.toObject ? item.toObject() : item;
+        // Use item status if available, otherwise fall back to order status
+        const itemStatus = item.status || orderObj.orderStatus;
+        // Ensure status is properly formatted (capitalized first letter)
+        const formattedStatus = itemStatus.charAt(0).toUpperCase() + itemStatus.slice(1).toLowerCase();
+        
         return {
-          ...itemObj,
-          statusBadgeClass: getItemStatusBadgeClass(itemObj.status || orderObj.orderStatus)
+          ...item,
+          status: formattedStatus, // Ensure consistent status format
+          statusBadgeClass: getItemStatusBadgeClass(formattedStatus),
+          statusIcon: getStatusIcon(formattedStatus)
         };
       })
     };
 
-    // Add backToOrderUrl for single item view
     const viewData = {
       order: orderWithStatusBadges,
       user: req.user,
       cartCount: responseData.cartCount,
-      messages: res.locals.messages || {},
+      messages: res.locals.messages || {}
     };
 
     if (itemId) {

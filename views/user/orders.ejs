@@ -469,8 +469,76 @@
                                         </span>
                                     </div>
                                 </div>
+                                <!-- Calculate order totals once at the order level -->
+                                <% 
+                                // Process all items in the order for consistent calculations
+                                const itemsWithDiscounts = order.items.map(item => {
+                                    const regularPrice = item.regularPrice || item.price || 0;
+                                    const salePrice = item.price; // Use the actual price as sale price
+                                    const itemPrice = (item.offerDetails?.finalPrice) || salePrice;
+                                    const itemSubtotal = itemPrice * (item.quantity || 1);
+                                    
+                                    // Calculate product discount (from regular price to sale price)
+                                    const productDiscount = regularPrice > itemPrice ? 
+                                        (regularPrice - itemPrice) * (item.quantity || 1) : 0;
+                                    
+                                    // Use the itemCouponDiscount from the item data (already calculated on the server)
+                                    const itemCouponDiscount = item.itemCouponDiscount || 0;
+                                    const finalPrice = Math.max(0, itemSubtotal - itemCouponDiscount);
+                                    
+                                    // Calculate display properties for each item
+                                    const showOriginalPrice = (item.offerDetails?.finalPrice && 
+                                                             item.offerDetails.finalPrice < salePrice) || 
+                                                             (salePrice < regularPrice);
+                                    
+                                    return {
+                                        ...item,
+                                        regularPrice,
+                                        salePrice,
+                                        itemPrice,
+                                        itemSubtotal,
+                                        productDiscount,
+                                        itemCouponDiscount,
+                                        finalPrice,
+                                        showOriginalPrice,
+                                        originalPrice: regularPrice // Always use regular price as original price
+                                    };
+                                });
+                                
+                                // Calculate order-level totals
+                                const subtotal = itemsWithDiscounts.reduce((sum, item) => sum + (item.itemPrice * (item.quantity || 1)), 0);
+                                const totalProductDiscount = itemsWithDiscounts.reduce((sum, item) => sum + (item.productDiscount || 0), 0);
+                                const couponDiscount = itemsWithDiscounts.reduce((sum, item) => sum + (item.itemCouponDiscount || 0), 0);
+                                const totalAfterDiscounts = itemsWithDiscounts.reduce((sum, item) => sum + item.finalPrice, 0);
+                                const finalTotal = totalAfterDiscounts + (order.deliveryCharge || 0);
+                                const totalSavings = totalProductDiscount + couponDiscount;
+                                
+                                // Get current item details for display
+                                const currentItem = itemsWithDiscounts.find(i => i._id.toString() === item._id.toString());
+                                const currentItemDetails = currentItem;
+                                %>
+                                
                                 <div class="d-flex justify-content-between align-items-center mt-2">
-                                    <div class="fw-bold text-primary">₹<%= ((item.price || 0) * (item.quantity || 1)).toFixed(2) %></div>
+                                    <% // Use the pre-calculated values from itemsWithDiscounts %>
+                                    
+                                    <div class="fw-bold text-primary">
+                                        <div class="d-flex flex-column">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <% if (currentItemDetails.showOriginalPrice) { %>
+                                                    <span class="text-decoration-line-through text-muted small me-1">₹<%= (currentItemDetails.regularPrice * (currentItem.quantity || 1)).toFixed(2) %></span>
+                                                <% } %>
+                                                <div class="d-flex align-items-center">
+                                                    <span>₹</span>
+                                                    <span class="h5 mb-0"><%= (currentItemDetails.finalPrice || 0).toFixed(2) %></span>
+                                                </div>
+                                            </div>
+                                            <% if (currentItemDetails.itemCouponDiscount > 0) { %>
+                                                <div class="text-success small mt-1">
+                                                    <i class="fas fa-tag me-1"></i> Coupon: -₹<%= currentItemDetails.itemCouponDiscount.toFixed(2) %>
+                                                </div>
+                                            <% } %>
+                                        </div>
+                                    </div>
                                     <div class="d-flex gap-2">
                                         <a href="/orders/<%= order._id %>/items/<%= item._id %>" class="btn btn-outline-primary btn-sm">
                                             <i class="fas fa-eye me-1"></i> Details
