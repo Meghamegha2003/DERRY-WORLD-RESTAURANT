@@ -14,8 +14,10 @@
                  class="form-control" 
                  placeholder="Search orders..." 
                  value="<%= locals.searchQuery || '' %>"
-                 style="width: 200px;">
-          <select class="form-select" id="searchType" name="searchType" style="width: 150px;">
+                 style="width: 200px;"
+                 data-placeholder-orderid="Enter last 6 characters of Order ID"
+                 data-placeholder-default="Search orders...">
+          <select class="form-select" id="searchType" name="searchType" style="width: 200px;">
             <option value="orderId" <%= locals.searchType === 'orderId' ? 'selected' : '' %>>Order ID</option>
             <option value="customer" <%= locals.searchType === 'customer' ? 'selected' : '' %>>Customer</option>
             <option value="status" <%= locals.searchType === 'status' ? 'selected' : '' %>>Status</option>
@@ -31,26 +33,7 @@
           <% } %>
         </div>
       </form>
-      <!-- Filter by Status -->
-      <select class="form-select" id="statusFilter" name="status" style="width: 200px;">
-        <option value="all" <%= (!query.status || query.status === 'all') ? 'selected' : '' %>>All Status</option>
-        
-        <optgroup label="Order Status">
-          <option value="Pending" <%= query.status === 'Pending' ? 'selected' : '' %>>Pending</option>
-          <option value="Processing" <%= query.status === 'Processing' ? 'selected' : '' %>>Processing</option>
-          <option value="Shipped" <%= query.status === 'Shipped' ? 'selected' : '' %>>Shipped</option>
-          <option value="Delivered" <%= query.status === 'Delivered' ? 'selected' : '' %>>Delivered</option>
-          <option value="Cancelled" <%= query.status === 'Cancelled' ? 'selected' : '' %>>Cancelled</option>
-        </optgroup>
-        
-        <optgroup label="Item Status">
-          <option value="item_Active" <%= query.status === 'item_Active' ? 'selected' : '' %>>Item: Active</option>
-          <option value="item_Return Requested" <%= query.status === 'item_Return Requested' ? 'selected' : '' %>>Item: Return Requested</option>
-          <option value="item_Return Approved" <%= query.status === 'item_Return Approved' ? 'selected' : '' %>>Item: Return Approved</option>
-          <option value="item_Return Rejected" <%= query.status === 'item_Return Rejected' ? 'selected' : '' %>>Item: Return Rejected</option>
-          <option value="item_Cancelled" <%= query.status === 'item_Cancelled' ? 'selected' : '' %>>Item: Cancelled</option>
-        </optgroup>
-      </select>
+
     </div>
   </div>
 
@@ -146,9 +129,14 @@
                           data-item-id="<%= item._id %>"
                           data-current-status="<%= item.status || order.orderStatus %>">
                     <option value="<%= item.status || order.orderStatus %>" selected><%= item.status || order.orderStatus %></option>
-                    <% const nextStatuses = getNextStatuses(item.status || order.orderStatus); %>
-                    <% nextStatuses.forEach(status => { %>
-                        <option value="<%= status %>"><%= status %></option>
+                    <% 
+                    // Get next statuses and filter out cancel/return related statuses
+                    const nextStatuses = getNextStatuses(item.status || order.orderStatus)
+                      .filter(status => !['Cancelled', 'Return Requested', 'Return Approved', 'Return Rejected'].includes(status));
+                    
+                    nextStatuses.forEach(status => { 
+                    %>
+                      <option value="<%= status %>"><%= status %></option>
                     <% }); %>
                   </select>
                 </td>
@@ -223,261 +211,140 @@
   </div>
 </div>
 
-<!-- Return Action Modal -->
-<div class="modal fade" id="returnActionModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Return Request Details</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-3">
-          <strong>Return Reason:</strong>
-          <p id="returnReasonText"></p>
-        </div>
-        <div class="mb-3">
-          <strong>Comments:</strong>
-          <p id="returnCommentsText"></p>
-        </div>
-        <div class="mb-3">
-          <label for="adminComments" class="form-label">Admin Comments:</label>
-          <textarea class="form-control" id="adminComments" rows="3"></textarea>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-danger" id="rejectReturn">Reject Return</button>
-        <button type="button" class="btn btn-success" id="approveReturn">Approve Return</button>
-      </div>
-    </div>
-  </div>
-</div>
+
 
 <%- include('../partials/admin/footer') %>
 
 <script>
+// Update search placeholder based on selected type
+function updateSearchPlaceholder() {
+  const searchInput = document.getElementById('searchInput');
+  const searchType = document.getElementById('searchType');
+  
+  if (searchType.value === 'orderId') {
+    searchInput.placeholder = searchInput.dataset.placeholderOrderid || 'Enter Order ID';
+  } else {
+    searchInput.placeholder = searchInput.dataset.placeholderDefault || 'Search...';
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Search form handling
-    const searchForm = document.getElementById('searchForm');
-    const searchInput = document.getElementById('searchInput');
-    const searchType = document.getElementById('searchType');
-    const statusFilter = document.getElementById('statusFilter');
+    // Update search placeholder on page load and when search type changes
+    updateSearchPlaceholder();
+    document.getElementById('searchType').addEventListener('change', updateSearchPlaceholder);
+    
+    // Table body reference
     const tableBody = document.querySelector('tbody');
 
-    // Function to update table with new data
-    function updateTable(orders) {
-        if (!orders || !orders.length) {
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="7" class="text-center py-4">
-                        <div class="text-muted">
-                            <i class="fas fa-inbox fa-3x mb-3"></i>
-                            <p>No orders found</p>
-                        </div>
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-
-        tableBody.innerHTML = orders.map(order => `
-            <tr>
-                <td>${order.orderNumber || '#' + order._id.toString().slice(-6).toUpperCase()}</td>
-                <td>${order.user ? order.user.email : 'N/A'}</td>
-                <td>₹${(order.totalAmount || order.total || 0).toFixed(2)}</td>
-                <td>${new Date(order.createdAt).toLocaleDateString('en-IN')}</td>
-                <td>
-                    <span class="badge ${getStatusBadgeClass(order.orderStatus)} status-badge"
-                          style="cursor: pointer;"
-                          data-order-id="${order._id}"
-                          data-status="${order.orderStatus}"
-                          data-cancel-reason="${order.cancelReason || ''}"
-                          data-return-reason="${order.returnReason || ''}"
-                          data-return-rejection-reason="${order.returnRejectionReason || ''}"
-                          data-payment-status="${order.paymentStatus}"
-                          data-payment-method="${order.paymentMethod}">
-                        ${order.orderStatus}
-                    </span>
-                </td>
-                <td>${order.paymentMethod}</td>
-                <td>
-                    <select class="form-select status-select" data-order-id="${order._id}">
-                        <option value="${order.orderStatus}" selected>${order.orderStatus}</option>
-                        ${getNextStatuses(order.orderStatus).map(status => 
-                            `<option value="${status}">${status}</option>`
-                        ).join('')}
-                    </select>
-                </td>
-            </tr>
-        `).join('');
-
-        // Reattach event listeners
-        attachEventListeners();
+    // Function to handle status updates and other interactions
+    function initializePage() {
+        // Any page initialization code can go here
     }
-
-    // Add status filter change handler
-    statusFilter.addEventListener('change', function() {
-        const selectedStatus = this.value;
-        const currentUrl = new URL(window.location.href);
-        
-        if (selectedStatus === 'all') {
-            currentUrl.searchParams.delete('status');
-        } else {
-            currentUrl.searchParams.set('status', selectedStatus);
-        }
-        
-        // Reset to page 1 when filtering
-        currentUrl.searchParams.delete('page');
-        window.location.href = currentUrl.toString();
-    });
 
     // Handle status change for order items
     document.querySelectorAll('.status-select').forEach(select => {
-      select.addEventListener('change', async function() {
-        const orderId = this.dataset.orderId;
-        const itemId = this.dataset.itemId;
-        const currentStatus = this.dataset.currentStatus;
-        const newStatus = this.value;
-        const orderRow = this.closest('tr');
-        const statusBadge = orderRow ? orderRow.querySelector('.item-status-badge') : null;
-        
-        if (!orderId) {
-          console.error('Order ID is missing');
-          return;
-        }
-        
-        // Don't do anything if status didn't change
-        if (newStatus === currentStatus) {
-          this.value = currentStatus;
-          return;
-        }
-        
-        // Show loading state
-        const originalValue = this.value;
-        this.disabled = true;
-        const originalHTML = this.innerHTML;
-        this.innerHTML = '<option>Updating...</option>';
-        
-        try {
-          // Always use the item-specific endpoint when available
-          const url = `/admin/orders/${orderId}/items/${itemId}/status`;
+        select.addEventListener('change', async function() {
+            const orderId = this.dataset.orderId;
+            const itemId = this.dataset.itemId;
+            const currentStatus = this.dataset.currentStatus;
+            const newStatus = this.value;
             
-          console.log(`[FRONTEND] Sending status update to ${url} with status: ${newStatus}`);
-          
-          // Prepare the request data
-          const requestData = { 
-            status: newStatus,
-            _csrf: (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
-          };
-          
-          // If this is a return request, include the current timestamp
-          if (newStatus === 'Return Requested' && !this.dataset.returnRequested) {
-            requestData.returnRequestDate = new Date().toISOString();
-            this.dataset.returnRequested = 'true';
-          }
-            
-          const response = await fetch(url, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Requested-With': 'XMLHttpRequest',
-              'X-CSRF-Token': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
-            },
-            body: JSON.stringify(requestData)
-          });
-          
-          const result = await response.json();
-          console.log('[FRONTEND] Received response:', result);
-          
-          if (!response.ok) {
-            throw new Error(result.message || 'Failed to update status');
-          }
-          
-          // Update the UI with the response data
-          if (result.data) {
-            // Update the status badge if it exists
-            if (statusBadge) {
-              statusBadge.textContent = result.data.statusText || result.data.status || newStatus;
-              statusBadge.className = `badge ${result.data.statusBadgeClass || 'bg-secondary'}`;
-              statusBadge.dataset.status = result.data.status || newStatus;
-              
-              // Update the current status in the select
-              this.dataset.currentStatus = result.data.status || newStatus;
+            if (!orderId) {
+                console.error('Order ID is missing');
+                return;
             }
             
-            // Show success message
-            Swal.fire({
-              icon: 'success',
-              title: 'Status Updated',
-              text: 'Item status has been updated successfully',
-              toast: true,
-              position: 'top-end',
-              showConfirmButton: false,
-              timer: 3000
-            });
+            // Don't do anything if status didn't change
+            if (newStatus === currentStatus) {
+                this.value = currentStatus;
+                return;
+            }
             
-            // Update the select options with new status and next available statuses
-            const nextStatuses = result.data.nextStatuses || [];
-            const currentStatus = result.data.status || newStatus;
+            // Show loading state
+            this.disabled = true;
+            const originalValue = this.value;
+            this.innerHTML = '<option>Updating...</option>';
             
-            this.innerHTML = '';
-            
-            // Add current status as first option
-            const currentOption = document.createElement('option');
-            currentOption.value = currentStatus;
-            currentOption.textContent = currentStatus;
-            currentOption.selected = true;
-            this.appendChild(currentOption);
-            
-            // Add next available statuses
-            nextStatuses.forEach(status => {
-              const option = document.createElement('option');
-              option.value = status;
-              option.textContent = status;
-              this.appendChild(option);
-            });
-          }
-          
-          // Success message already shown with Swal
-        } catch (error) {
-          console.error('Error updating status:', error);
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: error.message || 'Failed to update status',
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 3000
-          });
-          this.value = currentStatus; // Revert to original value
-        } finally {
-          this.disabled = false;
-        }
-      });
+            try {
+                const url = `/admin/orders/${orderId}/items/${itemId}/status`;
+                
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-Token': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
+                    },
+                    body: JSON.stringify({
+                        status: newStatus,
+                        _csrf: (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.message || 'Failed to update status');
+                }
+                
+                // Update the UI with the response data
+                if (result.data) {
+                    // Update the current status in the select
+                    this.dataset.currentStatus = result.data.status || newStatus;
+                    
+                    // Show success message
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Status Updated',
+                        text: 'Item status has been updated successfully',
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 3000
+                    });
+                    
+                    // Reload the page to reflect all changes
+                    window.location.reload();
+                }
+                
+            } catch (error) {
+                console.error('Error updating status:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.message || 'Failed to update status',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+                this.value = currentStatus; // Revert to original value
+            } finally {
+                this.disabled = false;
+                this.value = currentStatus; // Reset to current status (will be updated on reload)
+            }
+        });
     });
   });
 
-// Status badge style helper
+// Status badge style helper - Simplified to use basic badge styles
 function getStatusBadgeClass(status) {
   if (!status) return 'bg-secondary';
   const statusLower = status.toLowerCase();
   
-  // First check for exact matches
+  // Basic status to badge class mapping
   const statusMap = {
     'pending': 'bg-warning',
     'processing': 'bg-info',
     'shipped': 'bg-primary',
     'delivered': 'bg-success',
-    'cancelled': 'bg-danger',
-    'return requested': 'bg-warning',
-    'return approved': 'bg-info',
-    'return rejected': 'bg-secondary',
-    'returned': 'bg-dark',
     'paid': 'bg-success',
     'failed': 'bg-danger',
-    'refunded': 'bg-secondary'
+    // Default to secondary for any other status
+    'cancelled': 'bg-secondary',
+    'return requested': 'bg-secondary',
+    'return approved': 'bg-secondary',
+    'return rejected': 'bg-secondary'
   };
   
   return statusMap[statusLower] || 'bg-secondary';

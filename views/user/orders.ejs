@@ -63,45 +63,12 @@
             gap: 6px;
         }
 
-        .status-pending { 
-            background-color: #fff3cd; 
-            color: #856404;
-            border: 1px solid #ffeeba;
-        }
-        .status-processing { 
-            background-color: #cce5ff; 
-            color: #004085;
-            border: 1px solid #b8daff;
-        }
-        .status-shipped { 
-            background-color: #d4edda; 
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .status-delivered { 
-            background-color: #d1e7dd; 
-            color: #0f5132;
-            border: 1px solid #badbcc;
-        }
-        .status-cancelled { 
-            background-color: #f8d7da; 
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .status-return-requested {
-            background-color: #e2e3e5;
-            color: #383d41;
-            border: 1px solid #d6d8db;
-        }
-        .status-return-approved {
-            background-color: #d1e7dd;
-            color: #0f5132;
-            border: 1px solid #badbcc;
-        }
-        .status-return-rejected {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+        .badge {
+            background-color: #e9ecef;
+            color: #495057;
+            font-weight: 500;
+            padding: 0.4em 0.8em;
+            border-radius: 4px;
         }
 
 
@@ -456,7 +423,7 @@
                                         </div>
                                     <% } %>
                                     <div class="d-flex align-items-center gap-2">
-                                        <span class="badge status-<%= item.status ? item.status.toLowerCase().replace(/\s+/g, '-') : 'unknown' %>">
+                                        <span class="badge">
                                             <%= item.status || 'Processing' %>
                                         </span>
                                         <span class="text-muted small">
@@ -549,65 +516,13 @@
                                             const returnRequested = item.returnRequested || false;
                                             const returnStatus = item.returnStatus || '';
                                             const returnRejectReason = item.returnRejectReason || '';
-                                            const showReturnButton = itemStatus === 'Delivered' && !returnRequested;
+                                            const showReturnButton = false;
                                         %>
                                         
-                                        <% if (showReturnButton) { %>
-                                            <div class="d-flex align-items-center gap-2">
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <button class="btn btn-outline-secondary btn-sm return-item-btn" 
-                                                            data-order-id="<%= order._id %>"
-                                                            data-item-id="<%= item._id %>"
-                                                            data-status="<%= item.status || '' %>"
-                                                            data-amount="<%= item.price * item.quantity %>"
-                                                            data-delivered-at="<%= item.deliveredAt ? new Date(item.deliveredAt).toISOString() : order.updatedAt.toISOString() %>"
-                                                            data-return-window="15">
-                                                        <i class="fas fa-undo me-1"></i> Return
-                                                    </button>
-                                                    <small class="text-muted return-timer" 
-                                                           data-order-id="<%= order._id %>" 
-                                                           data-item-id="<%= item._id %>"
-                                                           data-delivered-at="<%= item.deliveredAt ? new Date(item.deliveredAt).toISOString() : order.updatedAt.toISOString() %>"
-                                                           data-return-window="15">
-                                                        <i class="far fa-clock me-1"></i>
-                                                        <span class="time-remaining">Return available for: 15:00</span>
-                                                    </small>
-                                                </div>
-                                            </div>
-                                        <% } else if (returnRequested) { %>
-                                            <% if (returnStatus === 'PENDING') { %>
-                                                <span class="badge bg-warning text-dark">
-                                                    <i class="fas fa-clock me-1"></i> Return Requested
-                                                </span>
-                                            <% } else if (returnStatus === 'APPROVED') { %>
-                                                <span class="badge bg-success">
-                                                    <i class="fas fa-check-circle me-1"></i> Return Approved
-                                                </span>
-                                            <% } else if (returnStatus === 'REJECTED') { %>
-                                                <span class="badge bg-danger" 
-                                                      data-bs-toggle="tooltip" 
-                                                      title="<%= returnRejectReason || 'Return request was rejected' %>">
-                                                    <i class="fas fa-times-circle me-1"></i> Return Rejected
-                                                </span>
-                                            <% } %>
-                                            
-                                            <% // Remove the nested if condition that was causing the syntax error %>
-                                            <% if (returnExpired) { %>
-                                                <span class="badge bg-secondary">
-                                                    <i class="far fa-clock me-1"></i> Return window expired
-                                                </span>
-                                            <% } %>
-                                            
-                                            <% if (!item.rating) { %>
-                                                <button class="btn btn-outline-success btn-sm mt-1" 
-                                                        onclick="openRatingModal('<%= product._id %>', '<%= order._id %>', '<%= item._id %>')">
-                                                    <i class="fas fa-star me-1"></i> Rate
-                                                </button>
-                                            <% } %>
-                                        <% } else if (itemStatus === 'Pending') { %>
-                                            <button class="btn btn-outline-danger btn-sm" 
-                                                    onclick="cancelOrderItem('<%= order._id %>', '<%= item._id %>')">
-                                                <i class="fas fa-times me-1"></i> Cancel Item
+                                        <% if (!item.rating) { %>
+                                            <button class="btn btn-outline-success btn-sm mt-1" 
+                                                    onclick="openRatingModal('<%= product._id %>', '<%= order._id %>', '<%= item._id %>')">
+                                                <i class="fas fa-star me-1"></i> Rate
                                             </button>
                                         <% } %>
                                     </div>
@@ -646,236 +561,32 @@
         <% } %>
     </div>
 
-    <!-- Return Modal -->
-    <div class="modal fade" id="returnModal" tabindex="-1" aria-labelledby="returnModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="returnModalLabel">Return Item</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form id="returnForm" onsubmit="submitReturn(event)">
-                    <div class="modal-body">
-                        <input type="hidden" id="returnOrderId" name="orderId">
-                        <input type="hidden" id="returnItemId" name="itemId">
-                        <input type="hidden" id="returnOrderTotal" name="orderTotal">
-                        
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            You have <strong id="returnTimeRemaining">2 hours</strong> from the time of delivery to request a return.
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="returnReason" class="form-label">Reason for return <span class="text-danger">*</span></label>
-                            <select class="form-select" id="returnReason" name="reason" required>
-                                <option value="" disabled selected>Select a reason</option>
-                                <option value="WRONG_ITEM">Wrong item received</option>
-                                <option value="DAMAGED">Item damaged or defective</option>
-                                <option value="NOT_AS_DESCRIBED">Item not as described</option>
-                                <option value="SIZE_ISSUE">Size doesn't fit</option>
-                                <option value="COLOR_ISSUE">Color doesn't match</option>
-                                <option value="QUALITY_ISSUE">Poor quality</option>
-                                <option value="OTHER">Other reason</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="returnAgreement" required>
-                            <label class="form-check-label small" for="returnAgreement">
-                                I understand that this return request is subject to approval and must comply with our return policy.
-                            </label>
-                        </div>
-                        
-                        <div class="alert alert-warning small mb-0">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            Please ensure the item is in its original condition with all tags attached. Refunds will be processed within 3-5 business days after we receive and inspect the returned item.
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary" id="submitReturnBtn">
-                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                            Submit Return Request
-                        </button>
-                    </div>
-                </form>
-            </div>
         </div>
     </div>
 
     <!-- Bootstrap JS and dependencies -->
     <script src="/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Object to store individual timer intervals
-        const timerIntervals = {};
-
-        // Initialize timers when the page loads
+        // Initialize tooltips when the page loads
         document.addEventListener('DOMContentLoaded', function() {
-            // Start individual timers for each product
-            document.querySelectorAll('.return-timer').forEach(timerElement => {
-                const itemId = timerElement.dataset.itemId;
-                if (itemId) {
-                    // Clear any existing interval for this item
-                    if (timerIntervals[itemId]) {
-                        clearInterval(timerIntervals[itemId]);
-                    }
-                    // Start a new interval for this item
-                    timerIntervals[itemId] = setInterval(() => updateReturnTimer(timerElement), 1000);
-                    // Initial update
-                    updateReturnTimer(timerElement);
-                }
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
             });
         });
         
-        // Handle return button clicks
-        document.addEventListener('click', function(e) {
-            // Check if the click is on a return button or its children
-            const button = e.target.closest('.return-item-btn:not(:disabled)');
-            if (!button) return;
-            
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const orderId = button.dataset.orderId;
-            const itemId = button.dataset.itemId;
-            const status = button.dataset.status;
-            const amount = button.dataset.amount;
-            const deliveredAt = button.dataset.deliveredAt;
-            const returnWindowMinutes = parseInt(button.dataset.returnWindow) || 15;
-            const returnWindowMs = returnWindowMinutes * 60 * 1000;
-            
-            // Check if item is delivered and within return window
-            if (status && status.toLowerCase() === 'delivered') {
-                if (!deliveredAt) {
-                    console.error('Delivery time not available for this item');
-                    return;
-                }
-                
-                const timeElapsed = Date.now() - new Date(deliveredAt).getTime();
-                
-                if (timeElapsed <= returnWindowMs) {
-                    window.openReturnModal(orderId, amount, itemId);
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Return Window Expired',
-                        text: `The ${returnWindowMinutes}-minute return window for this item has expired.`,
-                        confirmButtonColor: '#dc3545',
-                    });
-                }
-            } else {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Cannot Return Item',
-                    html: `This item cannot be returned because its current status is: <strong>${status || 'Not Available'}</strong>.<br><br>Only delivered items can be returned.`,
-                    confirmButtonColor: '#dc3545',
-                });
-            }
-        });
-        
-        // Update a single return timer
-        function updateReturnTimer(timerElement) {
+        // Function to submit a product review
+        async function submitReview(productId, orderId, rating, review) {
             try {
-                const orderId = timerElement.dataset.orderId;
-                const itemId = timerElement.dataset.itemId;
-                const deliveredAt = timerElement.dataset.deliveredAt;
-                const returnWindowMinutes = parseInt(timerElement.dataset.returnWindow) || 15;
-                const returnWindowMs = returnWindowMinutes * 60 * 1000;
-                
-                if (!orderId || !itemId || !deliveredAt) {
-                    console.error('Missing required data for timer', { orderId, itemId, deliveredAt });
-                    return;
-                }
-                
-                const button = document.querySelector(`.return-item-btn[data-order-id="${orderId}"][data-item-id="${itemId}"]`);
-                if (!button) {
-                    console.error('Button not found for item', itemId);
-                    return;
-                }
-                
-                const deliveryTime = new Date(deliveredAt).getTime();
-                const now = Date.now();
-                const timeElapsed = now - deliveryTime;
-                const timeRemaining = Math.max(0, returnWindowMs - timeElapsed);
-                
-                // If time is up, disable the button and update the UI
-                if (timeRemaining <= 0) {
-                    timerElement.innerHTML = '<i class="far fa-clock me-1"></i><span class="text-danger fw-bold">Return window expired</span>';
-                    button.disabled = true;
-                    button.classList.remove('btn-outline-secondary');
-                    button.classList.add('btn-outline-danger');
-                    // Clear the interval for this item when time is up
-                    if (timerIntervals[itemId]) {
-                        clearInterval(timerIntervals[itemId]);
-                        delete timerIntervals[itemId];
-                    }
-                    return;
-                }
-                
-                // Calculate minutes and seconds remaining
-                const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((timeRemaining % (1000 * 60)) / 1000);
-                
-                // Update the display
-                const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                const timeRemainingElement = timerElement.querySelector('.time-remaining');
-                if (timeRemainingElement) {
-                    timeRemainingElement.textContent = `Return available for: ${timeString}`;
-                } else {
-                    // Create time-remaining element if it doesn't exist
-                    timerElement.innerHTML = `<i class="far fa-clock me-1"></i><span class="time-remaining">Return available for: ${timeString}</span>`;
-                }
-                
-                // Change color when less than 2 minutes remaining
-                if (timeRemaining < 2 * 60 * 1000) {
-                    timerElement.classList.remove('text-muted');
-                    timerElement.classList.add('text-danger');
-                    const icon = timerElement.querySelector('i');
-                    if (icon) icon.className = 'fas fa-exclamation-circle me-1';
-                }
-                // Change color when less than 5 minutes remaining
-                else if (timeRemaining < 5 * 60 * 1000) {
-                    timerElement.classList.remove('text-muted');
-                    timerElement.classList.add('text-warning');
-                    const icon = timerElement.querySelector('i');
-                    if (icon) icon.className = 'far fa-clock me-1';
-                }
-            } catch (error) {
-                console.error('Error updating timer for item:', error);
-                // Clear the interval if there's an error
-                const itemId = timerElement.dataset.itemId;
-                if (itemId && timerIntervals[itemId]) {
-                    clearInterval(timerIntervals[itemId]);
-                    delete timerIntervals[itemId];
-                }
-            }
-        }
-        
-        // Submit return form
-        async function submitReturn(event) {
-            event.preventDefault();
-            
-            const form = event.target;
-            const submitBtn = form.querySelector('button[type="submit"]');
-            const spinner = submitBtn.querySelector('.spinner-border');
-            
-            try {
-                // Show loading state
-                submitBtn.disabled = true;
-                spinner.classList.remove('d-none');
-                
-                const formData = new FormData(form);
-                const orderId = formData.get('orderId');
-                
-                const response = await fetch(`/orders/${orderId}/return`, {
+                const response = await fetch(`/products/${productId}/reviews`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        itemId: formData.get('itemId'),
-                        reason: formData.get('reason'),
-                        orderTotal: formData.get('orderTotal')
+                        orderId: orderId,
+                        rating: rating,
+                        review: review
                     })
                 });
                 
@@ -883,240 +594,35 @@
                 
                 if (response.ok) {
                     // Close the modal
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('returnModal'));
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('ratingModal'));
                     if (modal) modal.hide();
                     
                     // Show success message
                     await Swal.fire({
                         icon: 'success',
-                        title: 'Return Requested',
-                        text: data.message || 'Your return request has been submitted successfully.',
+                        title: 'Review Submitted',
+                        text: data.message || 'Thank you for your review!',
                         confirmButtonColor: '#198754',
                     });
                     
-                    // Reload the page to show updated status
+                    // Reload the page to show the updated review status
                     window.location.reload();
                 } else {
-                    throw new Error(data.message || 'Failed to process return request');
+                    throw new Error(data.message || 'Failed to submit review');
                 }
             } catch (error) {
-                console.error('Error submitting return:', error);
-                Swal.fire({
+                console.error('Error submitting review:', error);
+                
+                await Swal.fire({
                     icon: 'error',
                     title: 'Error',
-                    text: error.message || 'An error occurred while processing your return request. Please try again.',
-                    confirmButtonColor: '#dc3545',
-                });
-            } finally {
-                // Reset loading state
-                submitBtn.disabled = false;
-                spinner.classList.add('d-none');
-            }
-        }
-        
-        // Open return modal
-        window.openReturnModal = function(orderId, amount, itemId) {
-            try {
-                // Get form elements with null checks
-                const form = document.getElementById('returnForm');
-                const returnOrderIdInput = document.getElementById('returnOrderId');
-                const returnItemIdInput = document.getElementById('returnItemId');
-                const returnOrderTotalInput = document.getElementById('returnOrderTotal');
-                
-                // Validate all required elements exist
-                if (!form || !returnOrderIdInput || !returnItemIdInput || !returnOrderTotalInput) {
-                    console.error('Required form elements not found');
-                    throw new Error('Required form elements not found');
-                }
-                
-                // Reset form and set values
-                form.reset();
-                returnOrderIdInput.value = orderId || '';
-                returnItemIdInput.value = itemId || '';
-                returnOrderTotalInput.value = amount || '0';
-                
-                // Show the modal
-                const modalElement = document.getElementById('returnModal');
-                if (!modalElement) {
-                    console.error('Return modal element not found');
-                    throw new Error('Return modal not found');
-                }
-                
-                const modal = bootstrap.Modal.getOrCreateInstance(modalElement) || new bootstrap.Modal(modalElement);
-                modal.show();
-                
-                // Focus the first form field for better UX
-                const firstInput = modalElement.querySelector('input, select, textarea');
-                if (firstInput) {
-                    setTimeout(() => firstInput.focus(), 500);
-                }
-            } catch (error) {
-                console.error('Error in openReturnModal:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: 'An error occurred while opening the return form. Please try again.',
+                    text: error.message || 'An error occurred while submitting your review. Please try again.',
                     confirmButtonColor: '#dc3545',
                 });
             }
-        };
-        
-        // Removed old updateReturnTimer function as we're now using updateAllReturnTimers
-        
-        // Submit return form
-        async function submitReturn(event) {
-            event.preventDefault();
-            
-            const form = event.target;
-            const orderId = document.getElementById('returnOrderId').value;
-            const itemId = document.getElementById('returnItemId').value;
-            const reason = document.getElementById('returnReason').value;
-            
-            // Get the order item element to check status
-            const orderItemElement = document.querySelector(`.order-card [data-order-id="${orderId}"][data-item-id="${itemId}"]`);
-            const itemStatus = orderItemElement ? orderItemElement.dataset.itemStatus || '' : '';
-            
-            // Validate form
-            if (!reason) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: 'Please select a reason for return',
-                    confirmButtonColor: '#3085d6',
-                });
-                return;
-            }
-            
-            // Check if item is delivered
-            if (itemStatus.toLowerCase() !== 'delivered') {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Cannot Return Item',
-                    html: `This item cannot be returned because its current status is: <strong>${itemStatus || 'Not Available'}</strong>.<br><br>Only delivered items can be returned.`,
-                    confirmButtonColor: '#dc3545',
-                });
-                return;
-            }
-            
-            // Show loading state
-            const submitBtn = document.getElementById('submitReturnBtn');
-            const spinner = submitBtn.querySelector('.spinner-border');
-            submitBtn.disabled = true;
-            spinner.classList.remove('d-none');
-            
-            try {
-                const returnData = {
-                    itemId: itemId,
-                    reason: reason,
-                    comments: comments,
-                    timestamp: new Date().toISOString()
-                };
-
-                const response = await fetch(`/api/orders/${orderId}/return`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(returnData)
-                });
-
-                const result = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(result.message || 'Failed to submit return request');
-                }
-
-                // Show success message
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Return Request Submitted',
-                    html: `
-                        <div class="text-center">
-                            <i class="fas fa-check-circle text-success mb-3" style="font-size: 4rem;"></i>
-                            <h5>Your return request has been received!</h5>
-                            <p class="mb-0">We'll review your request and get back to you within 24-48 hours.</p>
-                            <p class="small text-muted mt-2">Request ID: ${result.returnId || 'N/A'}</p>
-                        </div>
-                    `,
-                    showConfirmButton: true,
-                    confirmButtonText: 'Got it!',
-                    confirmButtonColor: '#3085d6',
-                    allowOutsideClick: false
-                }).then((result) => {
-                    // Close the modal and refresh the page
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('returnModal'));
-                    modal.hide();
-                    location.reload();
-                });
-            } catch (error) {
-                console.error('Error submitting return:', error);
-                
-                // Show error message
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    html: `
-                        <div class="text-center">
-                            <i class="fas fa-exclamation-circle text-danger mb-3" style="font-size: 4rem;"></i>
-                            <h5>Something went wrong!</h5>
-                            <p>${error.message || 'Failed to submit return request. Please try again.'}</p>
-                        </div>
-                    `,
-                    confirmButtonColor: '#3085d6',
-                });
-            } finally {
-                // Reset loading state
-                if (submitBtn && spinner) {
-                    submitBtn.disabled = false;
-                    spinner.classList.add('d-none');
-                }
-            }
         }
 
-        // Cancel order
-        async function cancelOrder(orderId) {
-            const result = await Swal.fire({
-                title: 'Are you sure?',
-                text: "You won't be able to revert this!",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#3085d6',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Yes, cancel it!'
-            });
 
-            if (result.isConfirmed) {
-                try {
-                    const response = await fetch(`/orders/${orderId}/cancel`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        }
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        Swal.fire(
-                            'Cancelled!',
-                            'Your order has been cancelled.',
-                            'success'
-                        ).then(() => {
-                            window.location.reload();
-                        });
-                    } else {
-                        throw new Error(data.message || 'Failed to cancel order');
-                    }
-                } catch (error) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: error.message || 'An error occurred while cancelling the order',
-                        confirmButtonColor: '#f44336',
-                    });
-                }
-            }
-        }
 
         // Open rating modal
         function openRatingModal(productId, orderId) {

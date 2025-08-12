@@ -86,17 +86,16 @@ exports.getAvailableStatuses = (currentStatus) => {
 exports.getNextStatuses = (currentStatus) => {
     switch (currentStatus) {
         case ORDER_STATUS.PENDING:
-            return [ORDER_STATUS.PROCESSING, ORDER_STATUS.CANCELLED];
+            return [ORDER_STATUS.PROCESSING];
         case ORDER_STATUS.PROCESSING:
-            return [ORDER_STATUS.SHIPPED, ORDER_STATUS.CANCELLED];
+            return [ORDER_STATUS.SHIPPED];
         case ORDER_STATUS.SHIPPED:
-            return [ORDER_STATUS.DELIVERED, ORDER_STATUS.CANCELLED];
+            return [ORDER_STATUS.DELIVERED];
         case ORDER_STATUS.DELIVERED:
-            return [ORDER_STATUS.RETURN_REQUESTED];
-        case ORDER_STATUS.RETURN_REQUESTED:
-            return [ORDER_STATUS.RETURN_APPROVED, ORDER_STATUS.RETURN_REJECTED];
-        case ORDER_STATUS.RETURN_APPROVED:
             return [];
+        // Remove return-related statuses
+        case ORDER_STATUS.RETURN_REQUESTED:
+        case ORDER_STATUS.RETURN_APPROVED:
         case ORDER_STATUS.RETURN_REJECTED:
             return [];
         case ORDER_STATUS.CANCELLED:
@@ -203,11 +202,12 @@ exports.getOrders = async (req, res) => {
                 let idPart = searchValue.replace(/^#/, '').toUpperCase();
                 const allOrders = await Order.find({}, '_id');
                 const matchedOrderIds = allOrders
-                  .filter(o => o._id.toString().slice(-8).toUpperCase() === idPart)
+                  .filter(o => o._id.toString().slice(-6).toUpperCase() === idPart)
                   .map(o => o._id);
                 if (matchedOrderIds.length > 0) {
                   filter._id = { $in: matchedOrderIds };
                 } else {
+                  // No matches found, return empty result
                   filter._id = { $in: [] };
                 }
             } else if (searchType === 'customer') {
@@ -225,38 +225,81 @@ exports.getOrders = async (req, res) => {
                   filter.user = null;
                 }
             } else if (searchType === 'status') {
-                filter.orderStatus = { $regex: searchValue, $options: 'i' };
+                // Don't filter by orderStatus here, we'll handle it in the post-processing
+                delete filter.orderStatus;
+                // We'll handle status filtering in the post-processing
             } else if (searchType === 'payment') {
                 filter.paymentMethod = { $regex: searchValue, $options: 'i' };
             }
         }
 
-        const totalOrders = await Order.countDocuments(filter);
-
-        const orders = await Order.find(filter)
+        // First, get all matching orders without pagination to properly filter by item status
+        let orders = await Order.find(filter)
             .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit)
             .populate('user', 'name email')
             .populate('items.product', 'name image')
             .lean();
             
-        // Map product details to each item
+        // Process orders and filter items based on status if searching by status
+        const processedOrders = [];
+        
         orders.forEach(order => {
             if (order.items && order.items.length > 0) {
-                order.items = order.items.map(item => {
-                    if (item.product && typeof item.product === 'object') {
-                        item.productDetails = {
-                            name: item.product.name,
-                            image: item.product.image
-                        };
+                // Create a copy of the order to avoid modifying the original
+                const orderCopy = JSON.parse(JSON.stringify(order));
+                
+                // If searching by status, filter items to only include matching status
+                if (searchType === 'status' && search && search.trim()) {
+                    const searchTerm = search.trim().toLowerCase();
+                    
+                    // First check if any item matches the status
+                    const hasMatchingItem = orderCopy.items.some(item => 
+                        item.status && item.status.toLowerCase().includes(searchTerm)
+                    );
+                    
+                    if (hasMatchingItem) {
+                        // Filter items to only show matching status
+                        orderCopy.items = orderCopy.items.filter(item => 
+                            item.status && item.status.toLowerCase().includes(searchTerm)
+                        );
+                        
+                        // Map product details to each matching item
+                        orderCopy.items = orderCopy.items.map(item => {
+                            if (item.product && typeof item.product === 'object') {
+                                item.productDetails = {
+                                    name: item.product.name,
+                                    image: item.product.image
+                                };
+                            }
+                            return item;
+                        });
+                        
+                        processedOrders.push(orderCopy);
                     }
-                    return item;
-                });
+                } else {
+                    // If not searching by status, include all items
+                    orderCopy.items = orderCopy.items.map(item => {
+                        if (item.product && typeof item.product === 'object') {
+                            item.productDetails = {
+                                name: item.product.name,
+                                image: item.product.image
+                            };
+                        }
+                        return item;
+                    });
+                    processedOrders.push(orderCopy);
+                }
+            } else if (!searchType || searchType !== 'status' || !search || !search.trim()) {
+                // Include orders without items only if not searching by status
+                processedOrders.push(order);
             }
         });
+        
+        // Handle pagination after filtering
+        const totalOrders = processedOrders.length;
+        const paginatedOrders = processedOrders.slice(skip, skip + limit);
 
-        const formattedOrders = orders.map(order => ({
+        const formattedOrders = paginatedOrders.map(order => ({
             ...order,
             cancelReason: order.cancelReason || (order.items?.[0]?.cancelReason),
             returnReason: order.returnReason || (order.items?.[0]?.returnReason),
@@ -272,12 +315,8 @@ exports.getOrders = async (req, res) => {
             return res.json({
                 success: true,
                 orders: formattedOrders,
-                pagination: {
-                    page,
-                    limit,
-                    totalOrders,
-                    totalPages: Math.ceil(totalOrders / limit)
-                }
+                totalOrders: totalOrders,
+                totalPages: Math.ceil(totalOrders / limit)
             });
         }
 
