@@ -1,676 +1,459 @@
-const { Order, ORDER_STATUS } = require("../../models/orderSchema");
+const mongoose = require('mongoose');
+const { Order, ORDER_STATUS, PAYMENT_STATUS } = require('../../models/orderSchema');
 
-const PDFDocument = require("pdfkit");
-const ExcelJS = require("exceljs");
-
-exports.getDateRange = (startDate, endDate) => {
-  const start = startDate ? new Date(startDate) : new Date();
-  const end = endDate ? new Date(endDate) : new Date();
-
-  start.setHours(0, 0, 0, 0);
-  end.setHours(23, 59, 59, 999);
-
-  return { start, end };
+// Date formatting helper function
+const formatDate = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    return d.toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
 };
 
-exports.viewSalesReport = async (req, res) => {
-  try {
-    let {
-      startDate,
-      endDate,
-      paymentMethod = "all",
-      orderStatus = "all",
-      page = 1,
-      limit = 10,
-    } = req.query;
-    page = Math.max(1, parseInt(page) || 1);
-    limit = Math.max(1, Math.min(parseInt(limit) || 10, 100));
-    if (!startDate || !endDate) {
-      const now = new Date();
-      endDate = now.toISOString().split("T")[0];
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1)
-        .toISOString()
-        .split("T")[0];
-    }
-    const start = new Date(startDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
+const ITEMS_PER_PAGE = 10;
 
-    const query = {
-      createdAt: { $gte: start, $lte: end },
-      orderStatus: { $in: ["Delivered", "Return Rejected"] },
-    };
-    if (orderStatus !== "all") query.orderStatus = orderStatus;
-    if (paymentMethod !== "all") query.paymentMethod = paymentMethod;
+// Get sales report page
+exports.getSalesReport = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const searchQuery = req.query.search || '';
+        const searchType = req.query.searchType || 'orderId';
+        const startDate = req.query.startDate || '';
+        const endDate = req.query.endDate || '';
 
-    const totalOrders = await Order.countDocuments(query);
-    const totalPages = Math.ceil(totalOrders / limit);
-    if (page > totalPages) page = totalPages || 1;
+        // Base query - will apply filters as needed
+        let query = {};
 
-    const orders = await Order.find(query)
-      .populate("user", "name email")
-      .populate("items.product", "name price")
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean();
+        // Apply search filters
+        if (searchQuery) {
+            if (searchType === 'orderId') {
+                // For ObjectId search, we'll use a direct match instead of regex
+                if (mongoose.Types.ObjectId.isValid(searchQuery)) {
+                    query._id = new mongoose.Types.ObjectId(searchQuery);
+                } else {
+                    // If not a valid ObjectId, try partial match with the end of the ID
+                    query._id = { $regex: searchQuery + '$', $options: 'i' };
+                }
+            } else if (searchType === 'customer') {
+                // Will be handled in the aggregation pipeline after user lookup
+                query['userDetails.name'] = { $regex: searchQuery, $options: 'i' };
+            } else if (searchType === 'payment') {
+                query.paymentMethod = { $regex: searchQuery, $options: 'i' };
+            }
+            // Product search is handled separately in the pipeline
+        }
 
-    const allOrders = await Order.find(query).lean();
-    const totalSales = allOrders.reduce(
-      (sum, order) => sum + (order.totalAmount || 0),
-      0
-    );
-    const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
-    const allOrdersInDateRange = await Order.find({
-      createdAt: { $gte: start, $lte: end },
-      orderStatus: { $in: ["Delivered", "Return Rejected", "Return Approved"] },
-    }).lean();
-    const returnedOrders = allOrdersInDateRange.filter(
-      (order) => order.orderStatus === "Return Approved"
-    );
-    const returnRate =
-      allOrdersInDateRange.length > 0
-        ? ((returnedOrders.length / allOrdersInDateRange.length) * 100).toFixed(
-            1
-          )
-        : 0;
-    const returnedOrdersCount = returnedOrders.length;
+        // Apply date range filter
+        if (startDate && endDate) {
+            query.createdAt = {
+                $gte: new Date(startDate),
+                $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999))
+            };
+        }
 
-    const processedOrders = orders.map((order) => ({
-      ...order,
-      totalAmount: order.totalAmount || 0,
-      items: order.items || [],
-      user: order.user || { name: "N/A", email: "N/A" },
-    }));
+        // Get total count of delivered items for pagination
+        const countPipeline = [
+            { $match: query },
+            { $unwind: '$items' },
+            { $match: { 'items.status': 'Delivered' } }
+        ];
+        
+        // Apply search filters for product name if needed
+        if (searchQuery && searchType === 'product') {
+            const productSearch = { $regex: searchQuery, $options: 'i' };
+            countPipeline.push({
+                $lookup: {
+                    from: 'products',
+                    localField: 'items.product',
+                    foreignField: '_id',
+                    as: 'productDetails'
+                }
+            });
+            countPipeline.push({
+                $match: { 'productDetails.name': productSearch }
+            });
+        }
+        
+        countPipeline.push({ $count: 'total' });
+        
+        const totalItemsResult = await Order.aggregate(countPipeline);
+        const totalItems = totalItemsResult[0]?.total || 0;
+        const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
-    const baseUrl = "/admin/sales-report";
-    const queryParams = new URLSearchParams({
-      startDate,
-      endDate,
-      paymentMethod,
-      orderStatus,
-    });
-    const queryString = queryParams.toString();
-    const paginationBaseUrl = `${baseUrl}?`;
-    const maxVisiblePages = 5;
-    let startPage = Math.max(
-      1,
-      Math.min(
-        page - Math.floor(maxVisiblePages / 2),
-        totalPages - (maxVisiblePages - 1)
-      )
-    );
-    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-    if (endPage - startPage + 1 < maxVisiblePages) {
-      startPage = Math.max(1, endPage - maxVisiblePages + 1);
-    }
-    const showStartEllipsis = startPage > 1;
-    const showEndEllipsis = endPage < totalPages;
+        // Get paginated orders with delivered items only
+        const pipeline = [
+            // Match orders with status 'Delivered' and apply base filters
+            { $match: query },
+            // Lookup user details first
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'user',
+                    foreignField: '_id',
+                    as: 'userDetails'
+                }
+            },
+            { $unwind: { path: '$userDetails', preserveNullAndEmptyArrays: true } },
+            // Apply customer name filter if searching by customer
+            ...(searchQuery && searchType === 'customer' ? [{
+                $match: {
+                    'userDetails.name': { $regex: searchQuery, $options: 'i' }
+                }
+            }] : []),
+            // Filter out non-delivered items while preserving the original order items
+            {
+                $addFields: {
+                    filteredItems: {
+                        $filter: {
+                            input: '$items',
+                            as: 'item',
+                            cond: { $eq: ['$$item.status', 'Delivered'] }
+                        }
+                    }
+                }
+            },
+            // Only proceed with orders that have delivered items
+            { $match: { 'filteredItems.0': { $exists: true } } },
+            // Replace items with filtered items
+            {
+                $addFields: {
+                    items: '$filteredItems'
+                }
+            },
+            { $project: { filteredItems: 0 } },
+            // Lookup product details only for delivered items
+            {
+                $lookup: {
+                    from: 'products',
+                    let: { items: '$items' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $in: ['$_id', '$$items.product']
+                                }
+                            }
+                        }
+                    ],
+                    as: 'productDetails'
+                }
+            },
+            // Calculate the number of items before unwinding
+            {
+                $addFields: {
+                    itemsCount: { $size: '$items' },
+                    // Calculate total order amount
+                    orderTotal: {
+                        $reduce: {
+                            input: '$items',
+                            initialValue: 0,
+                            in: { $add: ['$$value', { $multiply: ['$$this.price', '$$this.quantity'] }] }
+                        }
+                    },
+                    // Calculate coupon discount per item based on price ratio
+                    items: {
+                        $map: {
+                            input: '$items',
+                            as: 'item',
+                            in: {
+                                $mergeObjects: [
+                                    '$$item',
+                                    {
+                                        itemTotal: { $multiply: ['$$item.price', '$$item.quantity'] },
+                                        hasCoupon: { $gt: [{ $ifNull: ['$couponDiscount', 0] }, 0] }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            // Calculate total before discount
+            {
+                $addFields: {
+                    totalBeforeDiscount: {
+                        $reduce: {
+                            input: '$items',
+                            initialValue: 0,
+                            in: { $add: ['$$value', '$$this.itemTotal'] }
+                        }
+                    }
+                }
+            },
+            // Distribute coupon discount proportionally
+            {
+                $addFields: {
+                    items: {
+                        $map: {
+                            input: '$items',
+                            as: 'item',
+                            in: {
+                                $mergeObjects: [
+                                    '$$item',
+                                    {
+                                        itemCouponDiscount: {
+                                            $cond: [
+                                                { $and: [
+                                                    '$$item.hasCoupon',
+                                                    { $gt: ['$totalBeforeDiscount', 0] }
+                                                ]},
+                                                {
+                                                    $min: [
+                                                        {
+                                                            $multiply: [
+                                                                { $divide: ['$$item.itemTotal', '$totalBeforeDiscount'] },
+                                                                '$couponDiscount'
+                                                            ]
+                                                        },
+                                                        '$$item.itemTotal'
+                                                    ]
+                                                },
+                                                0
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            // Unwind items to process each one
+            { $unwind: '$items' },
+            // Match the product details with the items
+            {
+                $lookup: {
+                    from: 'products',
+                    localField: 'items.product',
+                    foreignField: '_id',
+                    as: 'items.productDetails'
+                }
+            },
+            { $unwind: { path: '$items.productDetails', preserveNullAndEmptyArrays: true } },
+            // Apply product name filter if searching by product
+            ...(searchQuery && searchType === 'product' ? [{
+                $match: {
+                    'items.productDetails.name': { $regex: searchQuery, $options: 'i' }
+                }
+            }] : []),
+            // Group by order and collect all items
+            {
+                $group: {
+                    _id: '$_id',
+                    // Preserve order details
+                    orderNumber: { $first: '$orderNumber' },
+                    user: { $first: '$userDetails' },
+                    paymentMethod: { $first: '$paymentMethod' },
+                    orderStatus: { $first: '$orderStatus' },
+                    createdAt: { $first: '$createdAt' },
+                    updatedAt: { $first: '$updatedAt' },
+                    totalAmount: { $first: '$totalAmount' },
+                    appliedCoupon: { $first: '$appliedCoupon' },
+                    couponDiscount: { $first: '$couponDiscount' },
+                    deliveryCharge: { $first: '$deliveryCharge' },
+                    // Collect all items
+                    items: {
+                        $push: {
+                            _id: '$items._id',
+                            product: {
+                                _id: '$items.product',
+                                name: '$items.productDetails.name',
+                                images: '$items.productDetails.images',
+                                category: '$items.productDetails.category',
+                                price: '$items.price'
+                            },
+                            quantity: '$items.quantity',
+                            price: '$items.price',
+                            status: 'Delivered', // Only showing delivered items
+                            total: { 
+                                $subtract: [
+                                    { $multiply: ['$items.price', '$items.quantity'] },
+                                    { $ifNull: ['$items.itemCouponDiscount', 0] }
+                                ]
+                            },
+                            // Item coupon discount (already calculated at order level)
+                            itemCouponDiscount: { $ifNull: ['$items.itemCouponDiscount', 0] },
+                            subtotal: { $multiply: ['$items.price', '$items.quantity'] }
+                        }
+                    }
+                }
+            },
+            // Ensure we only return orders with items
+            { $match: { 'items.0': { $exists: true } } },
+            // Sort by creation date
+            { $sort: { createdAt: -1 } },
+            // Pagination
+            { $skip: (page - 1) * ITEMS_PER_PAGE },
+            { $limit: ITEMS_PER_PAGE }
+        ];
+        
+        console.log('Aggregation Pipeline:', JSON.stringify(pipeline, null, 2));
+        const orders = await Order.aggregate(pipeline);
+        console.log('Found orders:', orders.length);
+        
+        // Debug: Log the first order's items to check status
+        if (orders.length > 0) {
+            console.log('First order items:', JSON.stringify(orders[0].items, null, 2));
+        } else {
+            console.log('No orders found with the current filters');
+        }
 
-    res.render("admin/sales-report", {
-      title: "Sales Report",
-      orders: processedOrders,
-      totalSales,
-      totalOrders,
-      averageOrderValue,
-      returnRate,
-      returnedOrdersCount,
-      startDate,
-      endDate,
-      currentPage: page,
-      totalPages,
-      filters: { startDate, endDate, paymentMethod, orderStatus },
-      paginationBaseUrl,
-      queryString,
-      startPage,
-      endPage,
-      showStartEllipsis,
-      showEndEllipsis,
-      path: "/admin/sales-report",
-    });
-  } catch (error) {
-    console.error("Error generating sales report:", error);
-    res
-      .status(500)
-      .render("error", { message: "Error generating sales report", error });
-  }
-};
+        // Calculate total sales from delivered items in delivered orders
+        const totalSales = await Order.aggregate([
+            { $match: { orderStatus: 'Delivered' } },
+            { $unwind: '$items' },
+            { $match: { 'items.status': 'Delivered' } },
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
 
-exports.getSalesReportData = async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = 10;
-    const skip = (page - 1) * limit;
-
-    const { startDate, endDate, paymentMethod } = req.query;
-
-    let query = {
-      orderStatus: { $in: ["Delivered", "Return Rejected"] },
-    };
-
-    if (startDate && endDate) {
-      const dateRange = exports.getDateRange(startDate, endDate);
-      query.createdAt = {
-        $gte: dateRange.start,
-        $lte: dateRange.end,
-      };
-    }
-    if (paymentMethod && paymentMethod !== "all") {
-      query.paymentMethod = paymentMethod;
-    }
-    if (orderStatus && orderStatus !== "all") {
-      query.orderStatus = orderStatus;
-    }
-
-    const orders = await Order.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    const total = await Order.countDocuments(query);
-
-    const totalRevenue = orders.reduce(
-      (sum, order) => sum + order.totalAmount,
-      0
-    );
-    const totalOrders = orders.length;
-    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
-    res.json({
-      success: true,
-      data: {
-        orders,
-        pagination: {
-          page,
-          totalPages: Math.ceil(total / limit),
-          total,
-        },
-        stats: {
-          totalRevenue,
-          totalOrders,
-          averageOrderValue,
-        },
-      },
-    });
-  } catch (error) {
-    console.error("Error getting sales report data:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to get sales report data" });
-  }
-};
-
-exports.exportSalesReportPDF = async (req, res) => {
-  try {
-    const { startDate, endDate, paymentMethod, orderStatus } = req.query;
-
-    let query = {
-      orderStatus: { $in: ["Delivered", "Return Rejected"] },
-    };
-
-    if (startDate && endDate) {
-      const dateRange = exports.getDateRange(startDate, endDate);
-      query.createdAt = {
-        $gte: dateRange.start,
-        $lte: dateRange.end,
-      };
-    }
-
-    if (paymentMethod && paymentMethod !== "all") {
-      query.paymentMethod = paymentMethod;
-    }
-    if (orderStatus && orderStatus !== "all") {
-      query.orderStatus = orderStatus;
-    }
-
-    const orders = await Order.find(query)
-      .sort({ createdAt: -1 })
-      .populate("user", "name email")
-      .lean();
-
-    const doc = new PDFDocument({
-      size: "A4",
-      layout: "landscape",
-      margins: { top: 60, bottom: 60, left: 60, right: 60 },
-    });
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      "attachment; filename=sales-report.pdf"
-    );
-
-    doc.pipe(res);
-
-    function drawPageBorder() {
-      doc.save();
-      doc.strokeColor("#000000").lineWidth(1);
-      doc
-        .rect(
-          doc.page.margins.left,
-          doc.page.margins.top,
-          doc.page.width - doc.page.margins.left - doc.page.margins.right,
-          doc.page.height - doc.page.margins.top - doc.page.margins.bottom
-        )
-        .stroke();
-      doc.restore();
-    }
-    drawPageBorder();
-    doc.on("pageAdded", drawPageBorder);
-
-    doc.strokeColor("#cccccc").lineWidth(0.5);
-
-    let pageWidth =
-      doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    doc
-      .font("Helvetica")
-      .fontSize(20)
-      .text("Sales Report", doc.page.margins.left, doc.y + 20, {
-        width: pageWidth,
-        align: "center",
-      });
-    if (orderStatus && orderStatus !== "all") {
-      const subtitle =
-        orderStatus === "Delivered"
-          ? "Delivered Orders"
-          : orderStatus + " Orders";
-      doc
-        .font("Helvetica")
-        .fontSize(14)
-        .text(subtitle, doc.page.margins.left, doc.y + 5, {
-          width: pageWidth,
-          align: "center",
+        // Render the sales report view
+        res.render('admin/sales-report', {
+            title: 'Sales Report',
+            orders: orders,
+            currentPage: page,
+            totalPages: totalPages,
+            totalItems: totalItems,
+            searchQuery: searchQuery,
+            searchType: searchType,
+            startDate: startDate,
+            endDate: endDate,
+            totalSales: totalSales[0]?.total || 0,
+            totalOrders: totalSales[0]?.count || 0,
+            formatDate: formatDate,
+            formatCurrency: (amount) => {
+                return new Intl.NumberFormat('en-IN', {
+                    style: 'currency',
+                    currency: 'INR'
+                }).format(amount);
+            }
         });
+    } catch (error) {
+        console.error('Error fetching sales report:', error);
+        req.flash('error', 'Error fetching sales report. Please try again.');
+        res.redirect('/admin/dashboard');
     }
-    doc.moveDown(1.5);
+}
 
-    if (startDate && endDate) {
-      doc.fontSize(10).text(`Date Range: ${startDate} to ${endDate}`);
-      doc.moveDown();
-    }
+// Export sales report
+exports.exportSalesReport = async (req, res) => {
+    try {
+        const { startDate, endDate, search, searchType } = req.query;
+        
+        // Base query to match only delivered orders
+        let query = { orderStatus: 'Delivered' };
 
-    // Order Summary
-    const totalOrdersCount = orders.length;
-    const totalRevenueAmount = orders.reduce(
-      (sum, order) => sum + order.totalAmount,
-      0
-    );
-    const totalDiscountAmount = orders.reduce(
-      (sum, order) => sum + (order.couponDiscount || 0),
-      0
-    );
-    doc
-      .font("Helvetica")
-      .fontSize(14)
-      .text("Order Summary:", { underline: true });
-    doc
-      .font("Helvetica")
-      .fontSize(12)
-      .text(`Total Orders: ${totalOrdersCount}`, { indent: 20 });
-    doc
-      .font("Helvetica")
-      .fontSize(12)
-      .text(
-        `Total Revenue: ${
-          Number.isInteger(totalRevenueAmount)
-            ? totalRevenueAmount
-            : totalRevenueAmount.toFixed(2)
-        }`,
-        { indent: 20 }
-      );
-    doc
-      .font("Helvetica")
-      .fontSize(12)
-      .text(
-        `Total Discount: ${
-          Number.isInteger(totalDiscountAmount)
-            ? totalDiscountAmount
-            : totalDiscountAmount.toFixed(2)
-        }`,
-        { indent: 20 }
-      );
-    doc.moveDown();
-
-    // Table headers (centered and narrower)
-    const pageMargin = doc.page.margins.left;
-    const availableWidth =
-      doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const tableWidth = Math.floor(availableWidth * 0.9);
-    const tableMarginX =
-      pageMargin + Math.floor((availableWidth - tableWidth) / 2);
-    const tableTop = doc.y + 20;
-    const noWidth = 30;
-    const restWidth = Math.floor(tableWidth - noWidth);
-    const colWidths = {
-      no: noWidth,
-      orderId: Math.floor(restWidth * 0.18),
-      amount: Math.floor(restWidth * 0.12),
-      discount: Math.floor(restWidth * 0.12),
-      finalAmount: Math.floor(restWidth * 0.14),
-      status: Math.floor(restWidth * 0.12),
-      username: Math.floor(restWidth * 0.13),
-      paymentMethod:
-        restWidth -
-        (Math.floor(restWidth * 0.18) +
-          Math.floor(restWidth * 0.12) +
-          Math.floor(restWidth * 0.12) +
-          Math.floor(restWidth * 0.14) +
-          Math.floor(restWidth * 0.12) +
-          Math.floor(restWidth * 0.13)),
-    };
-
-    const itemNoX = tableMarginX;
-    const orderIdX = itemNoX + colWidths.no;
-    const amountX = orderIdX + colWidths.orderId;
-    const discountX = amountX + colWidths.amount;
-    const finalAmountX = discountX + colWidths.discount;
-    const statusX = finalAmountX + colWidths.finalAmount;
-    const usernameX = statusX + colWidths.status;
-    const paymentMethodX = usernameX + colWidths.username;
-    const tableRight = tableMarginX + tableWidth;
-
-    function drawTableHeader() {
-      const headerHeight = 20;
-
-      doc.save();
-      doc
-        .fillColor("#f0f0f0")
-        .rect(itemNoX, tableTop, tableRight - itemNoX, headerHeight)
-        .fill();
-      doc.restore();
-      doc.font("Helvetica").fontSize(12);
-      doc.fillColor("#000000");
-      doc.text("No.", itemNoX + 2, tableTop + 5, {
-        width: colWidths.no - 4,
-        align: "left",
-        ellipsis: true,
-        lineBreak: false,
-      });
-      doc.text("Order ID", orderIdX + 2, tableTop + 5, {
-        width: colWidths.orderId - 4,
-        align: "left",
-        ellipsis: true,
-        lineBreak: false,
-      });
-      doc.text("Amount", amountX + 2, tableTop + 5, {
-        width: colWidths.amount - 4,
-        align: "right",
-        ellipsis: true,
-        lineBreak: false,
-      });
-      doc.text("Discount", discountX + 2, tableTop + 5, {
-        width: colWidths.discount - 4,
-        align: "right",
-        ellipsis: true,
-        lineBreak: false,
-      });
-      doc.text("Final Amount", finalAmountX + 2, tableTop + 5, {
-        width: colWidths.finalAmount - 4,
-        align: "right",
-        ellipsis: true,
-        lineBreak: false,
-      });
-      doc.text("Status", statusX + 2, tableTop + 5, {
-        width: colWidths.status - 4,
-        align: "left",
-        ellipsis: true,
-        lineBreak: false,
-      });
-      doc.text("Username", usernameX + 2, tableTop + 5, {
-        width: colWidths.username - 4,
-        align: "left",
-        ellipsis: true,
-        lineBreak: false,
-      });
-      doc.text("Payment Method", paymentMethodX + 2, tableTop + 5, {
-        width: colWidths.paymentMethod - 4,
-        align: "center",
-        ellipsis: true,
-        lineBreak: false,
-      });
-      doc
-        .strokeColor("#000000")
-        .lineWidth(1)
-        .moveTo(itemNoX, tableTop + headerHeight)
-        .lineTo(tableRight, tableTop + headerHeight)
-        .stroke();
-      doc.strokeColor("#cccccc").lineWidth(0.5);
-    }
-    drawTableHeader();
-    doc.font("Helvetica").fontSize(12);
-
-    const rowHeight = 20;
-    let rowY = tableTop + 20;
-    orders.forEach((order, i) => {
-      if (rowY + rowHeight > doc.page.height - doc.page.margins.bottom) {
-        doc.addPage();
-        drawTableHeader();
-        doc.font("Helvetica").fontSize(12);
-        rowY = tableTop + 20;
-      }
-      const itemsTotal = order.items.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
-      );
-      const discountValue = order.couponDiscount || 0;
-      const deliveryCharge = order.deliveryCharge || 0;
-      const amountValue = itemsTotal;
-      const finalValue = itemsTotal - discountValue + deliveryCharge;
-      const username =
-        (order.user && order.user.name) ||
-        (order.user && order.user.email) ||
-        "N/A";
-      const methodMap = { cod: "COD", razorpay: "Razorpay", wallet: "Wallet" };
-      const paymentMethodText =
-        methodMap[order.paymentMethod] || order.paymentMethod || "N/A";
-      doc.rect(itemNoX, rowY, colWidths.no, rowHeight).stroke();
-      doc.text(i + 1, itemNoX + 2, rowY + 5, {
-        width: colWidths.no - 4,
-        height: rowHeight - 4,
-        align: "left",
-        ellipsis: true,
-      });
-      doc.rect(orderIdX, rowY, colWidths.orderId, rowHeight).stroke();
-      doc.text(
-        `#${order._id.toString().slice(-8).toUpperCase()}`,
-        orderIdX + 2,
-        rowY + 5,
-        { width: colWidths.orderId - 4, height: rowHeight - 4, ellipsis: true }
-      );
-      doc.rect(amountX, rowY, colWidths.amount, rowHeight).stroke();
-      doc.text(
-        `${
-          Number.isInteger(amountValue) ? amountValue : amountValue.toFixed(2)
-        }`,
-        amountX + 2,
-        rowY + 5,
-        {
-          width: colWidths.amount - 4,
-          height: rowHeight - 4,
-          align: "right",
-          ellipsis: true,
-          lineBreak: false,
+        // Apply search filters if provided
+        if (search) {
+            if (searchType === 'orderId') {
+                if (mongoose.Types.ObjectId.isValid(search)) {
+                    query._id = new mongoose.Types.ObjectId(search);
+                } else {
+                    query._id = { $regex: search + '$', $options: 'i' };
+                }
+            } else if (searchType === 'payment') {
+                query.paymentMethod = { $regex: search, $options: 'i' };
+            }
         }
-      );
-      doc.rect(discountX, rowY, colWidths.discount, rowHeight).stroke();
-      doc.text(
-        `${
-          Number.isInteger(discountValue)
-            ? discountValue
-            : discountValue.toFixed(2)
-        }`,
-        discountX + 2,
-        rowY + 5,
-        {
-          width: colWidths.discount - 4,
-          height: rowHeight - 4,
-          align: "right",
-          ellipsis: true,
-          lineBreak: false,
+
+        // Apply date range filter if provided
+        if (startDate && endDate) {
+            query.createdAt = {
+                $gte: new Date(startDate),
+                $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999))
+            };
         }
-      );
-      doc.rect(finalAmountX, rowY, colWidths.finalAmount, rowHeight).stroke();
-      doc.text(
-        `${Number.isInteger(finalValue) ? finalValue : finalValue.toFixed(2)}`,
-        finalAmountX + 2,
-        rowY + 5,
-        {
-          width: colWidths.finalAmount - 4,
-          height: rowHeight - 4,
-          align: "right",
-          ellipsis: true,
-          lineBreak: false,
+
+        // Get all delivered orders with their delivered items for export
+        const orders = await Order.aggregate([
+            { $match: query },
+            // Lookup product details
+            {
+                $lookup: {
+                    from: 'products',
+                    localField: 'items.product',
+                    foreignField: '_id',
+                    as: 'productDetails'
+                }
+            },
+            { $unwind: { path: '$productDetails', preserveNullAndEmptyArrays: true } },
+            // Lookup user details
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'user',
+                    foreignField: '_id',
+                    as: 'userDetails'
+                }
+            },
+            { $unwind: { path: '$userDetails', preserveNullAndEmptyArrays: true } },
+            // Group and format the data
+            {
+                $group: {
+                    _id: '$_id',
+                    user: { $first: '$userDetails' },
+                    items: {
+                        $push: {
+                            _id: '$items._id',
+                            product: {
+                                _id: '$productDetails._id',
+                                name: '$productDetails.name',
+                                price: '$items.price' // Use the price at time of order
+                            },
+                            quantity: '$items.quantity',
+                            price: '$items.price',
+                            status: '$items.status',
+                            total: { $multiply: ['$items.price', '$items.quantity'] }
+                        }
+                    },
+                    paymentMethod: { $first: '$paymentMethod' },
+                    orderStatus: { $first: '$orderStatus' },
+                    createdAt: { $first: '$createdAt' },
+                    updatedAt: { $first: '$updatedAt' },
+                    totalAmount: { $first: '$totalAmount' }
+                }
+            },
+            { $sort: { createdAt: -1 } }
+        ]);
+
+        // Format data for CSV - only includes delivered items from delivered orders
+        let csv = 'Order ID,Date,Customer,Product,Quantity,Price,Total,Payment Method\n';
+
+        orders.forEach(order => {
+            // Since we've already filtered in the aggregation, all items here are delivered
+            order.items.forEach(item => {
+                const orderDate = new Date(order.createdAt).toLocaleDateString();
+                const total = item.price * item.quantity;
+
+                csv += `"${order._id.toString()}",`;
+                csv += `"${orderDate}",`;
+                csv += `"${order.user?.name || 'Guest'}",`;
+                csv += `"${item.product?.name || 'N/A'}",`;
+                csv += `"${item.quantity}",`;
+                csv += `"${item.price.toFixed(2)}",`;
+                csv += `"${total.toFixed(2)}",`;
+                csv += `"${order.paymentMethod || 'N/A'}"\n`;
+            });
+        });
+
+        // Set headers for file download
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename=sales-report.csv');
+        res.send(csv);
+    } catch (error) {
+        console.error('Error exporting sales report:', error);
+        if (req.session) {
+            req.session.error = 'Error exporting sales report';
         }
-      );
-      doc.rect(statusX, rowY, colWidths.status, rowHeight).stroke();
-      doc.text(order.orderStatus || order.status, statusX + 2, rowY + 5, {
-        width: colWidths.status - 4,
-        height: rowHeight - 4,
-        align: "left",
-        ellipsis: true,
-      });
-      doc.rect(usernameX, rowY, colWidths.username, rowHeight).stroke();
-      doc.text(username, usernameX + 2, rowY + 5, {
-        width: colWidths.username - 4,
-        height: rowHeight - 4,
-        align: "left",
-        ellipsis: true,
-      });
-      doc
-        .rect(paymentMethodX, rowY, colWidths.paymentMethod, rowHeight)
-        .stroke();
-      doc.text(paymentMethodText, paymentMethodX + 2, rowY + 5, {
-        width: colWidths.paymentMethod - 4,
-        height: rowHeight - 4,
-        align: "center",
-        ellipsis: true,
-      });
-      rowY += rowHeight;
-    });
-
-    const tableBottom = rowY;
-    const tableLeft = tableMarginX;
-
-    doc.strokeColor("#000000").lineWidth(1);
-    doc
-      .rect(tableLeft, tableTop, tableRight - tableLeft, tableBottom - tableTop)
-      .stroke();
-    [
-      itemNoX,
-      orderIdX,
-      amountX,
-      discountX,
-      finalAmountX,
-      statusX,
-      usernameX,
-      paymentMethodX,
-      tableRight,
-    ].forEach((x) => {
-      doc.moveTo(x, tableTop).lineTo(x, tableBottom).stroke();
-    });
-
-    doc.end();
-  } catch (error) {
-    console.error("Error exporting sales report as PDF:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to export sales report as PDF",
-    });
-  }
-};
-
-exports.exportSalesReportExcel = async (req, res) => {
-  try {
-    const { startDate, endDate, paymentMethod, orderStatus } = req.query;
-    let query = { orderStatus: { $in: ["Delivered", "Return Rejected"] } };
-
-    if (startDate && endDate) {
-      const dateRange = exports.getDateRange(startDate, endDate);
-      query.createdAt = {
-        $gte: dateRange.start,
-        $lte: dateRange.end,
-      };
+        res.redirect('/admin/sales-report');
     }
-
-    if (paymentMethod && paymentMethod !== "all") {
-      query.paymentMethod = paymentMethod;
-    }
-    if (orderStatus && orderStatus !== "all") {
-      query.orderStatus = orderStatus;
-    }
-
-    const orders = await Order.find(query)
-      .sort({ createdAt: -1 })
-      .populate("user", "name email")
-      .populate("items.product", "name")
-      .lean();
-
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Sales Report");
-
-    worksheet.columns = [
-      { header: "Order ID", key: "orderId", width: 20 },
-      { header: "Date", key: "date", width: 20 },
-      { header: "Customer", key: "customer", width: 25 },
-      { header: "Items", key: "items", width: 30 },
-      { header: "Payment Method", key: "paymentMethod", width: 15 },
-      { header: "Status", key: "status", width: 15 },
-      { header: "Total Amount", key: "totalAmount", width: 15 },
-      { header: "Discount", key: "discount", width: 15 },
-
-      { header: "Final Amount", key: "finalAmount", width: 15 },
-    ];
-
-    orders.forEach((order) => {
-      const itemsDesc =
-        order.items && order.items.length
-          ? order.items
-              .map(
-                (item) =>
-                  (item.product && item.product.name
-                    ? item.product.name
-                    : "Unknown") +
-                  " x " +
-                  item.quantity
-              )
-              .join(", ")
-          : "";
-      const discountValue = order.couponDiscount || 0;
-      const deliveryCharge = order.deliveryCharge || 0;
-      const itemsTotal = order.items.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
-      );
-      const finalValue = itemsTotal - discountValue + deliveryCharge;
-
-      worksheet.addRow({
-        orderId: "#" + order._id.toString().slice(-8).toUpperCase(),
-        date: order.createdAt,
-        customer: order.user ? order.user.email || order.user.name : "N/A",
-        items: itemsDesc,
-        paymentMethod: order.paymentMethod || "",
-        status: order.orderStatus || order.status,
-        totalAmount: itemsTotal,
-        discount: discountValue,
-
-        finalAmount: finalValue,
-      });
-    });
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-    res.setHeader(
-      "Content-Disposition",
-      'attachment; filename="sales-report.xlsx"'
-    );
-    res.send(buffer);
-  } catch (error) {
-    console.error("Excel export error:", error);
-    res.status(500).json({ success: false, message: "Failed to export Excel" });
-  }
 };

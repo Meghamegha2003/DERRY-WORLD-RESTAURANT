@@ -1,433 +1,293 @@
 <%- include('../partials/admin/header') %>
-<style>
-  .numbers {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    height: 100%;
-    width: 100%;
-  }
-
-  .numbers p,
-  .numbers h5 {
-    width: 100%;
-    text-align: center;
-    word-wrap: break-word;
-    white-space: normal;
-  }
-
-  .numbers h5 {
-    font-size: 1.6rem;
-    font-weight: 700;
-  }
-
-  .numbers p {
-    font-size: 0.95rem;
-    font-weight: 500;
-  }
-</style>
-
 
 <!-- Main Content -->
-<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
-    <h1 class="mb-3 mb-md-0">Sales Report</h1>
-    <div>
-      <button onclick="exportToPDF()" class="btn btn-primary btn-sm me-2">
-        <i class="fas fa-file-pdf me-2"></i>Download PDF
-      </button>
-      <button onclick="exportToExcel()" class="btn btn-success btn-sm">
-        <i class="fas fa-file-excel me-2"></i>Download Excel
-      </button>
+<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4 py-4">
+  <h1 class="h3 mb-4">Sales Report</h1>
+  
+  <!-- Filter Section -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <form id="filterForm" action="/admin/sales-report" method="GET" class="row g-3">
+        <div class="col-md-3">
+          <label for="startDate" class="form-label">From Date</label>
+          <input type="date" class="form-control" id="startDate" name="startDate" value="<%= locals.startDate || '' %>">
+        </div>
+        <div class="col-md-3">
+          <label for="endDate" class="form-label">To Date</label>
+          <input type="date" class="form-control" id="endDate" name="endDate" value="<%= locals.endDate || '' %>">
+        </div>
+        <div class="col-md-4">
+          <label for="searchQuery" class="form-label">Search Orders</label>
+          <input type="text" class="form-control" id="searchQuery" name="searchQuery" 
+                 placeholder="Search by order #, customer, product..." value="<%= locals.searchQuery || '' %>">
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary me-2">Filter</button>
+          <a href="/admin/sales-report" class="btn btn-outline-secondary">Reset</a>
+        </div>
+      </form>
     </div>
   </div>
   
-  <!-- Filters -->
-  <div class="p-4 bg-light rounded mb-4">
-    <form id="filterForm" class="row g-3" method="GET">
-      <!-- Date Range Filter -->
-      <div class="col-md-3">
-        <label class="form-label">Start Date</label>
-        <input type="date" class="form-control" name="startDate" 
-               value="<%= filters.startDate %>" 
-               max="<%= new Date().toISOString().split('T')[0] %>">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">End Date</label>
-        <input type="date" class="form-control" name="endDate" 
-               value="<%= filters.endDate %>" 
-               max="<%= new Date().toISOString().split('T')[0] %>">
-      </div>
-      <!-- Payment Method Filter -->
-      <div class="col-md-3">
-        <label class="form-label">Payment Method</label>
-        <select class="form-select" name="paymentMethod">
-          <option value="all">All Payment Methods</option>
-          <option value="razorpay" <%= filters.paymentMethod === 'razorpay' ? 'selected' : '' %>>Razorpay</option>
-          <option value="wallet" <%= filters.paymentMethod === 'wallet' ? 'selected' : '' %>>Wallet</option>
-          <option value="cod" <%= filters.paymentMethod === 'cod' ? 'selected' : '' %>>COD</option>
-        </select>
-      </div>
-      <!-- Order Status Filter -->
-      <div class="col-md-3">
-        <label class="form-label">Order Status</label>
-        <select class="form-select" name="orderStatus">
-          <option value="all">All Status</option>
-          <option value="Delivered" <%= filters.orderStatus === 'Delivered' ? 'selected' : '' %>>Delivered</option>
-          <option value="Return Rejected" <%= filters.orderStatus === 'Return Rejected' ? 'selected' : '' %>>Return Rejected</option>
-        </select>
-      </div>
-      <!-- Apply and Reset Filters -->
-      <div class="col-12">
-        <button type="submit" class="btn btn-primary me-2">
-          <i class="fas fa-filter me-2"></i>Apply Filters
-        </button>
-        <button type="button" class="btn btn-secondary" onclick="resetFilters()">
-          <i class="fas fa-undo me-2"></i>Reset Filters
-        </button>
-      </div>
-    </form>
-  </div>
-
-  
-
-  <!-- Summary Cards -->
-  <div class="row px-4 my-4">
-    <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
-      <div class="card">
-        <div class="card-body p-3">
-          <div class="row">
-            <div class="col-8">
-              <div class="numbers">
-                <p class="text-sm mb-0 text-uppercase font-weight-bold">Total Sales</p>
-                <h5 class="font-weight-bolder">₹<%= totalSales.toFixed(2) %></h5>
-                <p class="mb-0 text-sm text-success">
-                  <span class="font-weight-bolder">Total Orders:<%= totalOrders %></span>
-                </p>
-              </div>
-            </div>
-            <div class="col-4 text-end">
-              <div class="icon icon-shape bg-gradient-primary shadow-primary text-center rounded-circle">
-                <i class="fas fa-money-bill text-lg opacity-10" aria-hidden="true"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
-      <div class="card">
-        <div class="card-body p-3">
-          <div class="row">
-            <div class="col-8">
-              <div class="numbers">
-                <p class="text-sm mb-0 text-uppercase font-weight-bold">Total Orders</p>
-                <h5 class="font-weight-bolder"><%= totalOrders %></h5>
-                <p class="mb-0 text-sm text-success">
-                  <span class="font-weight-bolder">Return Rate: <%= returnRate %>%</span>
-                </p>
-              </div>
-            </div>
-            <div class="col-4 text-end">
-              <div class="icon icon-shape bg-gradient-success shadow-success text-center rounded-circle">
-                <i class="fas fa-shopping-cart text-lg opacity-10" aria-hidden="true"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
-      <div class="card">
-        <div class="card-body p-3">
-          <div class="row">
-            <div class="col-8">
-              <div class="numbers">
-                <p class="text-sm mb-0 text-uppercase font-weight-bold">Average Order </p>
-                <h5 class="font-weight-bolder">₹<%= averageOrderValue.toFixed(2) %></h5>
-                <p class="mb-0 text-sm">
-                  <span class="text-muted">Based on <%= totalOrders %> orders</span>
-                </p>
-              </div>
-            </div>
-            <div class="col-4 text-end">
-              <div class="icon icon-shape bg-gradient-info shadow-info text-center rounded-circle">
-                <i class="fas fa-chart-line text-lg opacity-10" aria-hidden="true"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col-xl-3 col-sm-6">
-      <div class="card">
-        <div class="card-body p-3">
-          <div class="row">
-            <div class="col-8">
-              <div class="numbers">
-                <p class="text-sm mb-0 text-uppercase font-weight-bold">Return Rate</p>
-                <h5 class="font-weight-bolder"><%= returnRate %>%</h5>
-                <p class="mb-0 text-sm">
-                  <span class="text-muted">Based on <%= returnedOrdersCount %> returns</span>
-                </p>
-              </div>
-            </div>
-            <div class="col-4 text-end">
-              <div class="icon icon-shape bg-gradient-warning shadow-warning text-center rounded-circle">
-                <i class="fas fa-undo text-lg opacity-10" aria-hidden="true"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Orders Table -->
-  <div class="table-responsive">
-    <table class="table table-hover table-bordered mt-3">
-      <thead class="table-dark">
-        <tr>
-          <th scope="col">Order ID</th>
-          <th scope="col">Customer</th>
-          <th scope="col">Date</th>
-          <th scope="col">Items</th>
-          <th scope="col">Payment Method</th>
-          <th scope="col">Status</th>
-          <th scope="col">Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% if (orders && orders.length > 0) { %>
-          <% orders.forEach(order => { %>
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-dark">
             <tr>
-              <td><%= order.orderNumber ? order.orderNumber : '#' + order._id.toString().slice(-6).toUpperCase() %></td>
-              <td><%= order.user ? order.user.email : 'N/A' %></td>
-              <td><%= new Date(order.createdAt).toLocaleDateString('en-IN', { 
-                year: 'numeric', 
-                month: 'short', 
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              }) %></td>
-              <td>
-                <% order.items.forEach(item => { %>
-                  <div class="mb-1">
-                    <%= item.product && item.product.name ? item.product.name : 'Unknown Product' %> x <%= item.quantity %>
-                    <% if (item.returnReason) { %>
-                      <span class="badge bg-warning" title="<%= item.returnReason %>">
-                        <i class="fas fa-undo"></i>
-                      </span>
-                    <% } %>
-                  </div>
-                <% }); %>
-              </td>
-              <td>
-                <span class="badge bg-info">
-                  <%= formatPaymentMethod(order.paymentMethod) %>
-                </span>
-              </td>
-              <td>
-                <span class="badge <%= getStatusBadgeClass(order.orderStatus) %>">
-                  <%= order.orderStatus %>
-                </span>
-              </td>
-              <td class="text-end">₹<%= order.totalAmount.toFixed(2) %></td>
+              <th scope="col" style="width: 120px;">ORDER #</th>
+              <th scope="col" style="width: 120px;">DATE</th>
+              <th scope="col" style="width: 200px;">CUSTOMER</th>
+              <th scope="col" class="text-center">ITEMS</th>
+              <th scope="col" class="text-end" style="width: 150px;">TOTAL</th>
             </tr>
-          <% }); %>
-        <% } else { %>
-          <tr>
-            <td colspan="7" class="text-center">No orders found matching the criteria</td>
-          </tr>
-        <% } %>
-      </tbody>
-      <tfoot class="table-dark">
-        <tr>
-          <td colspan="6" class="text-end"><strong>Total Sales</strong></td>
-          <td class="text-end"><strong>₹<%= totalSales.toFixed(2) %></strong></td>
-        </tr>
-      </tfoot>
-    </table>
+          </thead>
+          <tbody>
+            <% if (orders && orders.length > 0) { 
+                // Create a flattened array of all items with their order info
+                const allItems = [];
+                orders.forEach(order => {
+                  if (order.items && order.items.length > 0) {
+                    order.items.forEach(item => {
+                      allItems.push({
+                        ...item,
+                        orderId: order._id,
+                        orderNumber: order.orderNumber,
+                        orderDate: order.createdAt,
+                        user: order.user,
+                        paymentMethod: order.paymentMethod,
+                        orderStatus: order.orderStatus,
+                        appliedCoupon: order.appliedCoupon,
+                        itemCouponDiscount: item.itemCouponDiscount || 0,
+                        _order: order // Keep reference to the full order object
+                      });
+                    });
+                  }
+                });
+                
+                // Now render all items
+                allItems.forEach(item => {
+                  const order = item._order;
+                  const formattedOrderId = order && order._id ? order._id.toString().slice(-6).toUpperCase() : 'N/A';
+            %>
+                <tr>
+                  <td class="align-middle">
+                    <div class="fw-semibold">
+                      <i class="fas fa-hashtag me-1 text-muted"></i>
+                      <a href="/admin/orders/<%= order._id || '' %>" class="text-decoration-none">
+                        #<%= order._id ? order._id.toString().slice(-6).toUpperCase() : 'N/A' %>
+                      </a>
+                    </div>
+                  </td>
+                  <td class="align-middle">
+                    <div class="small text-muted">
+                      <%= order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : 'N/A' %>
+                    </div>
+                  </td>
+                  <td class="align-middle">
+                    <div class="d-flex align-items-center">
+                      <div class="ms-2">
+                        <% if (order.user && (order.user.name || order.user.email)) { %>
+                          <% if (order.user.name) { %>
+                            <div class="fw-medium"><%= order.user.name %></div>
+                          <% } %>
+                          <% if (order.user.email) { %>
+                            <div class="text-muted small"><%= order.user.email %></div>
+                          <% } %>
+                        <% } else { %>
+                          <div class="fw-medium">Guest</div>
+                        <% } %>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="align-middle">
+                    <div class="d-flex align-items-center">
+                      <div class="ms-2">
+                        <div class="fw-medium"><%= item.quantity %> × <%= item.product ? item.product.name : 'Product' %></div>
+                        <div class="text-muted small">
+                          <% const itemPrice = item.price * item.quantity; %>
+                          <%= typeof formatCurrency === 'function' ? formatCurrency(item.price) : '₹' + item.price.toFixed(2) %> each
+                        </div>
+                        <% if (item.itemCouponDiscount > 0) { %>
+                          <div class="mt-1">
+                            <span class="badge bg-success text-white">
+                              <i class="fas fa-tag me-1"></i>
+                              <% if (item.appliedCoupon && item.appliedCoupon.code) { %>
+                                <%= item.appliedCoupon.code %>
+                              <% } else { %>
+                                Coupon Applied
+                              <% } %>
+                              -<%= typeof formatCurrency === 'function' ? formatCurrency(item.itemCouponDiscount) : '₹' + item.itemCouponDiscount.toFixed(2) %>
+                              <% if (item.appliedCoupon && item.appliedCoupon.discountType === 'percentage') { %>
+                                (<%= item.appliedCoupon.discountValue %>%)
+                              <% } %>
+                            </span>
+                          </div>
+                        <% } %>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="align-middle text-end">
+                    <div class="fw-bold">
+                      <% 
+                        const itemSubtotal = item.price * item.quantity;
+                        const itemTotal = itemSubtotal - (item.itemCouponDiscount || 0);
+                      %>
+                      <% if (item.itemCouponDiscount > 0) { %>
+                        <div class="text-decoration-line-through text-muted small">
+                          <%= typeof formatCurrency === 'function' ? formatCurrency(itemSubtotal) : '₹' + itemSubtotal.toFixed(2) %>
+                        </div>
+                      <% } %>
+                      <div class="<%= item.itemCouponDiscount > 0 ? 'text-danger' : '' %>">
+                        <%= typeof formatCurrency === 'function' ? formatCurrency(itemTotal) : '₹' + itemTotal.toFixed(2) %>
+                      </div>
+                    </div>
+                    <div class="small text-muted">
+                      <span class="badge bg-success">
+                        <i class="fas fa-check-circle me-1"></i> Delivered
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="5" class="text-center p-5">
+                  <div class="no-results">
+                    <i class="bi bi-receipt" style="font-size: 3.5rem; opacity: 0.2;"></i>
+                    <h5 class="mt-3 mb-2">No orders found</h5>
+                    <p class="text-muted">Try adjusting your filters or check back later for new orders.</p>
+                  </div>
+                </td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- Pagination -->
+    <% if (totalPages > 1) { %>
+      <div class="card-footer bg-white border-top-0">
+        <nav aria-label="Orders pagination">
+          <ul class="pagination justify-content-center mb-0">
+            <!-- First Page -->
+            <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+              <a class="page-link" href="<%= buildPaginationUrl(1) %>" aria-label="First">
+                <span aria-hidden="true">&laquo;&laquo;</span>
+              </a>
+            </li>
+            
+            <!-- Previous Page -->
+            <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+              <a class="page-link" href="<%= buildPaginationUrl(currentPage - 1) %>" aria-label="Previous">
+                <span aria-hidden="true">&laquo;</span>
+              </a>
+            </li>
+            
+            <!-- Page Numbers -->
+            <% for (let i = 1; i <= totalPages; i++) { %>
+              <% if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) { %>
+                <li class="page-item <%= i === currentPage ? 'active' : '' %>">
+                  <a class="page-link" href="<%= buildPaginationUrl(i) %>"><%= i %></a>
+                </li>
+              <% } else if (i === currentPage - 3 || i === currentPage + 3) { %>
+                <li class="page-item disabled">
+                  <span class="page-link">...</span>
+                </li>
+              <% } %>
+            <% } %>
+            
+            <!-- Next Page -->
+            <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+              <a class="page-link" href="<%= buildPaginationUrl(currentPage + 1) %>" aria-label="Next">
+                <span aria-hidden="true">&raquo;</span>
+              </a>
+            </li>
+            
+            <!-- Last Page -->
+            <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+              <a class="page-link" href="<%= buildPaginationUrl(totalPages) %>" aria-label="Last">
+                <span aria-hidden="true">&raquo;&raquo;</span>
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    <% } %>
   </div>
-
-  <!-- Pagination -->
-  <% if (totalPages > 1) { %>
-    <nav aria-label="Page navigation">
-      <ul class="pagination justify-content-center">
-        <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
-          <a class="page-link" href="<%= `${paginationBaseUrl}page=1&${queryString}` %>" aria-label="First">&laquo;</a>
-        </li>
-        <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
-          <a class="page-link" href="<%= `${paginationBaseUrl}page=${currentPage - 1}&${queryString}` %>">Previous</a>
-        </li>
-
-        <% if (showStartEllipsis) { %>
-          <li class="page-item disabled">
-            <span class="page-link">...</span>
-          </li>
-        <% } %>
-
-        <% for(let i = startPage; i <= endPage; i++) { %>
-          <li class="page-item <%= currentPage === i ? 'active' : '' %>">
-            <a class="page-link" href="<%= `${paginationBaseUrl}page=${i}&${queryString}` %>"><%= i %></a>
-          </li>
-        <% } %>
-
-        <% if (showEndEllipsis) { %>
-          <li class="page-item disabled">
-            <span class="page-link">...</span>
-          </li>
-        <% } %>
-
-        <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
-          <a class="page-link" href="<%= `${paginationBaseUrl}page=${currentPage + 1}&${queryString}` %>">Next</a>
-        </li>
-        <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
-          <a class="page-link" href="<%= `${paginationBaseUrl}page=${totalPages}&${queryString}` %>" aria-label="Last">&raquo;</a>
-        </li>
-      </ul>
-    </nav>
-  <% } %>
 </main>
 
-<% 
-function getStatusBadgeClass(status) {
-    switch (status) {
-        case 'Delivered':
-            return 'bg-success';
-        case 'Pending':
-            return 'bg-warning';
-        case 'Processing':
-            return 'bg-info';
-        case 'Cancelled':
-            return 'bg-danger';
-        case 'Return Requested':
-            return 'bg-secondary';
-        case 'Return Approved':
-            return 'bg-secondary';
-        case 'Return Rejected':
-            return 'bg-danger';
-        default:
-            return 'bg-light';
-    }
-}
-%>
-
-<% function formatPaymentMethod(method) { 
-    let result;
-    switch (method?.toLowerCase()) {
-        case 'cod':
-            result = 'Cash on Delivery';
-            break;
-        case 'razorpay':
-            result = 'Razorpay';
-            break;
-        case 'wallet':
-            result = 'Wallet';
-            break;
-        default:
-            result = method || 'N/A';
-    }
-    return result;
-} %>
-
-<!-- Add necessary scripts -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- JavaScript -->
 <script>
-  document.addEventListener("DOMContentLoaded", function () {
-    const filterForm = document.getElementById('filterForm');
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize date pickers with default dates and validation
+  const today = new Date();
+  const startDateInput = document.querySelector('input[name="startDate"]');
+  const endDateInput = document.querySelector('input[name="endDate"]');
+  const filterForm = document.getElementById('filterForm');
 
-    // ========= Validate & Submit Filters ========= //
-    filterForm.addEventListener('submit', function (e) {
-      const start = new Date(filterForm.startDate.value);
-      const end = new Date(filterForm.endDate.value);
+  // Format date as YYYY-MM-DD
+  const formatDate = (date) => {
+    const d = new Date(date);
+    let month = '' + (d.getMonth() + 1);
+    let day = '' + d.getDate();
+    const year = d.getFullYear();
 
-      if (start > end) {
-        e.preventDefault();
-        alert('Start date cannot be later than end date');
-        return;
+    if (month.length < 2) month = '0' + month;
+    if (day.length < 2) day = '0' + day;
+
+    return [year, month, day].join('-');
+  };
+
+  // Set max date to today for both date inputs
+  if (startDateInput) startDateInput.max = formatDate(today);
+  if (endDateInput) endDateInput.max = formatDate(today);
+
+  // Validate date range
+  if (startDateInput && endDateInput) {
+    startDateInput.addEventListener('change', function() {
+      if (endDateInput.value && new Date(this.value) > new Date(endDateInput.value)) {
+        endDateInput.value = this.value;
       }
-
-      // Always reset page to 1 on filter submit
-      let pageInput = filterForm.querySelector('input[name="page"]');
-      if (!pageInput) {
-        pageInput = document.createElement('input');
-        pageInput.type = 'hidden';
-        pageInput.name = 'page';
-        filterForm.appendChild(pageInput);
-      }
-      pageInput.value = '1';
     });
 
-    // ========= Reset Filters ========= //
-    window.resetFilters = function () {
-      const now = new Date();
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-      const today = now.toISOString().split('T')[0];
-
-      filterForm.startDate.value = firstDay;
-      filterForm.endDate.value = today;
-      filterForm.paymentMethod.value = 'all';
-      filterForm.orderStatus.value = 'all';
-      filterForm.submit();
-    };
-
-    // ========= Pagination Handling ========= //
-    document.querySelectorAll('.pagination .page-link').forEach(link => {
-      link.addEventListener('click', function (e) {
-        e.preventDefault();
-        const targetPage = new URL(this.href).searchParams.get('page');
-        let pageInput = filterForm.querySelector('input[name="page"]');
-        if (!pageInput) {
-          pageInput = document.createElement('input');
-          pageInput.type = 'hidden';
-          pageInput.name = 'page';
-          filterForm.appendChild(pageInput);
-        }
-        pageInput.value = targetPage;
-        filterForm.submit();
-      });
+    endDateInput.addEventListener('change', function() {
+      if (startDateInput.value && new Date(this.value) < new Date(startDateInput.value)) {
+        startDateInput.value = this.value;
+      }
     });
-  });
-
-  // ========= Export to PDF ========= //
-  async function exportToPDF() {
-    try {
-      const response = await fetch(`/admin/sales-report/export-pdf${window.location.search}`);
-      if (!response.ok) throw new Error('PDF export failed');
-      const blob = await response.blob();
-      triggerDownload(blob, 'sales-report.pdf');
-    } catch (err) {
-      console.error('PDF Export Error:', err);
-      alert('Failed to export PDF. Try again.');
-    }
   }
+});
 
-  // ========= Export to Excel ========= //
-  async function exportToExcel() {
-    try {
-      const response = await fetch(`/admin/sales-report/export-excel${window.location.search}`);
-      if (!response.ok) throw new Error('Excel export failed');
-      const blob = await response.blob();
-      triggerDownload(blob, 'sales-report.xlsx');
-    } catch (err) {
-      console.error('Excel Export Error:', err);
-      alert('Failed to export Excel. Try again.');
-    }
-  }
+// Helper function to build pagination URLs with existing query parameters
+function buildPaginationUrl(page) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('page', page);
+  return url.pathname + url.search;
+}
 
-  // ========= Trigger File Download ========= //
-  function triggerDownload(blob, filename) {
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+// Handle export to CSV
+function exportToCSV() {
+  const url = new URL(window.location.href);
+  url.searchParams.set('export', 'csv');
+  window.location.href = url.toString();
+}
+
+// Add event listener for export button
+document.addEventListener('DOMContentLoaded', function() {
+  const exportBtn = document.getElementById('exportCSV');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', exportToCSV);
   }
+});
 </script>
-
 
 <%- include('../partials/admin/footer') %>
