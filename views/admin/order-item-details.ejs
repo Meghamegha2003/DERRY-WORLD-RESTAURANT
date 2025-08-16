@@ -96,11 +96,11 @@
                         <div class="card-body">
                             <div class="d-flex border-bottom pb-3 mb-3">
                                 <% 
-                                    // Get the first image from productImage array
+                                    // Get the product image or use default
                                     let imageUrl = '/images/default-product.png';
-                                    if (item.productDetails.productImage && item.productDetails.productImage.length > 0) {
-                                        // Get the first image URL (it's already a string in the array)
-                                        imageUrl = item.productDetails.productImage[0];
+                                    if (item.product.image) {
+                                        // If image is an array, get the first one, otherwise use the image directly
+                                        imageUrl = Array.isArray(item.product.image) ? item.product.image[0] : item.product.image;
                                         
                                         // Ensure the image path is absolute
                                         if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
@@ -110,14 +110,14 @@
                                 %>
                                 <div style="width: 120px; height: 120px; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-right: 1rem; overflow: hidden;">
                                     <img src="<%= imageUrl %>" 
-                                         alt="<%= item.productDetails.name || 'Product' %>" 
+                                         alt="<%= item.product.name || 'Product' %>" 
                                          style="max-width: 100%; max-height: 100%; object-fit: contain;"
                                          onerror="this.onerror=null; this.src='/images/default-product.png'"
                                          class="img-fluid">
                                 </div>
                                 <div class="flex-grow-1">
                                     <div class="d-flex justify-content-between align-items-start">
-                                        <h5 class="mb-1"><%= item.productDetails.name %></h5>
+                                        <h5 class="mb-1"><%= item.product.name || 'Product' %></h5>
                                         <div class="d-flex flex-column align-items-end">
                                             <span class="badge <%= item.statusBadgeClass %> item-status-badge" 
                                                   style="cursor: pointer;"
@@ -128,7 +128,9 @@
                                             </span>
                                         </div>
                                     </div>
-                                    <p class="text-muted mb-2"><%= item.productDetails.category %></p>
+                                    <% if (item.product && item.product.category) { %>
+                                        <p class="text-muted mb-2"><%= item.product.category %></p>
+                                    <% } %>
                                     <% if (item.variation) { %>
                                         <span class="badge bg-light text-dark border mb-2"><%= item.variation %></span>
                                     <% } %>
@@ -143,17 +145,17 @@
                                             <div class="fw-bold"><%= item.quantity %></div>
                                         </div>
                                         <div>
-                                            <div class="text-muted small">Total</div>
-                                            <div class="fw-bold text-primary">₹<%= (item.price * item.quantity).toFixed(2) %></div>
+                                            <div class="text-muted small">Total:</div>
+                                            <div class="fw-bold">₹<%= (item.price * item.quantity).toFixed(2) %></div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             
-                            <% if (item.productDetails.description) { %>
+                            <% if (item.product && item.product.description) { %>
                                 <div class="mt-3 pt-3 border-top">
                                     <h6 class="mb-2">Product Description</h6>
-                                    <p class="mb-0 text-muted"><%= item.productDetails.description %></p>
+                                    <p class="mb-0 text-muted"><%= item.product.description %></p>
                                 </div>
                             <% } %>
                         </div>
@@ -214,53 +216,61 @@
                                 <% 
                                     // Set default values to prevent undefined errors
                                     const price = item.price || 0;
+                                    const regularPrice = item.regularPrice || price; // Get regular price if available, otherwise use sale price
                                     const quantity = item.quantity || 1;
-                                    const deliveryCharge = item.deliveryCharge || 0;
-                                    const couponDiscount = item.couponDiscount || 0;
-                                    const totalSavings = item.totalSavings || 0;
+                                    
+                                    // Calculate item subtotal
+                                    const itemSubtotal = price * quantity;
+                                    
+                                    // Calculate final total including delivery
+                                    const finalTotal = itemSubtotal + (item.deliveryCharge || 0);
                                 %>
                                 
+                                <!-- Item Price -->
                                 <div class="d-flex justify-content-between mb-2">
-                                    <span>Subtotal:</span>
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-shopping-bag text-muted me-2" style="width: 16px;"></i>
+                                        <span>Item Price (<%= quantity %> item<%= quantity > 1 ? 's' : '' %>)</span>
+                                    </div>
                                     <span>₹<%= (price * quantity).toFixed(2) %></span>
                                 </div>
-                                
-                                <% if (couponDiscount > 0) { %>
-                                    <div class="d-flex justify-content-between mb-2 text-success">
-                                        <span>Coupon Discount:</span>
-                                        <span>-₹<%= couponDiscount.toFixed(2) %></span>
-                                    </div>
-                                <% } %>
-                                
+
+                                <% if (item.couponDiscount > 0) { %>
                                 <div class="d-flex justify-content-between mb-2">
-                                    <span>Shipping:</span>
-                                    <span class="<%= deliveryCharge === 0 ? 'text-success' : '' %>">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-tag text-muted me-2" style="width: 16px;"></i>
+                                        <span>Coupon Discount <% if (item.appliedCoupon?.code) { %>(<%= item.appliedCoupon.code %>)<% } %></span>
+                                    </div>
+                                    <span class="text-success">-₹<%= item.couponDiscount.toFixed(2) %></span>
+                                </div>
+                                <% } %>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-truck text-muted me-2" style="width: 16px;"></i>
+                                        <span>Delivery Charge</span>
+                                    </div>
+
+                                    
+                                    <span class="<%= (item.deliveryCharge || 0) === 0 ? 'text-success' : '' %>">
+                                        <% const deliveryCharge = item.deliveryCharge || 0; %>
                                         <%= deliveryCharge === 0 ? 'FREE' : '₹' + deliveryCharge.toFixed(2) %>
                                     </span>
                                 </div>
                                 
-                                <% if (totalSavings > 0) { %>
-                                    <div class="d-flex justify-content-between mb-2 text-success">
-                                        <span>Total Savings:</span>
-                                        <span>₹<%= totalSavings.toFixed(2) %></span>
-                                    </div>
-                                <% } %>
+                              
                                 
+                                <!-- Final Amount -->
                                 <div class="d-flex justify-content-between fw-bold mt-3 pt-2 border-top">
-                                    <span>Total Amount:</span>
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-wallet text-primary me-2"></i>
+                                        <span>Total Amount</span>
+                                    </div>
                                     <span class="text-primary">
-                                        ₹<%= (price * quantity + deliveryCharge - couponDiscount).toFixed(2) %>
+                                        ₹<%= (item.price * quantity - (item.couponDiscount || 0) + (deliveryCharge || 0)).toFixed(2) %>
                                     </span>
                                 </div>
                                 
-                                <% if (couponDiscount > 0) { %>
-                                    <div class="mt-2 text-end">
-                                        <span class="badge bg-success bg-opacity-10 text-success">
-                                            <i class="fas fa-tag me-1"></i> 
-                                            Coupon Applied: <%= item.appliedCoupon?.code || 'Discount' %>
-                                        </span>
-                                    </div>
-                                <% } %>
+
                             </div>
                         </div>
                     </div>
@@ -368,7 +378,7 @@
                         }
                         
                         try {
-                            const response = await fetch(`/admin/orders/${orderId}/items/${itemId}/status`, {
+                            const response = await fetch(`/admin/orders/item/${itemId}/status`, {
                                 method: 'PUT',
                                 headers: {
                                     'Content-Type': 'application/json',
@@ -455,6 +465,8 @@
         </script>
         <script>
             // Add any client-side interactivity here
+        </script>
+       
         </script>
 </body>
 </html>

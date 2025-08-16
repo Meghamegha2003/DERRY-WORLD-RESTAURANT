@@ -4,105 +4,36 @@ const User = require('../../models/userSchema');
 const Product = require('../../models/productSchema');
 const Wallet = require('../../models/walletSchema');
 
-// Delete an order by ID
-exports.deleteOrder = async (req, res) => {
-    const orderId = req.params.orderId;
-    console.log(`[DEBUG] Attempting to delete order: ${orderId}`);
-    
-    try {
-        // Validate order ID
-        if (!mongoose.Types.ObjectId.isValid(orderId)) {
-            console.error(`[ERROR] Invalid order ID format: ${orderId}`);
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Invalid order ID format' 
-            });
-        }
 
-        // Find and delete the order
-        const deletedOrder = await Order.findByIdAndDelete(orderId);
-        
-        if (!deletedOrder) {
-            console.error(`[ERROR] Order not found: ${orderId}`);
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Order not found' 
-            });
-        }
-
-        console.log(`[INFO] Successfully deleted order: ${orderId}`);
-        
-        // Return success response
-        return res.status(200).json({ 
-            success: true, 
-            message: 'Order deleted successfully',
-            orderId: orderId,
-            deletedAt: new Date()
-        });
-
-    } catch (error) {
-        console.error('Error deleting order:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Failed to delete order',
-            error: error.message 
-        });
-    }
-};
 
 // Define valid status transitions
 const STATUS_TRANSITIONS = {
     'Pending': ['Processing', 'Cancelled'],
     'Processing': ['Shipped', 'Cancelled'],
     'Shipped': ['Delivered'],
-    'Delivered': ['Return Requested'],
+    'Delivered': [],
+    'Cancelled': [],
     'Return Requested': ['Return Approved', 'Return Rejected'],
     'Return Approved': ['Return Completed'],
-    'Return Rejected': [], 
-    'Return Completed': [], 
-    'Cancelled': [] 
+    'Return Rejected': [],
+    'Return Completed': []
 };
 
-// Map item status to order status (reverse mapping)
-const ITEM_TO_ORDER_STATUS = {
-    'Active': 'Pending',
-    'Pending': 'Pending',
-    'Processing': 'Processing',
-    'Shipped': 'Shipped',
-    'Delivered': 'Delivered',
-    'Return Requested': 'Return Requested',
-    'Return Approved': 'Return Approved',
-    'Return Rejected': 'Return Rejected',
-    'Returned': 'Return Completed',
-    'Cancelled': 'Cancelled'
-};
-
-
-exports.getAvailableStatuses = (currentStatus) => {
-    return STATUS_TRANSITIONS[currentStatus] || [];
-};
-
-
+// Get next available statuses for an order item
 exports.getNextStatuses = (currentStatus) => {
-    switch (currentStatus) {
-        case ORDER_STATUS.PENDING:
-            return [ORDER_STATUS.PROCESSING];
-        case ORDER_STATUS.PROCESSING:
-            return [ORDER_STATUS.SHIPPED];
-        case ORDER_STATUS.SHIPPED:
-            return [ORDER_STATUS.DELIVERED];
-        case ORDER_STATUS.DELIVERED:
-            return [];
-        // Remove return-related statuses
-        case ORDER_STATUS.RETURN_REQUESTED:
-        case ORDER_STATUS.RETURN_APPROVED:
-        case ORDER_STATUS.RETURN_REJECTED:
-            return [];
-        case ORDER_STATUS.CANCELLED:
-            return [];
-        default:
-            return [];
-    }
+    const statusMap = {
+        'Pending': ['Processing', 'Cancelled'],
+        'Processing': ['Shipped', 'Cancelled'],
+        'Shipped': ['Delivered'],
+        'Delivered': [],
+        'Cancelled': [],
+        'Return Requested': ['Return Approved', 'Return Rejected'],
+        'Return Approved': ['Return Completed'],
+        'Return Rejected': [],
+        'Return Completed': []
+    };
+    
+    return statusMap[currentStatus] || [];
 };
 
 exports.getStatusBadgeClass = (status) => {
@@ -135,34 +66,26 @@ exports.getStatusBadgeClass = (status) => {
 };
 
 // Controller methods are defined below with direct exports
+// Format payment status for display
 exports.getPaymentStatusColor = (status) => {
-    switch (status) {
-        case PAYMENT_STATUS.PENDING:
-            return 'text-warning';
-        case PAYMENT_STATUS.COMPLETED:
-            return 'text-success';
-        case PAYMENT_STATUS.FAILED:
-            return 'text-danger';
-        case PAYMENT_STATUS.REFUNDED:
-            return 'text-info';
-        default:
-            return 'text-secondary';
-    }
+    const statusColors = {
+        [PAYMENT_STATUS.PENDING]: 'text-warning',
+        [PAYMENT_STATUS.COMPLETED]: 'text-success',
+        [PAYMENT_STATUS.FAILED]: 'text-danger',
+        [PAYMENT_STATUS.REFUNDED]: 'text-info'
+    };
+    return statusColors[status] || 'text-secondary';
 };
 
+// Format payment method for display
 exports.formatPaymentMethod = (method) => {
-    switch (method) {
-        case 'CREDIT_CARD':
-            return 'Credit Card';
-        case 'DEBIT_CARD':
-            return 'Debit Card';
-        case 'UPI':
-            return 'UPI';
-        case 'WALLET':
-            return 'Wallet';
-        default:
-            return method;
-    }
+    const methodNames = {
+        'CREDIT_CARD': 'Credit Card',
+        'DEBIT_CARD': 'Debit Card',
+        'UPI': 'UPI',
+        'WALLET': 'Wallet'
+    };
+    return methodNames[method] || method;
 };
 
 exports.getOrders = async (req, res) => {
@@ -354,17 +277,16 @@ exports.getOrders = async (req, res) => {
 
 // Update status for an individual item in an order
 exports.updateOrderItemStatus = async (req, res) => {
-    let order; // Declare order as let to allow reassignment
     try {
-        const { orderId, itemId } = req.params;
+        const { itemId } = req.params;
         const { status, note } = req.body;
 
-        // First, verify the order exists
-        order = await Order.findById(orderId);
+        // Find the order that contains this item
+        const order = await Order.findOne({ 'items._id': itemId });
         if (!order) {
             return res.status(404).json({
                 success: false,
-                message: 'Order not found'
+                message: 'Order item not found'
             });
         }
 
@@ -1065,135 +987,153 @@ async function handleReturnApproval(order) {
         
         await wallet.save();
         await User.findByIdAndUpdate(order.user, { wallet: wallet._id });
-        console.log('[ADMIN] Refund processed successfully for user:', order.user.toString());
-        
     } catch (error) {
-        console.error('[ERROR] Error in handleReturnApproval:', error);
-        throw error; // Re-throw to be handled by the calling function
-    }
-}
-
-// Get details for a specific item in an order
-exports.getOrderItemDetails = async (req, res) => {
-    try {
-        const { orderId, itemId } = req.params;
-        
-        const order = await Order.findOne(
-            { _id: orderId, 'items._id': itemId },
-            { 
-                'items.$': 1, 
-                orderNumber: 1, 
-                orderDate: 1, 
-                orderStatus: 1, 
-                paymentStatus: 1, 
-                paymentMethod: 1, 
-                user: 1, 
-                shippingAddress: 1, 
-                totalAmount: 1,
-                couponDiscount: 1,
-                deliveryCharge: 1,
-                totalSavings: 1,
-                appliedCoupon: 1
-            }
-        )
-        .populate('user', 'name email phone')
-        .populate('items.product', 'name price productImage description category')
-        .populate('appliedCoupon.couponId', 'code discountType discountValue minPurchase maxDiscount')
-        .lean();
-
-        if (!order) {
-            return res.status(404).render('admin/error', {
-                message: 'Order item not found',
-                layout: 'admin/layout'
-            });
-        }
-
-        // Extract the specific item
-        const item = order.items[0];
-        const product = item.product || {};
-        
-        // Format the item data
-        const formattedItem = {
-            ...item,
-            _id: item._id.toString(),
-            orderId: order._id.toString(),
-            orderNumber: order.orderNumber,
-            orderDate: order.orderDate,
-            orderStatus: order.orderStatus,
-            paymentStatus: order.paymentStatus,
-            paymentMethod: order.paymentMethod,
-            shippingAddress: order.shippingAddress,
-            totalAmount: order.totalAmount,
-            user: order.user ? {
-                _id: order.user._id?.toString(),
-                name: order.user.name,
-                email: order.user.email,
-                phone: order.user.phone
-            } : null,
-            productDetails: {
-                name: product.name || 'Product not found',
-                price: product.price || 0,
-                productImage: Array.isArray(product.productImage) && product.productImage.length > 0 
-                    ? product.productImage
-                    : ['/images/default-product.png'],
-                description: product.description || '',
-                category: product.category || 'Uncategorized'
-            },
-            totalPrice: (item.price || 0) * (item.quantity || 1),
-            status: item.status || 'Pending',
-            statusBadgeClass: this.getStatusBadgeClass(item.status || 'Pending'),
-            nextStatuses: this.getNextStatuses(item.status || 'Pending'),
-            couponDiscount: order.couponDiscount || 0,
-            deliveryCharge: order.deliveryCharge || 0,
-            totalSavings: order.totalSavings || 0,
-            appliedCoupon: order.appliedCoupon || null
-        };
-
-        // Format payment method with icon and text
-        const formattedPaymentMethod = this.formatPaymentMethod(order.paymentMethod);
-        
-        // Add payment ID if available
-        if (order.paymentId) {
-            formattedItem.paymentId = order.paymentId;
-        }
-
-        // Get the status and calculate badge class
-        const itemStatus = item.status || order.orderStatus || 'Pending';
-        const statusBadgeClass = this.getStatusBadgeClass(itemStatus);
-        
-        // Get next available statuses
-        const nextStatuses = this.getNextStatuses(itemStatus);
-
-        // Render the view with the data
-        res.render('admin/order-item-details', {
-            item: {
-                ...formattedItem,
-                status: itemStatus,
-                statusBadgeClass: statusBadgeClass,
-                nextStatuses: nextStatuses
-            },
-            paymentStatusColor: this.getPaymentStatusColor(order.paymentStatus || 'pending'),
-            formattedPaymentMethod: formattedPaymentMethod,
-            getStatusBadgeClass: this.getStatusBadgeClass.bind(this),
-            getNextStatuses: this.getNextStatuses.bind(this),
-            layout: false  // We're using a complete HTML template with header/footer included
-        });
-
-    } catch (error) {
-        console.error('Error fetching order item details:', error);
-        res.status(500).render('admin/error', {
-            message: 'Failed to fetch order item details',
-            error: { message: error.message },
-            layout: 'admin/layout'
-        });
+        console.error('Error in refundToWallet:', error);
+        throw error; // Re-throw to be caught by the caller
     }
 };
+
+exports.getOrderItemDetails = async (req, res) => {
+  try {
+    const { orderId, itemId } = req.params;
+
+    // Fetch full order
+    const order = await Order.findOne(
+      { _id: orderId },
+      { 
+        items: 1,
+        orderNumber: 1,
+        orderDate: 1,
+        orderStatus: 1,
+        paymentStatus: 1,
+        paymentMethod: 1,
+        user: 1,
+        shippingAddress: 1,
+        totalAmount: 1,
+        deliveryCharge: 1,
+        appliedCoupon: 1,
+        couponDiscount: 1
+      }
+    )
+    .populate('user', 'name email phone')
+    .populate('items.product', 'name price regularPrice productImage description category')
+    .lean();
+
+    if (!order) {
+      return res.status(404).render('admin/error', {
+        message: 'Order not found',
+        layout: 'admin/layout'
+      });
+    }
+
+    // Find the specific item
+    const item = order.items.find(i => i._id.toString() === itemId);
+    if (!item) {
+      return res.status(404).render('admin/error', {
+        message: 'Order item not found',
+        layout: 'admin/layout'
+      });
+    }
+
+    const product = item.product || {};
+    const itemSubtotal = (item.price || 0) * (item.quantity || 1);
+
+    // ====== Coupon Handling (Proportional Allocation) ======
+    let itemCouponDiscount = 0;
+    let couponRatio = 0;
+
+    if (order.couponDiscount && order.couponDiscount > 0) {
+      // Compute subtotal of ALL items in order (not just the selected one)
+      const orderSubtotal = order.items.reduce((sum, i) => {
+        return sum + ((i.price || 0) * (i.quantity || 1));
+      }, 0);
+
+      if (orderSubtotal > 0) {
+        couponRatio = itemSubtotal / orderSubtotal;
+        itemCouponDiscount = Math.round(order.couponDiscount * couponRatio * 100) / 100;
+        itemCouponDiscount = Math.min(itemCouponDiscount, itemSubtotal);
+      }
+    }
+
+    // Format item for rendering
+    const formattedItem = {
+      _id: item._id,
+      product: {
+        _id: product._id,
+        name: product.name || 'Product not found',
+        price: item.price || product.price || 0,
+        regularPrice: product.regularPrice || (item.price || 0),
+        image: product.productImage || '/images/default-product.png',
+        description: product.description || '',
+        category: product.category || 'Uncategorized'
+      },
+      quantity: item.quantity || 1,
+      regularPrice: product.regularPrice || (item.price || 0),
+      price: item.price || 0,
+      status: item.status || 'Pending',
+      createdAt: item.createdAt || order.orderDate,
+      updatedAt: item.updatedAt || new Date()
+    };
+
+    const itemStatus = item.status || 'Pending';
+    const statusBadgeClass = this.getStatusBadgeClass(itemStatus);
+    const nextStatuses = this.getNextStatuses(itemStatus);
+
+    // Payment method formatting
+    let formattedPaymentMethod = 'Unknown';
+    if (order.paymentMethod === 'cod') formattedPaymentMethod = 'Cash on Delivery';
+    else if (order.paymentMethod === 'online') formattedPaymentMethod = 'Online Payment';
+    else if (order.paymentMethod === 'wallet') formattedPaymentMethod = 'Wallet';
+
+    res.render('admin/order-item-details', {
+      item: {
+        ...formattedItem,
+        orderId: order._id,
+        status: itemStatus,
+        statusBadgeClass,
+        nextStatuses,
+        couponDiscount: itemCouponDiscount,
+        couponRatio: (couponRatio * 100).toFixed(2),
+        user: order.user,
+        shippingAddress: order.shippingAddress,
+        orderDate: order.orderDate,
+        paymentStatus: order.paymentStatus,
+        paymentMethod: order.paymentMethod,
+        appliedCoupon: order.appliedCoupon
+      },
+      itemSubtotal,
+      deliveryCharge: order.deliveryCharge || 0,
+      finalTotal: itemSubtotal - itemCouponDiscount + (order.deliveryCharge || 0),
+      paymentStatusColor: this.getPaymentStatusColor(order.paymentStatus || 'pending'),
+      formattedPaymentMethod,
+      getStatusBadgeClass: this.getStatusBadgeClass.bind(this),
+      getNextStatuses: this.getNextStatuses.bind(this),
+      layout: false,
+      user: order.user,
+      shippingAddress: order.shippingAddress
+    });
+
+  } catch (error) {
+    console.error('Error fetching order item details:', error);
+    res.status(500).render('admin/error', {
+      message: 'Failed to fetch order item details',
+      error: { message: error.message },
+      layout: 'admin/layout'
+    });
+  }
+};
+
 
 exports.getOrderDetails = async (req, res) => {
     try {
         const order = await Order.findById(req.params.id)
             .populate('user', 'name email phone')
             .populate('items.product', 'name price images description category')
+            .populate({
+                path: 'appliedCoupon.couponId',
+                select: 'code discountType discountValue minPurchase maxDiscount',
+                model: 'Coupon'
+            })
             .lean();
 
         if (!order) {
@@ -1202,10 +1142,55 @@ exports.getOrderDetails = async (req, res) => {
                 message: 'Order not found'
             });
         }
+        
+        // Process applied coupon data and calculate discount ratio
+        if (order.appliedCoupon?.couponId) {
+            const coupon = order.appliedCoupon.couponId;
+            order.appliedCoupon = {
+                ...order.appliedCoupon,
+                code: coupon.code,
+                discountType: coupon.discountType,
+                discountValue: coupon.discountValue,
+                minPurchase: coupon.minPurchase,
+                maxDiscount: coupon.maxDiscount,
+                actualDiscount: order.couponDiscount || 0
+            };
+            
+            // Calculate the ratio of discount to order subtotal (before discount)
+            const subtotalBeforeDiscount = (order.totalAmount || 0) + (order.couponDiscount || 0);
+            if (subtotalBeforeDiscount > 0) {
+                order.appliedCoupon.discountRatio = (order.appliedCoupon.actualDiscount / subtotalBeforeDiscount) * 100;
+            } else {
+                order.appliedCoupon.discountRatio = 0;
+            }
+        }
 
-        // Format items with product details
+        // Format items with product details and calculate item-level coupon discount
         if (order.items && order.items.length > 0) {
+            // Calculate total subtotal for proportional distribution
+            const orderSubtotal = order.items.reduce((sum, item) => {
+                const itemPrice = item.price || (item.product?.price || 0);
+                return sum + (itemPrice * (item.quantity || 1));
+            }, 0);
+            
             order.items = order.items.map(item => {
+                const itemPrice = item.price || (item.product?.price || 0);
+                const itemSubtotal = itemPrice * (item.quantity || 1);
+                
+                // Calculate item's share of coupon discount
+                let itemCouponDiscount = 0;
+                if (order.couponDiscount && orderSubtotal > 0) {
+                    itemCouponDiscount = parseFloat(((itemSubtotal / orderSubtotal) * order.couponDiscount).toFixed(2));
+                }
+                
+                // Add coupon information to item
+                if (order.appliedCoupon?.code) {
+                    item.couponCode = order.appliedCoupon.code;
+                    item.couponDiscount = itemCouponDiscount;
+                    item.finalPrice = Math.max(0, itemSubtotal - itemCouponDiscount);
+                }
+                
+                // Format other item details
                 const product = item.product || {};
                 return {
                     ...item,
@@ -1217,6 +1202,7 @@ exports.getOrderDetails = async (req, res) => {
                         category: product.category || 'Uncategorized'
                     },
                     totalPrice: (item.price || 0) * (item.quantity || 1),
+                    couponDiscount: 0,
                     status: item.status || 'Pending',
                     statusBadgeClass: this.getStatusBadgeClass(item.status || 'Pending')
                 };
@@ -1261,177 +1247,4 @@ exports.getOrderDetails = async (req, res) => {
         });
     }
 }; 
-
-exports.handleRefund = async (order, item) => {
-    try {
-        console.log('[REFUND][DEBUG] Attempting refund for order:', order._id, 'item:', item._id);
-        let wallet = await Wallet.findOne({ user: order.user });
-        if (!wallet) {
-            console.log('[REFUND][DEBUG] No wallet found, creating new wallet for user:', order.user);
-            wallet = new Wallet({ user: order.user, balance: 0, transactions: [] });
-        }
-
-        const unitPrice = item.offerPrice != null ? item.offerPrice : item.price;
-        const refundAmount = unitPrice * (item.quantity || 1);
-
-        if (refundAmount > 0) {
-            console.log('[REFUND][DEBUG] Wallet before save:', JSON.stringify(wallet));
-            wallet.balance -= refundAmount;
-            wallet.transactions.push({
-                type: 'debit',
-                amount: refundAmount,
-                description: `Debit for returned item (${item.product ? item.product.toString() : ''})`,
-                date: new Date(),
-                orderId: order._id.toString(),
-                status: 'completed'
-            });
-            await wallet.save();
-            console.log('[REFUND][DEBUG] Wallet after save:', JSON.stringify(wallet));
-            await User.findByIdAndUpdate(order.user, { wallet: wallet._id });
-
-            item.refundAmount = refundAmount;
-            item.refundStatus = 'Completed';
-            item.refundDate = new Date();
-            await order.save();
-            console.log('[REFUND][DEBUG] Refund processed and wallet/order saved:', {
-                user: order.user,
-                refundAmount,
-                walletBalance: wallet.balance,
-                walletId: wallet._id
-            });
-        } else {
-            console.log('[REFUND][DEBUG] Refund amount is 0, skipping wallet update.');
-        }
-    } catch (err) {
-        console.error('[REFUND][DEBUG] Error processing refund:', err);
-        throw err;
-    }
-};
-
-exports.handleReturnAction = async (req, res) => {
-    try {
-        const { orderId, itemId } = req.params;
-        const { action } = req.body;
-
-        const order = await Order.findById(orderId);
-        if (!order) {
-            return res.status(404).json({
-                success: false,
-                message: 'Order not found'
-            });
-        }
-
-        const item = order.items.id(itemId);
-        if (!item) {
-            return res.status(404).json({
-                success: false,
-                message: 'Order item not found'
-            });
-        }
-
-        if (action === 'approve') {
-            item.returnStatus = 'Approved';
-            await handleRefund(order, item);
-            try {
-                const prodId = item.product._id ? item.product._id : item.product;
-                await Product.findByIdAndUpdate(prodId, { $inc: { quantity: item.quantity } });
-                console.log('[ADMIN RETURN] Inventory restored for product', prodId, 'quantity', item.quantity);
-            } catch (err) {
-                console.error('[ADMIN RETURN] Error restoring inventory:', err);
-            }
-        } else if (action === 'reject') {
-            item.returnStatus = 'Rejected';
-        } else {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid action'
-            });
-        }
-
-        await order.save();
-        if (action === 'approve') {
-            const wallet = await Wallet.findOne({ user: order.user });
-            const io = req.app.get('io');
-            const activeUsers = req.app.get('activeUsers');
-            const socketId = activeUsers.get(order.user.toString());
-            if (socketId) {
-                io.to(socketId).emit('walletUpdated', { userId: order.user.toString(), balance: wallet.balance });
-            }
-        }
-
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.json({
-                success: true,
-                message: `Return request ${action}ed successfully`,
-                item
-            });
-        }
-
-        res.redirect('/admin/orders/' + orderId);
-    } catch (error) {
-        console.error('Error in handleReturnAction:', error);
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to process return request'
-            });
-        }
-        res.status(500).render('error', {
-            message: 'Failed to process return request',
-            error
-        });
-    }
-};
-
-exports.handleOrderCancellation = async (order, reason = 'Cancelled by admin') => {
-    try {
-        order.orderStatus = ORDER_STATUS.CANCELLED;
-        order.cancelReason = reason;
-        order.cancelledAt = new Date();
-
-        for (const item of order.items) {
-            if (item.product) {
-                await Product.findByIdAndUpdate(item.product, { $inc: { quantity: item.quantity } });
-            }
-        }
-
-        if (order.paymentStatus === PAYMENT_STATUS.COMPLETED && order.paymentMethod !== 'COD') {
-            let wallet = await Wallet.findOne({ user: order.user });
-            if (!wallet) {
-                wallet = new Wallet({ user: order.user, balance: 0, transactions: [] });
-            }
-
-            const refundAmount = order.totalAmount || order.total;
-            wallet.balance += refundAmount;
-            wallet.transactions.push({
-                type: 'credit',
-                amount: refundAmount,
-                description: `Refund for cancelled order ${order._id}`,
-                date: new Date(),
-                orderId: order._id.toString(),
-                status: 'completed'
-            });
-
-            await wallet.save();
-            await User.findByIdAndUpdate(order.user, { wallet: wallet._id });
-
-            // Emit real-time wallet update
-            const io = req.app.get('io');
-            const activeUsers = req.app.get('activeUsers');
-            const socketId = activeUsers.get(order.user.toString());
-            if (socketId) {
-                io.to(socketId).emit('walletUpdated', {
-                    userId: order.user.toString(),
-                    balance: wallet.balance
-                });
-            }
-        }
-
-        await order.save();
-    } catch (error) {
-        console.error('[ADMIN][CANCEL_ORDER] Error cancelling order:', error);
-        throw error;
-    }
-};
-
 

@@ -441,7 +441,7 @@
                                 // Process all items in the order for consistent calculations
                                 const itemsWithDiscounts = order.items.map(item => {
                                     const regularPrice = item.regularPrice || item.price || 0;
-                                    const salePrice = item.price; // Use the actual price as sale price
+                                    const salePrice = item.price;
                                     const itemPrice = (item.offerDetails?.finalPrice) || salePrice;
                                     const itemSubtotal = itemPrice * (item.quantity || 1);
                                     
@@ -449,11 +449,7 @@
                                     const productDiscount = regularPrice > itemPrice ? 
                                         (regularPrice - itemPrice) * (item.quantity || 1) : 0;
                                     
-                                    // Use the itemCouponDiscount from the item data (already calculated on the server)
-                                    const itemCouponDiscount = item.itemCouponDiscount || 0;
-                                    const finalPrice = Math.max(0, itemSubtotal - itemCouponDiscount);
-                                    
-                                    // Calculate display properties for each item
+                                    // Calculate display properties
                                     const showOriginalPrice = (item.offerDetails?.finalPrice && 
                                                              item.offerDetails.finalPrice < salePrice) || 
                                                              (salePrice < regularPrice);
@@ -465,43 +461,84 @@
                                         itemPrice,
                                         itemSubtotal,
                                         productDiscount,
-                                        itemCouponDiscount,
-                                        finalPrice,
-                                        showOriginalPrice,
-                                        originalPrice: regularPrice // Always use regular price as original price
+                                        showOriginalPrice
                                     };
                                 });
                                 
-                                // Calculate order-level totals
-                                const subtotal = itemsWithDiscounts.reduce((sum, item) => sum + (item.itemPrice * (item.quantity || 1)), 0);
-                                const totalProductDiscount = itemsWithDiscounts.reduce((sum, item) => sum + (item.productDiscount || 0), 0);
-                                const couponDiscount = itemsWithDiscounts.reduce((sum, item) => sum + (item.itemCouponDiscount || 0), 0);
-                                const totalAfterDiscounts = itemsWithDiscounts.reduce((sum, item) => sum + item.finalPrice, 0);
-                                const finalTotal = totalAfterDiscounts + (order.deliveryCharge || 0);
-                                const totalSavings = totalProductDiscount + couponDiscount;
+                                // Calculate subtotal after product discounts
+                                const subtotalAfterProductDiscount = itemsWithDiscounts.reduce(
+                                    (sum, item) => sum + (item.itemPrice || 0) * (item.quantity || 1),
+                                    0
+                                );
+                                
+                                // Calculate coupon discount for each item proportionally
+                                const couponDiscount = order.couponDiscount || 0;
+                                
+                                // Apply coupon discount to each item
+                                itemsWithDiscounts.forEach(item => {
+                                    const itemSubtotal = (item.itemPrice || 0) * (item.quantity || 1);
+                                    const discountRatio = subtotalAfterProductDiscount > 0 
+                                        ? itemSubtotal / subtotalAfterProductDiscount 
+                                        : 0;
+                                    
+                                    let itemCouponDiscount = parseFloat((couponDiscount * discountRatio).toFixed(2));
+                                    item.itemCouponDiscount = Math.min(itemCouponDiscount, itemSubtotal);
+                                    item.finalPrice = Math.max(0, itemSubtotal - item.itemCouponDiscount);
+                                });
                                 
                                 // Get current item details for display
-                                const currentItem = itemsWithDiscounts.find(i => i._id.toString() === item._id.toString());
-                                const currentItemDetails = currentItem;
+                                const currentItem = itemsWithDiscounts.find(i => i._id.toString() === item._id.toString()) || {};
+                                const currentItemCouponDiscount = currentItem.itemCouponDiscount || 0;
+                                
+                                // Calculate order-level totals
+                                const subtotal = itemsWithDiscounts.reduce((sum, item) => {
+                                    return sum + (item.regularPrice || 0) * (item.quantity || 1);
+                                }, 0);
+                                
+                                const totalProductDiscount = itemsWithDiscounts.reduce((sum, item) => {
+                                    return sum + (item.productDiscount || 0);
+                                }, 0);
+                                
+                                const totalAfterProductDiscounts = subtotal - totalProductDiscount;
+                                const finalTotal = (currentItem.finalPrice || 0) + (order.deliveryCharge || 0);
+                                const totalSavings = totalProductDiscount + currentItemCouponDiscount;
+                                const hasCoupon = couponDiscount > 0;
                                 %>
                                 
                                 <div class="d-flex justify-content-between align-items-center mt-2">
-                                    <% // Use the pre-calculated values from itemsWithDiscounts %>
-                                    
                                     <div class="fw-bold text-primary">
-                                        <div class="d-flex flex-column">
-                                            <div class="d-flex align-items-center gap-2">
-                                                <% if (currentItemDetails.showOriginalPrice) { %>
-                                                    <span class="text-decoration-line-through text-muted small me-1">₹<%= (currentItemDetails.regularPrice * (currentItem.quantity || 1)).toFixed(2) %></span>
-                                                <% } %>
-                                                <div class="d-flex align-items-center">
-                                                    <span>₹</span>
-                                                    <span class="h5 mb-0"><%= (currentItemDetails.finalPrice || 0).toFixed(2) %></span>
-                                                </div>
-                                            </div>
-                                            <% if (currentItemDetails.itemCouponDiscount > 0) { %>
-                                                <div class="text-success small mt-1">
-                                                    <i class="fas fa-tag me-1"></i> Coupon: -₹<%= currentItemDetails.itemCouponDiscount.toFixed(2) %>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <% if (currentItem.showOriginalPrice) { %>
+                                                <span class="text-decoration-line-through text-muted small me-1">
+                                                    ₹<%= (currentItem.regularPrice * currentItem.quantity).toFixed(2) %>
+                                                </span>
+                                            <% } %>
+                                            ₹<%= (currentItem.finalPrice || currentItem.price * currentItem.quantity).toFixed(2) %>
+                                            <% if (currentItem.discount > 0) { %>
+                                                <span class="badge bg-success bg-opacity-10 text-success ms-2">
+                                                    -<%= currentItem.discount.toFixed(2) %>%
+                                                </span>
+                                            <% } %>
+                                            <% if (order.appliedCoupon && order.appliedCoupon.code) { %>
+                                                <div class="text-muted small mt-1">
+                                                    <i class="fas fa-ticket-alt text-success me-1"></i>
+                                                    Coupon <span class="text-dark fw-medium"><%= order.appliedCoupon.code %></span> applied: 
+                                                    <span class="text-success">
+                                                        <% if (order.appliedCoupon.discountType === 'percentage') { %>
+                                                        <%= order.appliedCoupon.discountValue %>% off
+                                                        <% if (order.appliedCoupon.actualDiscount > 0) { %>
+                                                            (₹<%= order.appliedCoupon.actualDiscount.toFixed(2) %> saved)
+                                                        <% } %>
+                                                    <% } else { %>
+                                                        ₹<%= order.appliedCoupon.discountValue %> off
+                                                        <% if (order.appliedCoupon.actualDiscount > 0) { %>
+                                                            (₹<%= order.appliedCoupon.actualDiscount.toFixed(2) %> saved)
+                                                        <% } %>
+                                                    <% } %>
+                                                    <% if (order.appliedCoupon.maxDiscount) { %>
+                                                        <br><small class="text-muted">Max discount: ₹<%= order.appliedCoupon.maxDiscount.toFixed(2) %></small>
+                                                    <% } %>
+                                                    </span>
                                                 </div>
                                             <% } %>
                                         </div>
@@ -533,23 +570,111 @@
                 <% }); %>
             <% }); %>
 
-            <!-- Pagination Controls -->
+            <!-- Enhanced Pagination Controls -->
             <% if (pagination && pagination.totalPages > 1) { %>
                 <nav aria-label="Orders pagination" class="mt-4">
-                    <ul class="pagination justify-content-center">
-                        <li class="page-item <%= pagination.page === 1 ? 'disabled' : '' %>">
-                            <a class="page-link" href="?page=<%= pagination.page - 1 %>&limit=<%= pagination.limit %>" tabindex="-1">Previous</a>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted small">
+                            Showing page <%= pagination.page %> of <%= pagination.totalPages %>
+                            <span class="mx-2">•</span>
+                            <%= pagination.totalItems %> total orders
+                        </div>
+                        <ul class="pagination justify-content-center flex-wrap mb-0">
+                            <!-- First Page -->
+                            <li class="page-item <%= pagination.page === 1 ? 'disabled' : '' %>">
+                                <a class="page-link" href="?page=1&limit=<%= pagination.limit %>" aria-label="First">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
                         </li>
-                        <% for (let i = 1; i <= pagination.totalPages; i++) { %>
+                        
+                        <!-- Previous Page -->
+                        <li class="page-item <%= pagination.page === 1 ? 'disabled' : '' %>">
+                            <a class="page-link" href="?page=<%= pagination.page - 1 %>&limit=<%= pagination.limit %>" aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- Page Numbers -->
+                        <% 
+                        const maxVisiblePages = 5; // Maximum number of page links to show
+                        let startPage = Math.max(1, pagination.page - Math.floor(maxVisiblePages / 2));
+                        let endPage = Math.min(pagination.totalPages, startPage + maxVisiblePages - 1);
+                        
+                        // Adjust if we're at the end
+                        if (endPage - startPage + 1 < maxVisiblePages) {
+                            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                        }
+                        
+                        // Show first page and ellipsis if needed
+                        if (startPage > 1) { %>
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1&limit=<%= pagination.limit %>">1</a>
+                            </li>
+                            <% if (startPage > 2) { %>
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            <% } %>
+                        <% } %>
+                        
+                        <!-- Page Numbers -->
+                        <% for (let i = startPage; i <= endPage; i++) { %>
                             <li class="page-item <%= pagination.page === i ? 'active' : '' %>">
                                 <a class="page-link" href="?page=<%= i %>&limit=<%= pagination.limit %>"><%= i %></a>
                             </li>
                         <% } %>
+                        
+                        <!-- Show last page and ellipsis if needed -->
+                        <% if (endPage < pagination.totalPages) { %>
+                            <% if (endPage < pagination.totalPages - 1) { %>
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            <% } %>
+                            <li class="page-item">
+                                <a class="page-link" href="?page=<%= pagination.totalPages %>&limit=<%= pagination.limit %>"><%= pagination.totalPages %></a>
+                            </li>
+                        <% } %>
+                        
+                        <!-- Next Page -->
                         <li class="page-item <%= pagination.page === pagination.totalPages ? 'disabled' : '' %>">
-                            <a class="page-link" href="?page=<%= pagination.page + 1 %>&limit=<%= pagination.limit %>">Next</a>
+                            <a class="page-link" href="?page=<%= pagination.page + 1 %>&limit=<%= pagination.limit %>" aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- Last Page -->
+                        <li class="page-item <%= pagination.page === pagination.totalPages ? 'disabled' : '' %>">
+                            <a class="page-link" href="?page=<%= pagination.totalPages %>&limit=<%= pagination.limit %>" aria-label="Last">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
                         </li>
                     </ul>
+                    
+                    <!-- Page Size Selector -->
+                    <div class="d-flex justify-content-center mt-2">
+                        <div class="input-group" style="width: auto;">
+                            <label class="input-group-text" for="pageSizeSelect">Items per page:</label>
+                            <select class="form-select form-select-sm" id="pageSizeSelect" style="width: 80px;">
+                                <option value="5" <%= pagination.limit === 5 ? 'selected' : '' %>>5</option>
+                                <option value="10" <%= pagination.limit === 10 ? 'selected' : '' %>>10</option>
+                                <option value="25" <%= pagination.limit === 25 ? 'selected' : '' %>>25</option>
+                                <option value="50" <%= pagination.limit === 50 ? 'selected' : '' %>>50</option>
+                            </select>
+                        </div>
+                    </div>
                 </nav>
+                
+                <script>
+                    // Handle page size change
+                    document.getElementById('pageSizeSelect').addEventListener('change', function() {
+                        const newLimit = this.value;
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('limit', newLimit);
+                        url.searchParams.set('page', 1); // Reset to first page when changing page size
+                        window.location.href = url.toString();
+                    });
+                </script>
             <% } %>
         <% } else { %>
             <div class="text-center py-5">

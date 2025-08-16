@@ -163,6 +163,8 @@ exports.createOrder = async (user, cart, address, paymentMethod, total) => {
         minPurchase: cart.appliedCoupon.minPurchase,
         maxDiscount: cart.appliedCoupon.maxDiscount,
         couponId: cart.appliedCoupon.couponId,
+        // Save the ratio amount for percentage-based coupons
+        ratioAmount: cart.appliedCoupon.ratioAmount || 0
       };
     }
     // Always save couponDiscount, even if 0
@@ -748,12 +750,17 @@ exports.applyCoupon = async (req, res) => {
 
     // Calculate discount amount
     let discount = 0;
+    
     if (coupon.discountType === 'percentage') {
-      discount = (subtotal * coupon.discountValue) / 100;
-      if (coupon.maxDiscount && discount > coupon.maxDiscount) {
-        discount = coupon.maxDiscount;
-      }
+      // Calculate the full discount amount before applying max discount
+      const fullDiscount = (subtotal * coupon.discountValue) / 100;
+      
+      // Apply max discount if applicable
+      discount = (coupon.maxDiscount && fullDiscount > coupon.maxDiscount) 
+        ? coupon.maxDiscount 
+        : fullDiscount;
     } else {
+      // For fixed amount coupons
       discount = coupon.discountValue;
     }
 
@@ -765,8 +772,10 @@ exports.applyCoupon = async (req, res) => {
       minPurchase: coupon.minPurchase,
       maxDiscount: coupon.maxDiscount,
       couponId: coupon._id,
+
     };
     cart.couponDiscount = discount;
+    console.log(couponDiscount,"hi this is coupen")
     await cart.save();
 
     // Return updated cart totals

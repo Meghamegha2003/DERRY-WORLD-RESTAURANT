@@ -8,15 +8,8 @@ router.use(auth);
 router.get('/', orderController.getUserOrders);
 router.get('/:orderId/view', orderController.viewOrder);
 router.get('/:orderId/items/:itemId?', orderController.getOrderDetails);
-router.post('/:orderId/cancel', orderController.cancelOrder);
-router.post('/:orderId/items/:itemId/cancel', orderController.cancelOrderItem);
-router.post('/:orderId/items/:itemId/return', orderController.requestItemReturn);
-router.post('/:orderId/return', orderController.requestReturn);
 router.post('/submit-rating', orderController.submitRating);
 
-router.get('/retry-payment/:orderId', auth , orderController.showRetryPaymentPage);
-router.post('/retry-payment-initiate/:orderId', auth , orderController.initiateRetryPayment);
-router.get('/:orderId/invoice', auth, orderController.downloadInvoice);
 
 
 

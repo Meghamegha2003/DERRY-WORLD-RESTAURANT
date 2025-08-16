@@ -73,6 +73,43 @@ const getStatusIcon = (status) => {
 };
 
 const { getBestOffer } = require("../../helpers/offerHelper");
+
+// Show retry payment page for a failed order
+exports.showRetryPaymentPage = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        
+        // Find the order
+        const order = await Order.findOne({ 
+            _id: orderId,
+            user: req.user._id,
+            paymentStatus: PAYMENT_STATUS.FAILED
+        });
+
+        if (!order) {
+            req.flash('error', 'Order not found or payment cannot be retried');
+            return res.redirect('/orders');
+        }
+
+        // Get user's wallet balance if needed
+        const user = await User.findById(req.user._id).populate('wallet');
+        const walletBalance = user.wallet?.balance || 0;
+
+        res.render('user/retry-payment', {
+            order,
+            walletBalance,
+            razorpayKey: process.env.RAZORPAY_KEY_ID,
+            user: req.user
+        });
+
+    } catch (error) {
+        console.error('Error showing retry payment page:', error);
+        req.flash('error', 'An error occurred while loading the payment page');
+        res.redirect('/orders');
+    }
+};
+
+
 const PDFDocument = require("pdfkit");
 const Razorpay = require("razorpay");
 const errorHandler = require("../../utils/errorHandler");
@@ -82,7 +119,6 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// View a single order with the new template
 exports.viewOrder = async (req, res) => {
   try {
     if (!req.user) {
@@ -220,10 +256,41 @@ exports.getUserOrders = async (req, res) => {
           select: 'name offer',
         },
       })
+      .populate({
+        path: 'appliedCoupon.couponId',
+        select: 'code discountType discountValue minPurchase maxDiscount',
+        model: 'Coupon'
+      })
       .sort({ orderDate: -1 })
       .skip(skip)
       .limit(limit)
       .lean(); // Convert to plain JavaScript objects
+
+    // Process orders to include coupon information and calculate ratio
+    orders = orders.map(order => {
+      if (order.appliedCoupon?.couponId) {
+        const coupon = order.appliedCoupon.couponId;
+        order.appliedCoupon = {
+          ...order.appliedCoupon,
+          code: coupon.code,
+          discountType: coupon.discountType,
+          discountValue: coupon.discountValue,
+          minPurchase: coupon.minPurchase,
+          maxDiscount: coupon.maxDiscount,
+          // Calculate the actual discount amount for this order
+          actualDiscount: order.discountAmount || 0
+        };
+        
+        // Calculate the ratio of discount to order subtotal (before discount)
+        const subtotalBeforeDiscount = (order.totalAmount || 0) + (order.discountAmount || 0);
+        if (subtotalBeforeDiscount > 0) {
+          order.appliedCoupon.discountRatio = (order.appliedCoupon.actualDiscount / subtotalBeforeDiscount) * 100;
+        } else {
+          order.appliedCoupon.discountRatio = 0;
+        }
+      }
+      return order;
+    });
 
     // Process orders to ensure images are properly formatted
     orders = orders.map(order => {
@@ -449,9 +516,7 @@ exports.getUserOrders = async (req, res) => {
   }
 };
 
-// Get order details
 exports.getOrderDetails = async (req, res) => {
-  // Initialize response data with defaults
   const responseData = {
     user: req.user || null,
     order: null,
@@ -465,23 +530,20 @@ exports.getOrderDetails = async (req, res) => {
     console.log('Order ID:', req.params.orderId);
     console.log('User ID:', req.user?._id || 'Not authenticated');
     
-    // Check authentication
     if (!req.user) {
       console.log('User not authenticated, redirecting to login');
       return res.redirect(`/login?returnTo=${encodeURIComponent(req.originalUrl)}`);
     }
 
     const orderId = req.params.orderId;
-    const itemId = req.params.itemId; // Get the optional itemId parameter
+    const itemId = req.params.itemId; 
     
-    // Validate order ID format
     if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) {
       console.log('Invalid order ID format:', orderId);
       responseData.error = 'Invalid order ID format';
       return res.status(404).render('user/orderDetails', responseData);
     }
 
-    // Fetch order with detailed population
     console.log('Fetching order from database...');
     let order;
     try {
@@ -497,7 +559,25 @@ exports.getOrderDetails = async (req, res) => {
           select: 'name'
         }
       })
-      .lean(); // Convert to plain object
+      .populate({
+        path: 'appliedCoupon.couponId',
+        select: 'code discountType discountValue minPurchase maxDiscount',
+        model: 'Coupon'
+      })
+      .lean();
+      
+      // Map the populated coupon data to the appliedCoupon field
+      if (order.appliedCoupon?.couponId) {
+        const coupon = order.appliedCoupon.couponId;
+        order.appliedCoupon = {
+          ...order.appliedCoupon,
+          code: coupon.code,
+          discountType: coupon.discountType,
+          discountValue: coupon.discountValue,
+          minPurchase: coupon.minPurchase,
+          maxDiscount: coupon.maxDiscount
+        };
+      } 
       
       if (!order) {
         console.log('Order not found or access denied');
@@ -517,23 +597,18 @@ exports.getOrderDetails = async (req, res) => {
       return res.status(500).render('user/orderDetails', responseData);
     }
     
-    // Get user's cart count
     try {
       const user = await User.findById(req.user._id).select('cart').lean();
       responseData.cartCount = user?.cart?.length || 0;
     } catch (error) {
       console.error('Error fetching user cart:', error);
-      // Continue with default cart count of 0
     }
 
-    // Process order items to ensure consistent data structure
     if (!order.items || !Array.isArray(order.items)) {
       order.items = [];
     }
     
-    // Process each item to ensure all required fields exist
     order.items = order.items.map(item => {
-      // Ensure product exists
       if (!item.product) {
         item.product = {
           name: 'Product not available',
@@ -544,20 +619,21 @@ exports.getOrderDetails = async (req, res) => {
         };
       }
       
-      // Ensure price fields exist
+      // Add coupon code to item if available
+      if (order.appliedCoupon?.code) {
+        item.couponCode = order.appliedCoupon.code;
+      }
+      
       item.price = item.price || 0;
       item.quantity = item.quantity || 0;
       
-      // Helper function to process image paths
       const processImagePath = (img) => {
         if (!img) return null;
         
-        // If it's already a full URL or data URL, use as is
         if (typeof img === 'string' && (img.startsWith('http') || img.startsWith('data:image') || img.startsWith('blob:'))) {
           return img;
         }
         
-        // Handle object with path/url property
         if (typeof img === 'object' && img !== null) {
           const imgSrc = img.path || img.url || img.src || '';
           if (imgSrc) {
@@ -568,11 +644,8 @@ exports.getOrderDetails = async (req, res) => {
           return null;
         }
         
-        // Handle string paths
         if (typeof img === 'string') {
-          // Remove any leading slashes or backslashes to prevent double slashes
           let path = img.replace(/^[\/\\]+/, '');
-          // If it's not a full URL, ensure it has a leading slash
           if (!path.match(/^(https?:\/\/|data:image|blob:)/)) {
             path = '/' + path;
           }
@@ -582,49 +655,44 @@ exports.getOrderDetails = async (req, res) => {
         return null;
       };
       
-      // Ensure product.images exists and is an array
       if (!item.product.images || !Array.isArray(item.product.images)) {
         item.product.images = [];
       }
       
-      // Process productImage array (primary source of images)
       if (Array.isArray(item.product.productImage) && item.product.productImage.length > 0) {
-        // Process all images in productImage array
         const processedImages = item.product.productImage
           .map(processImagePath)
           .filter(img => img !== null);
         
-        // Add to images array if not already present
         processedImages.forEach(img => {
           if (!item.product.images.includes(img)) {
-            item.product.images.unshift(img); // Add to beginning to prioritize productImage
+            item.product.images.unshift(img); 
           }
         });
       }
       
-      // Process any existing images array
       item.product.images = item.product.images
         .map(processImagePath)
         .filter(img => img !== null);
       
-      // Remove duplicates
       item.product.images = [...new Set(item.product.images)];
       
-      // Ensure at least one image exists (use placeholder if none found)
       if (item.product.images.length === 0) {
         item.product.images.push('/images/placeholder.svg');
       }
       
-      // Set a default image for easy access in templates
       item.product.mainImage = item.product.images[0];
       
       return item;
     });
     
-    // Add order to response data
-    responseData.order = order;
+    // Get user information
+    const user = await User.findById(req.user._id).select('name email phone').lean();
+    responseData.order = {
+      ...order,
+      customer: user
+    };
     
-    // Process all items to calculate prices and offers
     let allItems = await Promise.all(
       order.items.map(async (item) => {
         if (!item.product) {
@@ -656,17 +724,14 @@ exports.getOrderDetails = async (req, res) => {
       })
     );
 
-    // First, process all items with coupon distribution
     order.items = allItems;
     order.isSingleItemView = false;
     
-    // Calculate coupon discount (if any) and distribute proportionally
     const couponDiscount = order.couponDiscount || 0;
     
     console.log('=== COUPON DEBUG ===');
     console.log('Total coupon discount:', couponDiscount);
     
-    // Calculate subtotal for coupon distribution (after product discounts)
     const subtotalAfterProductDiscount = order.items.reduce(
       (sum, item) => sum + (item.price || 0) * (item.quantity || 0),
       0
@@ -674,40 +739,82 @@ exports.getOrderDetails = async (req, res) => {
     
     console.log('Subtotal after product discounts:', subtotalAfterProductDiscount);
     
-    // Distribute coupon discount proportionally to each item based on item's subtotal
-    order.items = order.items.map(item => {
-      const itemSubtotal = (item.price || 0) * (item.quantity || 0);
-      
-      // Calculate this item's share of the coupon discount
-      const discountRatio = subtotalAfterProductDiscount > 0 
-        ? itemSubtotal / subtotalAfterProductDiscount 
-        : 0;
-      
-      // Calculate exact coupon discount for this item
-      let itemCouponDiscount = parseFloat((couponDiscount * discountRatio).toFixed(2));
-      
-      // Ensure we don't give more discount than the item's price
-      itemCouponDiscount = Math.min(itemCouponDiscount, itemSubtotal);
-      
-      console.log(`Item (${item.product?.name}):`);
-      console.log('  - Item subtotal:', itemSubtotal);
-      console.log('  - Discount ratio:', discountRatio);
-      console.log('  - Coupon discount:', itemCouponDiscount);
-      console.log('  - Final price:', (itemSubtotal - itemCouponDiscount).toFixed(2));
-      
-      return {
-        ...item,
-        itemCouponDiscount: itemCouponDiscount,
-        finalPrice: Math.max(0, itemSubtotal - itemCouponDiscount)
-      };
+    // Calculate the total value of all items after product discounts
+    const totalAfterProductDiscount = order.items.reduce(
+      (sum, item) => sum + (item.price || 0) * (item.quantity || 1),
+      0
+    );
+    
+    // Process items to apply coupon discount proportionally
+    const processedItems = [];
+    let remainingDiscount = couponDiscount;
+    let remainingItems = [...order.items];
+    
+    // Sort items by price in descending order to ensure consistent application
+    remainingItems.sort((a, b) => {
+      const priceA = (a.price || 0) * (a.quantity || 1);
+      const priceB = (b.price || 0) * (b.quantity || 1);
+      return priceB - priceA; // Sort in descending order
     });
     
-    // After distributing, check for any rounding differences and adjust the last item if needed
+    // Process all items except the last one
+    while (remainingItems.length > 1) {
+      const item = remainingItems.shift();
+      const itemSubtotal = (item.price || 0) * (item.quantity || 1);
+      
+      // Calculate the proportion of this item's value to the remaining total
+      const remainingTotal = remainingItems.reduce(
+        (sum, i) => sum + (i.price || 0) * (i.quantity || 1) + itemSubtotal,
+        0
+      );
+      
+      let itemCouponDiscount = 0;
+      if (remainingDiscount > 0 && remainingTotal > 0) {
+        // Calculate the proportional discount for this item
+        const ratio = itemSubtotal / remainingTotal;
+        itemCouponDiscount = parseFloat((remainingDiscount * ratio).toFixed(2));
+        
+        // Ensure we don't discount more than the item's value
+        itemCouponDiscount = Math.min(itemCouponDiscount, itemSubtotal, remainingDiscount);
+        remainingDiscount -= itemCouponDiscount;
+      }
+      
+      processedItems.push({
+        ...item,
+        itemCouponDiscount,
+        finalPrice: Math.max(0, itemSubtotal - itemCouponDiscount)
+      });
+    }
+    
+    // Process the last item with any remaining discount
+    if (remainingItems.length > 0) {
+      const lastItem = remainingItems[0];
+      const itemSubtotal = (lastItem.price || 0) * (lastItem.quantity || 1);
+      const itemCouponDiscount = Math.min(remainingDiscount, itemSubtotal);
+      
+      processedItems.push({
+        ...lastItem,
+        itemCouponDiscount,
+        finalPrice: Math.max(0, itemSubtotal - itemCouponDiscount)
+      });
+    }
+    
+    // Restore original order of items
+    order.items = order.items.map(item => {
+      const processedItem = processedItems.find(i => i._id.toString() === item._id.toString()) || item;
+      
+      console.log(`Item (${processedItem.product?.name}):`);
+      console.log('  - Item subtotal:', (processedItem.price || 0) * (processedItem.quantity || 1));
+      console.log('  - Coupon discount:', processedItem.itemCouponDiscount);
+      console.log('  - Final price:', processedItem.finalPrice);
+      
+      return processedItem;
+    });
+    
     const totalDistributed = order.items.reduce((sum, item) => sum + item.itemCouponDiscount, 0);
     const roundingDifference = parseFloat((couponDiscount - totalDistributed).toFixed(2));
     
     if (roundingDifference !== 0 && order.items.length > 0) {
-      // Apply rounding difference to the last item
       const lastItem = order.items[order.items.length - 1];
       const lastItemSubtotal = (lastItem.price || 0) * (lastItem.quantity || 0);
       const newDiscount = Math.min(
@@ -722,7 +829,6 @@ exports.getOrderDetails = async (req, res) => {
       console.log('Adjusted last item coupon discount by:', actualAdjustment);
     }
     
-    // Now filter items if itemId is provided
     if (itemId) {
       const itemToShow = order.items.find(item => item._id.toString() === itemId);
       if (!itemToShow) {
@@ -751,7 +857,6 @@ exports.getOrderDetails = async (req, res) => {
       return sum + itemDiscount;
     }, 0);
     
-    // Calculate the total after product and coupon discounts
     const totalAfterDiscounts = order.items.reduce(
       (sum, item) => sum + (item.finalPrice || 0),
       0
@@ -760,13 +865,11 @@ exports.getOrderDetails = async (req, res) => {
     const tax = order.tax || 0;
     const total = subtotal - productDiscount - couponDiscount + shippingCharge + tax;
 
-    // Add calculated values to order
     order.subtotal = subtotal;
     order.productDiscount = productDiscount;
     order.couponDiscount = couponDiscount;
     order.shippingCharge = shippingCharge;
     order.tax = tax;
-    // Recalculate total based on distributed coupon discounts
     const totalAfterCouponDiscount = order.items.reduce(
       (sum, item) => {
         const itemTotal = (item.finalPrice || 0);
@@ -801,16 +904,12 @@ exports.getOrderDetails = async (req, res) => {
     order.canReturn = canReturn;
     order.returnWindowText = returnWindowText;
 
-    // Convert order to plain object if it's a Mongoose document
     const orderObj = order.toObject ? order.toObject() : order;
     
-    // Add status badge class and icon to each order item
     const orderWithStatusBadges = {
       ...orderObj,
       items: orderObj.items.map(item => {
-        // Use item status if available, otherwise fall back to order status
         const itemStatus = item.status || orderObj.orderStatus;
-        // Ensure status is properly formatted (capitalized first letter)
         const formattedStatus = itemStatus.charAt(0).toUpperCase() + itemStatus.slice(1).toLowerCase();
         
         return {
@@ -885,462 +984,6 @@ exports.getOrderDetails = async (req, res) => {
   }
 };
 
-// Cancel order
-exports.cancelOrder = async (req, res) => {
-  try {
-    if (!req.body.reason) {
-      return res.status(400).json({
-        success: false,
-        message: "Please provide a reason for cancellation",
-      });
-    }
-
-    const order = await Order.findOne({
-      _id: req.params.orderId,
-      user: req.user._id,
-    });
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
-    }
-
-    if (!["Pending", "Processing"].includes(order.orderStatus)) {
-      return res.status(400).json({
-        success: false,
-        message: "Cannot cancel order in current status",
-      });
-    }
-
-    const updatedOrder = await Order.findOneAndUpdate(
-      { _id: req.params.orderId, user: req.user._id },
-      {
-        $set: {
-          orderStatus: "Cancelled",
-          cancelReason: req.body.reason,
-          cancelledAt: new Date(),
-          paymentStatus:
-            order.paymentMethod !== "cod" && order.paymentStatus === "Paid"
-              ? "Refunded"
-              : order.paymentStatus,
-        },
-      },
-      { new: true }
-    );
-
-    if (!updatedOrder) {
-      throw new Error("Failed to update order");
-    }
-
-    if (updatedOrder.items && updatedOrder.items.length) {
-      for (const item of updatedOrder.items) {
-        const pid = item.product._id ? item.product._id : item.product;
-        await Product.findByIdAndUpdate(pid, {
-          $inc: { quantity: item.quantity },
-        });
-      }
-    }
-
-    if (
-      updatedOrder.paymentMethod &&
-      updatedOrder.paymentMethod.toLowerCase() !== "cod" &&
-      [PAYMENT_STATUS.PAID, PAYMENT_STATUS.REFUNDED].includes(
-        updatedOrder.paymentStatus
-      )
-    ) {
-      const refundAmount = updatedOrder.totalAmount || updatedOrder.total;
-
-      try {
-        let wallet = await Wallet.findOne({ user: req.user._id });
-        if (!wallet) {
-          wallet = new Wallet({
-            user: req.user._id,
-            balance: 0,
-            transactions: [],
-          });
-        }
-        wallet.balance += refundAmount;
-        wallet.transactions.push({
-          type: "credit",
-          amount: refundAmount,
-          description: `Refund for cancelled order #${updatedOrder._id
-            .toString()
-            .slice(-8)
-            .toUpperCase()}`,
-          orderId: updatedOrder._id.toString(),
-          status: "completed",
-          date: new Date(),
-        });
-        await wallet.save();
-        const io = req.app.get && req.app.get("io");
-        const activeUsers = req.app.get && req.app.get("activeUsers");
-        if (io && activeUsers) {
-          const socketId = activeUsers.get(req.user._id.toString());
-          if (socketId) {
-            io.to(socketId).emit("walletUpdated", {
-              userId: req.user._id.toString(),
-              balance: wallet.balance,
-            });
-          } else {
-            console.log(
-              "[CANCEL_ORDER] No active socket for user, walletUpdated not emitted"
-            );
-          }
-        }
-      } catch (err) {
-        throw err;
-      }
-    } else {
-      console.log(
-        "[CANCEL_ORDER] No wallet refund needed for COD or unpaid order."
-      );
-    }
-
-    res.json({
-      success: true,
-      message:
-        order.paymentMethod !== "cod"
-          ? "Order cancelled successfully. Amount will be refunded to your wallet."
-          : "Order cancelled successfully",
-    });
-  } catch (error) {
-    console.error("Error cancelling order:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to cancel order",
-    });
-  }
-};
-
-// Process refund to wallet
-exports.processRefund = async (userId, amount) => {
-  try {
-    let wallet = await Wallet.findOne({ user: userId });
-    if (!wallet) {
-      wallet = new Wallet({
-        user: userId,
-        balance: 0,
-        transactions: [],
-      });
-    }
-
-    wallet.balance += Number(amount);
-    wallet.transactions.push({
-      type: "credit",
-      amount: Number(amount),
-      description: "Refund from returned order",
-      date: new Date(),
-      status: "completed",
-    });
-
-    await wallet.save();
-    return true;
-  } catch (error) {
-    console.error("Error processing refund:", error);
-    return false;
-  }
-};
-
-// Cancel order item
-exports.cancelOrderItem = async (req, res) => {
-  try {
-    const { orderId, itemId } = req.params;
-    const { reason } = req.body;
-    const userId = req.user._id;
-
-    const order = await Order.findOne({ _id: orderId, user: userId }).populate(
-      "items.product"
-    );
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
-    }
-
-    const item = order.items.id(itemId);
-    if (!item) {
-      return res.status(404).json({
-        success: false,
-        message: "Item not found in order",
-      });
-    }
-
-    if (item.status === "Cancelled") {
-      return res.status(400).json({
-        success: false,
-        message: "Item is already cancelled",
-      });
-    }
-
-    if (!["Pending", "Processing"].includes(order.orderStatus)) {
-      return res.status(400).json({
-        success: false,
-        message: "Item cannot be cancelled at this stage",
-      });
-    }
-
-    if (item.product) {
-      let productId = item.product._id ? item.product._id : item.product;
-      if (typeof productId === "object" && productId.toString)
-        productId = productId.toString();
-      try {
-        const objectId = mongoose.Types.ObjectId.isValid(productId)
-          ? new mongoose.Types.ObjectId(productId)
-          : null;
-        if (!objectId) {
-          throw err;
-        } else {
-          const updateResult = await Product.findByIdAndUpdate(
-            objectId,
-            { $inc: { quantity: item.quantity } },
-            { new: true }
-          );
-          if (!updateResult) {
-            console.error(
-              "[CANCEL_ITEM] Product not found or update failed for ObjectId:",
-              objectId
-            );
-          }
-        }
-      } catch (err) {
-        console.error("[CANCEL_ITEM] Error updating product quantity:", err);
-      }
-    }
-
-    const refundAmount = item.price * item.quantity;
-
-    item.status = "Cancelled";
-    item.cancelReason = reason;
-    item.cancelledAt = new Date();
-    item.refundAmount = refundAmount;
-    item.refundStatus = "Pending";
-
-    if (
-      order.paymentMethod !== "cod" &&
-      order.paymentStatus === PAYMENT_STATUS.PAID
-    ) {
-      const refundSuccess = await exports.processRefund(userId, refundAmount);
-      if (!refundSuccess) {
-        console.error(`[CANCEL_ITEM] Refund processing failed for order ${order._id}`);
-      } else {
-        item.refundStatus = "Completed";
-        item.refundDate = new Date();
-      }
-    }
-
-    // Ensure the order total doesn't go below zero
-    order.total = Math.max(0, order.total - refundAmount);
-
-    const allItemsCancelled = order.items.every(
-      (item) => item.status === "Cancelled"
-    );
-    
-    // If total becomes zero after cancellation, update payment status if needed
-    if (order.total === 0 && order.paymentStatus === PAYMENT_STATUS.PAID) {
-      order.paymentStatus = PAYMENT_STATUS.REFUNDED;
-    }
-    if (allItemsCancelled) {
-      order.orderStatus = ORDER_STATUS.CANCELLED;
-      order.cancelledAt = new Date();
-      if (
-        order.paymentMethod !== "cod" &&
-        order.paymentStatus === PAYMENT_STATUS.PAID
-      ) {
-        order.paymentStatus = PAYMENT_STATUS.REFUNDED;
-      }
-    }
-
-    // Always save order after modifications
-    await order.save();
-
-    res.json({
-      success: true,
-      message:
-        order.paymentMethod !== "cod"
-          ? "Item cancelled successfully. Amount has been credited to your wallet."
-          : "Item cancelled successfully.",
-    });
-  } catch (error) {
-    console.error("Error cancelling order item:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to cancel item. Please try again.",
-    });
-  }
-};
-
-// Request item return
-exports.requestItemReturn = async (req, res) => {
-  try {
-    const { orderId, itemId } = req.params;
-    const { reason } = req.body;
-    const userId = req.user._id;
-
-    if (!orderId || !itemId || !reason) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields",
-      });
-    }
-
-    // Find the order and verify it belongs to the user
-    const order = await Order.findOne({
-      _id: orderId,
-      user: userId,
-      orderStatus: ORDER_STATUS.DELIVERED,
-    });
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found or not eligible for return",
-      });
-    }
-
-    const item = order.items.id(itemId);
-
-    if (!item) {
-      return res.status(404).json({
-        success: false,
-        message: "Item not found in order",
-      });
-    }
-
-    if (item.status !== "Active") {
-      return res.status(400).json({
-        success: false,
-        message: `Item cannot be returned (current status: ${item.status})`,
-      });
-    }
-
-    const refundAmount = item.price * item.quantity;
-
-    item.status = "Returned";
-    item.returnStatus = "Pending";
-    item.returnReason = reason;
-    item.returnRequestDate = new Date();
-    item.refundAmount = refundAmount;
-    item.refundStatus = "Pending";
-
-    await order.save();
-
-    res.json({
-      success: true,
-      message: "Return request submitted successfully",
-    });
-  } catch (error) {
-    console.error("Error requesting item return:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to submit return request",
-    });
-  }
-};
-
-
-// Admin: Approve return request
-exports.approveReturn = async (req, res) => {
-  try {
-    const { orderId, itemId } = req.params;
-
-    await Order.updateOne(
-      { _id: orderId, "items.product": itemId },
-      {
-        $set: {
-          "items.$.returnStatus": "Approved",
-          "items.$.status": ORDER_STATUS.RETURN_APPROVED,
-        },
-      }
-    );
-
-    const updatedOrder = await Order.findById(orderId).populate(
-      "items.product"
-    );
-    const returnedItem = updatedOrder.items.find(
-      (item) => item.product._id.toString() === itemId.toString()
-    );
-    if (returnedItem && returnedItem.quantity) {
-      const prodId = returnedItem.product._id;
-      const newProduct = await Product.findByIdAndUpdate(
-        prodId,
-        { $inc: { quantity: returnedItem.quantity } },
-        { new: true }
-      );
-    }
-
-    const refundSuccess = await processRefund(
-      updatedOrder.user,
-      returnedItem.total
-    );
-    if (!refundSuccess) throw new Error("Failed to process refund");
-
-    res.json({
-      success: true,
-      message: "Return approved and refund processed",
-    });
-  } catch (error) {
-    console.error("Error approving return:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to approve return" });
-  }
-};
-
-// Admin: Reject return request
-exports.rejectReturn = async (req, res) => {
-  try {
-    const { orderId, itemId } = req.params;
-
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
-    }
-
-    const orderItem = order.items.find(
-      (item) => item.product.toString() === itemId.toString()
-    );
-
-    if (!orderItem || orderItem.returnStatus !== "Pending") {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid return request",
-      });
-    }
-
-    await Order.updateOne(
-      {
-        _id: orderId,
-        "items.product": itemId,
-      },
-      {
-        $set: {
-          "items.$.returnStatus": "Rejected",
-          "items.$.status": ORDER_STATUS.RETURN_REJECTED,
-        },
-      }
-    );
-
-    res.json({
-      success: true,
-      message: "Return request rejected",
-    });
-  } catch (error) {
-    console.error("Error rejecting return:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to reject return request",
-    });
-  }
-};
-
-// Submit product rating
 exports.submitRating = async (req, res) => {
   try {
     const { productId, rating, orderId } = req.body;
@@ -1441,412 +1084,5 @@ exports.submitRating = async (req, res) => {
       success: false,
       message: error.message || "Failed to submit rating",
     });
-  }
-};
-
-// Request return
-exports.requestReturn = async (req, res) => {
-  try {
-    const { orderId, itemId } = req.params;
-    const { reason, comment, rating } = req.body;
-    const userId = req.user._id;
-    
-    // Validate itemId if provided
-    if (itemId && !mongoose.Types.ObjectId.isValid(itemId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid item ID format"
-      });
-    }
-
-    // Validate reason
-    if (!reason) {
-      console.warn("Return attempt without reason");
-      return res.status(400).json({
-        success: false,
-        message: "Please provide a reason for return",
-      });
-    }
-
-    // Validate orderId
-    if (!mongoose.Types.ObjectId.isValid(orderId)) {
-      console.warn(`Invalid order ID: ${orderId}`);
-      return res.status(400).json({
-        success: false,
-        message: "Invalid order ID",
-      });
-    }
-
-    const order = await Order.findOne({
-      _id: orderId,
-      user: userId,
-    });
-
-    if (!order) {
-      console.warn(`Order not found: ${orderId} for user ${userId}`);
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
-    }
-
-    // Find the specific item to return if itemId is provided, otherwise check all items
-    let itemsToProcess = [];
-    
-    if (itemId) {
-      // Single item return
-      const item = order.items.id(itemId);
-      if (!item) {
-        return res.status(404).json({
-          success: false,
-          message: "Item not found in this order"
-        });
-      }
-      
-      // Check if the specific item is eligible for return
-      if (!item.status || item.status.toLowerCase() !== ORDER_STATUS.DELIVERED.toLowerCase()) {
-        return res.status(400).json({
-          success: false,
-          message: `This item cannot be returned. Current status: ${item.status || 'unknown'}`,
-          itemStatus: item.status
-        });
-      }
-      
-      itemsToProcess = [item];
-    } else {
-      // Original logic for multiple items (for backward compatibility)
-      itemsToProcess = order.items.filter(item => 
-        item.status && item.status.toLowerCase() === ORDER_STATUS.DELIVERED.toLowerCase()
-      );
-
-      if (itemsToProcess.length === 0) {
-        console.warn(`No items eligible for return in order: ${orderId}`);
-        const statuses = [...new Set(order.items.map(item => item.status || 'unknown'))];
-        
-        if (order.orderStatus === 'Delivered' || order.status === 'Delivered') {
-          console.error(`[ERROR] Order marked as delivered but no delivered items found. Order status: ${order.orderStatus}, Item statuses: ${statuses.join(', ')}`);
-        }
-        
-        return res.status(400).json({
-          success: false,
-          message: `No items eligible for return. Current item statuses: ${statuses.join(', ')}. ` +
-                   `Only items with status '${ORDER_STATUS.DELIVERED}' can be returned.`,
-          debug: {
-            orderStatus: order.orderStatus,
-            itemStatuses: statuses,
-            hasDeliveryDate: !!order.deliveryDate
-          }
-        });
-      }
-    }
-
-    // Check if return period is valid
-    let deliveryDate = order.deliveryDate;
-    const returnPeriod = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
-
-    // If delivery date is missing but order is marked as delivered, use current date as fallback
-    if (!deliveryDate && (order.orderStatus === 'Delivered' || order.status === 'Delivered' || itemsToProcess.length > 0)) {
-      console.warn(`[WARNING] Delivery date missing for order ${orderId} with status ${order.orderStatus}, using current date as fallback`);
-      deliveryDate = new Date();
-      order.deliveryDate = deliveryDate;
-      
-      // Only update order status to Delivered if we're processing all items
-      if (!itemId) {
-        order.orderStatus = 'Delivered';
-        order.status = 'Delivered';
-      }
-      
-      // Update only the items being processed to Delivered status if not already set
-      itemsToProcess.forEach(item => {
-        if (!item.status || item.status !== 'Delivered') {
-          item.status = 'Delivered';
-        }
-      });
-      
-      await order.save({ validateBeforeSave: false });
-      console.log(`[INFO] Updated order ${orderId} with delivery date and status`);
-    } else if (!deliveryDate) {
-      console.warn(
-        `Order not delivered yet or delivery date missing for order: ${orderId}`
-      );
-      return res.status(400).json({
-        success: false,
-        message:
-          "Cannot request return - order has not been delivered yet or delivery date is missing",
-      });
-    }
-
-    if (Date.now() - deliveryDate.getTime() > returnPeriod) {
-      console.warn(`Return period expired for order: ${orderId}`);
-      const daysSinceDelivery = Math.ceil(
-        (Date.now() - deliveryDate.getTime()) / (24 * 60 * 60 * 1000)
-      );
-      return res.status(400).json({
-        success: false,
-        message: `Return period has expired. Returns must be requested within 7 days of delivery. Your order was delivered ${daysSinceDelivery} days ago.`,
-      });
-    }
-
-    // Update order and item statuses for return
-    if (itemId) {
-      // Single item return
-      const item = order.items.id(itemId);
-      item.status = "Return Requested";
-      item.returnReason = reason;
-      item.returnRequestDate = new Date();
-      
-      // Update order status to reflect partial return if not all items are being returned
-      const nonReturnedItems = order.items.filter(i => 
-        i._id.toString() !== itemId && 
-        i.status !== 'Return Requested' && 
-        i.status !== 'Returned'
-      );
-      
-      if (nonReturnedItems.length > 0) {
-        order.status = 'Partially Returned';
-      } else {
-        order.status = ORDER_STATUS.RETURN_REQUESTED;
-      }
-    } else {
-      // Multiple items return (original behavior)
-      order.orderStatus = ORDER_STATUS.RETURN_REQUESTED;
-      order.status = ORDER_STATUS.RETURN_REQUESTED;
-      order.returnReason = reason;
-      
-      // Update all eligible items to return requested
-      itemsToProcess.forEach(item => {
-        item.status = "Return Requested";
-        item.returnReason = reason;
-        item.returnRequestDate = new Date();
-      });
-    }
-
-    // Add order rating if provided
-    if (rating && rating >= 1 && rating <= 5) {
-      order.orderRating = {
-        value: rating,
-        comment: comment || "",
-        createdAt: new Date(),
-      };
-    }
-
-    // Add status history
-    if (!order.statusHistory) {
-      order.statusHistory = [];
-    }
-    order.statusHistory.push({
-      status: ORDER_STATUS.RETURN_REQUESTED,
-      date: new Date(),
-      comment: `Return requested due to: ${reason}`,
-    });
-
-    // Save order with validation bypass
-    await order.save({ validateBeforeSave: false });
-
-    res.status(200).json({
-      success: true,
-      message: "Return request submitted successfully",
-      orderId: order._id,
-    });
-  } catch (error) {
-    console.error("Error requesting return:", error);
-
-    // Send more specific error message for validation errors
-    if (error.name === "ValidationError") {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid return reason. Please select a valid reason for return.",
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      message: "Failed to submit return request. Please try again.",
-      errorDetails: error.message,
-    });
-  }
-};
-
-// Show retry payment page
-exports.showRetryPaymentPage = async (req, res) => {
-  try {
-    const orderId = req.params.orderId;
-    const order = await Order.findById(orderId).populate("items.product");
-
-    if (!order || order.paymentStatus !== "Failed") {
-      return res.status(400).render("error", { message: "Invalid or already paid order." });
-    }
-
-    const amount = Math.round(
-      (order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      - (order.couponDiscount || 0)
-      + (order.deliveryCharge || 0)) * 100
-    ); // in paise
-
-    const razorpayOrder = await razorpay.orders.create({
-      amount,
-      currency: "INR",
-      receipt: order._id.toString(),
-      notes: { orderId: order._id.toString() },
-    });
-
-    res.render("user/retry-payment", {
-      user: req.user,
-      order,
-      razorpayOrder,
-      razorpayKey: process.env.RAZORPAY_KEY,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).render("error", { message: "Server Error" });
-  }
-};
-
-// POST /retry-payment-initiate/:orderId
-exports.initiateRetryPayment = async (req, res) => {
-  try {
-    const orderId = req.params.orderId;
-    const order = await Order.findById(orderId);
-
-    if (!order || order.orderStatus !== "Pending") {
-      return res.status(400).json({ success: false, message: "Invalid or already paid order." });
-    }
-
-    const amount = Math.round(
-      (order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      - (order.couponDiscount || 0)
-      + (order.deliveryCharge || 0)) * 100
-    ); // in paise
-
-    const razorpayOrder = await razorpay.orders.create({
-      amount,
-      currency: "INR",
-      receipt: order._id.toString(),
-      notes: { orderId: order._id.toString() },
-    });
-
-    return res.json({ success: true, order: razorpayOrder });
-  } catch (error) {
-    console.error("Retry Payment Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
-  }
-};
-
-// Download Invoice Handler
-exports.downloadInvoice = async (req, res) => {
-  try {
-    const orderId = req.params.orderId;
-    const order = await Order.findOne({ _id: orderId, user: req.user._id }).populate("items.product");
-    if (!order) {
-      return res.status(404).send("Order not found");
-    }
-
-    // Seller details (set via env or defaults)
-    const sellerName = process.env.SELLER_NAME || "Derry World"; // Updated name per request
-    const sellerAddress = process.env.SELLER_ADDRESS || "123 Main Street, City, State, ZIP";
-    const sellerGSTIN = process.env.SELLER_GSTIN || "XXXXXXXXXXXXXXX";
-    const sellerEmail = process.env.SELLER_EMAIL || "DERRY@gmail.com";
-    const sellerPlace = process.env.SELLER_PLACE || "manappuram po, cherthala, Alappuzha, kerala";
-    const sellerPin = process.env.SELLER_PIN || "688526";
-    const sellerPhone = process.env.SELLER_PHONE || "6282679552";
-    const invoiceNumber = `INV-${order._id.toString().slice(-8).toUpperCase()}`;
-
-    // Create PDF
-    const doc = new PDFDocument({ margin: 40 });
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename=invoice_${orderId}.pdf`);
-    doc.pipe(res);
-
-    // Draw page border
-    const { width, height } = doc.page;
-    // Draw border inside margins
-    const { top, bottom, left, right } = doc.page.margins;
-    doc.strokeColor('black').lineWidth(2)
-       .rect(left, top, width - left - right, height - top - bottom)
-       .stroke();
-    // Move header down inside border
-    doc.y = top + 20;
-
-    // Header
-    const headerWidth = width - left - right - 20;
-    doc.fillColor('#ffc107').font('Helvetica-Bold').fontSize(20)
-       .text(sellerName, { align: 'center' });
-    doc.fillColor('black').font('Helvetica').fontSize(10)
-       .text(`Email: ${sellerEmail}`, { align: 'center', width: headerWidth })
-       .text(`Place: ${sellerPlace}, Pin: ${sellerPin}`, { align: 'center', width: headerWidth })
-       .text(`Phone: ${sellerPhone}`, { align: 'center', width: headerWidth });
-    doc.moveDown();
-
-    // Invoice Title
-    doc.fillColor('#ffc107').font('Helvetica-Bold').fontSize(16).text('Invoice', { align: 'center' });
-    doc.fillColor('black');
-    doc.moveDown();
-
-    // Order Details
-    doc.font('Helvetica').fontSize(12)
-       .text(`Name of user: ${req.user.name}`, left + 10)
-       .text(`Order ID: #${order._id.toString().slice(-8).toUpperCase()}`, left + 10)
-       .text(`Order Date: ${order.createdAt.toLocaleDateString('en-GB')}`, left + 10);
-    const method = order.paymentMethod === 'online' ? 'Razorpay' : order.paymentMethod === 'cod' ? 'COD' : order.paymentMethod;
-    doc.text(`Payment Method: ${method}`, left + 10);
-    doc.moveDown();
-
-    // Products:
-    doc.fillColor('#ffc107').font('Helvetica-Bold').fontSize(12).text('Products:', left + 10);
-    doc.fillColor('black');
-
-    // Invoice Items Table
-    const tableLeft = left + 10;
-    const tableTop = doc.y + 10;
-    const widths = [40, 220, 60, 80, 80];
-    const headers = ["S.No","Product Name","Quantity","Price","Total"]; 
-    const widthSum = widths.reduce((acc, w) => acc + w, 0);
-    const rowHeight = 25;
-
-    // Header background
-    doc.fillColor('#333').rect(tableLeft, tableTop, widthSum, rowHeight).fill().stroke();
-    doc.fillColor('#fff').font('Helvetica-Bold').fontSize(10);
-    let x = tableLeft;
-    headers.forEach((h, i) => {
-      doc.text(h, x + 5, tableTop + 7, { width: widths[i] - 10, align: i === 0 ? 'left' : i === 1 ? 'center' : 'right' });
-      x += widths[i];
-    });
-
-    // Grid lines
-    for (let i = 0; i < order.items.length + 1; i++) {
-      doc.strokeColor('#ccc').lineWidth(0.5).moveTo(tableLeft, tableTop + (i + 1) * rowHeight).lineTo(tableLeft + widthSum, tableTop + (i + 1) * rowHeight).stroke();
-    }
-
-    // Rows
-    let y = tableTop + rowHeight;
-    order.items.forEach((item, index) => {
-      if (index % 2 === 0) {
-        doc.fillColor('#f9f9f9').rect(tableLeft, y, widthSum, rowHeight).fill();
-      }
-      doc.fillColor('#000').font('Helvetica').fontSize(10);
-      x = tableLeft;
-      const vals = [(index+1).toString(), item.product.name, item.quantity.toString(), `₹${item.price.toFixed(2)}`, `₹${(item.price * item.quantity).toFixed(2)}`];
-      vals.forEach((v, j) => {
-        doc.text(v, x + 5, y + 7, { width: widths[j] - 10, align: j === 0 ? 'left' : j === 1 ? 'center' : 'right' });
-        x += widths[j];
-      });
-      y += rowHeight;
-    });
-
-    // Summary
-    const preTotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
-    const discount = order.couponDiscount || 0;
-    const finalAmount = preTotal - discount;
-    doc.font('Helvetica').fontSize(10).text(`Total Amount: ₹${preTotal.toFixed(2)}`, tableLeft, y + 10, { width: widthSum, align: 'right' });
-    doc.text(`Discount: ₹${discount.toFixed(2)}`, { width: widthSum, align: 'right' });
-    doc.font('Helvetica-Bold').fillColor('red').text(`Final Amount: ₹${finalAmount.toFixed(2)}`, { width: widthSum, align: 'right' });
-    doc.fillColor('black');
-    doc.moveDown(2);
-
-    doc.end();
-  } catch (error) {
-    console.error("Invoice download error:", error);
-    res.status(500).send("Failed to generate invoice");
   }
 };

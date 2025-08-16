@@ -79,15 +79,20 @@ couponSchema.methods.calculateDiscount = function(subtotal) {
 
     let discount = 0;
     if (this.discountType === 'percentage') {
-        discount = (subtotal * this.discountValue) / 100;
+        // Calculate percentage discount with 2 decimal places precision
+        discount = parseFloat(((subtotal * this.discountValue) / 100).toFixed(2));
+        
+        // Apply max discount if specified
         if (this.maxDiscount) {
-            discount = Math.min(discount, this.maxDiscount);
+            discount = Math.min(discount, parseFloat(this.maxDiscount.toFixed(2)));
         }
     } else {
-        discount = this.discountValue;
+        // For fixed discount, ensure it doesn't exceed the subtotal
+        discount = Math.min(parseFloat(this.discountValue.toFixed(2)), subtotal);
     }
 
-    return Math.min(discount, subtotal);
+    // Ensure discount is not negative and doesn't exceed subtotal
+    return Math.max(0, Math.min(discount, subtotal));
 };
 
 module.exports = mongoose.model('Coupon', couponSchema);

@@ -957,9 +957,33 @@
                                             <div class="price-info">
                                                 <span class="original-price">₹<%= item.regularPrice.toFixed(2) %></span>
                                                 <span class="final-price">₹<%= item.price.toFixed(2) %></span>
-                                                <span class="text-success small ms-2">
-                                                    <i class="fas fa-tag"></i> <%= item.offerDetails.type %>
-                                                </span>
+                                                <% if (item.couponCode) { %>
+                                                    <div class="d-flex flex-column small ms-2">
+                                                        <span class="text-success">
+                                                            <i class="fas fa-ticket-alt"></i> <%= item.couponCode %>
+                                                            <% if (order.appliedCoupon?.discountType === 'percentage') { %>
+                                                                - <%= order.appliedCoupon.discountValue %>% off
+                                                                <% if (order.appliedCoupon.maxDiscount) { %>
+                                                                    (up to ₹<%= order.appliedCoupon.maxDiscount.toFixed(2) %>)
+                                                                <% } %>
+                                                            <% } else if (order.appliedCoupon?.discountValue) { %>
+                                                                - Flat ₹<%= order.appliedCoupon.discountValue.toFixed(2) %> off
+                                                            <% } %>
+                                                        </span>
+                                                        <% if (order.appliedCoupon?.minPurchase) { %>
+                                                            <small class="text-muted">
+                                                                Min. order: ₹<%= order.appliedCoupon.minPurchase.toFixed(2) %>
+                                                            </small>
+                                                        <% } %>
+                                                    </div>
+                                                <% } else if (item.offerDetails?.type) { %>
+                                                    <span class="text-success small ms-2">
+                                                        <i class="fas fa-tag"></i> <%= item.offerDetails.type %>
+                                                        <% if (item.offerDetails.discount) { %>
+                                                            - <%= item.offerDetails.discount %>% off
+                                                        <% } %>
+                                                    </span>
+                                                <% } %>
                                             </div>
                                         <% } else { %>
                                             <div class="price-info">
@@ -1052,10 +1076,9 @@
                             <div class="price-row discount">
                                 <div class="d-flex align-items-center">
                                     <i class="fas fa-tag text-muted me-2" style="width: 20px;"></i>
-                                    <span>Coupon Discount</span>
-                                    <% if (order.couponCode) { %>
-                                        <span class="badge bg-success ms-2"><%= order.couponCode %></span>
-                                    <% } %>
+                                    <div>
+                                        <div>Coupon Discount</div>
+                                    </div>
                                 </div>
                                 <span class="text-success fw-medium">-₹<%= couponDiscount.toFixed(2) %></span>
                             </div>

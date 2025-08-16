@@ -697,19 +697,6 @@
                                         </span>
                                     </div>
                                     
-                                    <% if (cartItems.some(item => item.product.salesPrice < item.product.regularPrice)) { %>
-                                        <div class="total-item discount">
-                                            <span>Product Discount</span>
-                                            <span>-₹<%= cartItems.reduce((sum, item) => {
-                                                if (!item || !item.product) return sum;
-                                                const regularPrice = item.product.regularPrice;
-                                                const salePrice = (item.product.salesPrice && item.product.salesPrice < regularPrice) ? item.product.salesPrice : regularPrice;
-                                                const itemPrice = (item.product.offerDetails && item.product.offerDetails.finalPrice) || salePrice;
-                                                return sum + ((regularPrice - itemPrice) * item.quantity);
-                                            }, 0).toFixed(2) %></span>
-                                        </div>
-                                    <% } %>
-                                    
                                     <% if (couponDiscount > 0) { %>
                                         <div class="total-item discount">
                                             <span>Coupon Discount</span>
