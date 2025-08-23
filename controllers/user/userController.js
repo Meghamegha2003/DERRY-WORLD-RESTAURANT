@@ -444,7 +444,8 @@ exports.renderHomePage = async (req, res) => {
 
     const productQuery = {
       isListed: true,
-      isBlocked: false
+      isBlocked: false,
+      quantity: { $gt: 0 } // Only include products with quantity > 0
     };
 
     if (selectedCategoryId && selectedCategoryId !== 'all') {
@@ -457,8 +458,8 @@ exports.renderHomePage = async (req, res) => {
         match: { isBlocked: false, isListed: true }
       })
       .populate('ratings')
-      .sort({ createdAt: -1 })
-      .limit(8)
+      .sort({ createdAt: -1 }) // Sort by newest first
+      .limit(8) // Limit to 8 products
       .lean();
 
     const validProducts = products.filter(p => p.category);

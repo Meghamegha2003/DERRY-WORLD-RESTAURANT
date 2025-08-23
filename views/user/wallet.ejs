@@ -1,4 +1,4 @@
-<%- include('../partials/user/header-no-bg.ejs', { user, cartCount, title }) %>
+<%- include('../partials/user/header-no-bg.ejs', { user: user, cartCount: cartCount, title: title }) %>
 
 <div class="wallet-page">
     <div class="container my-5" style="max-width: 1200px;">
@@ -130,8 +130,53 @@
                                                 <td>
                                                     <%= transaction?.description || '-' %>
                                                 </td>
-                                                <td class="<%= transaction?.type === 'credit' ? 'text-success' : 'text-danger' %>">
-                                                    <%= transaction?.type === 'credit' ? '+' : '-' %>₹<%= transaction?.amount?.toFixed(2) || '0.00' %>
+                                                <% 
+                                                    // Get the original amount (before any discounts)
+                                                    const originalAmount = transaction.originalAmount || transaction.amount || 0;
+                                                    
+                                                    // Calculate final amount considering all discounts
+                                                    const finalAmount = transaction.finalAmount || 
+                                                                      (transaction.amount || 0) - 
+                                                                      (transaction.offerDiscount || 0) - 
+                                                                      (transaction.couponDiscount || 0);
+                                                    
+                                                    // Determine transaction type
+                                                    const isCredit = transaction.type === 'credit' || 
+                                                                  transaction.type === 'refund' || 
+                                                                  (transaction.description && (
+                                                                    transaction.description.toLowerCase().includes('add') ||
+                                                                    transaction.description.toLowerCase().includes('refund') ||
+                                                                    transaction.description.toLowerCase().includes('bonus')
+                                                                  ));
+                                                    
+                                                    const isDebit = !isCredit && transaction.type !== 'refund';
+                                                    const showOriginalAmount = (transaction.offerDiscount > 0 || transaction.couponDiscount > 0) && isDebit;
+                                                %>
+                                                <td class="<%= isCredit ? 'text-success' : 'text-danger' %>">
+                                                    <% if (showOriginalAmount) { %>
+                                                        <div class="text-muted text-decoration-line-through small">
+                                                            ₹<%= originalAmount.toFixed(2) %>
+                                                        </div>
+                                                    <% } %>
+                                                    <%= isCredit ? '+' : isDebit ? '-' : '' %>₹<%= Math.abs(finalAmount).toFixed(2) %>
+                                                    
+                                                    <% if (transaction.offerDiscount > 0) { %>
+                                                        <div class="text-success small">
+                                                            <i class="fas fa-tag me-1"></i>Offer: -₹<%= transaction.offerDiscount.toFixed(2) %>
+                                                        </div>
+                                                    <% } %>
+                                                    
+                                                    <% if (transaction.couponDiscount > 0) { %>
+                                                        <div class="text-primary small">
+                                                            <i class="fas fa-ticket-alt me-1"></i>Coupon: -₹<%= transaction.couponDiscount.toFixed(2) %>
+                                                        </div>
+                                                    <% } %>
+                                                    
+                                                    <% if (transaction?.originalAmount && (transaction.originalAmount !== finalAmount)) { %>
+                                                        <div class="text-muted small">
+                                                            <s>₹<%= transaction.originalAmount.toFixed(2) %></s>
+                                                        </div>
+                                                    <% } %>
                                                 </td>
                                                 <td>
                                                     <span class="badge <%= transaction?.status === 'completed' ? 'bg-success' : (transaction?.status === 'pending' ? 'bg-warning' : 'bg-danger') %>">
@@ -244,7 +289,7 @@
         }
 
         const options = {
-            key: '<%= razorpayKey %>', // Use the key from server
+            key: '<%= process.env.RAZORPAY_KEY_ID %>', // Use the key from environment variables
             amount: data.order.amount,
             currency: data.order.currency,
             name: 'Derry World',
@@ -260,7 +305,8 @@
                     body: JSON.stringify({
                         razorpay_payment_id: response.razorpay_payment_id,
                         razorpay_order_id: response.razorpay_order_id,
-                        razorpay_signature: response.razorpay_signature
+                        razorpay_signature: response.razorpay_signature,
+                        amount: amount  // Include the amount in the verification request
                     })
                 });
 

@@ -19,6 +19,203 @@ try {
     console.error('Failed to initialize Razorpay:', error);
 }
 
+// Initialize add money to wallet via Razorpay
+exports.initializeAddMoney = async function(req, res) {
+    try {
+        const { amount } = req.body;
+        
+        if (!amount || isNaN(amount) || amount < 1) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please enter a valid amount (minimum ₹1)'
+            });
+        }
+
+        const options = {
+            amount: amount * 100, // Razorpay expects amount in paise
+            currency: 'INR',
+            receipt: `wallet_${Date.now()}`,
+            payment_capture: 1
+        };
+
+        const order = await razorpay.orders.create(options);
+        
+        res.status(200).json({
+            success: true,
+            order,
+            key_id: process.env.RAZORPAY_KEY_ID
+        });
+
+    } catch (error) {
+        console.error('Error initializing wallet top-up:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to initialize wallet top-up. Please try again.'
+        });
+    }
+};
+
+// Verify and add money to wallet after successful payment
+exports.verifyAndAddMoney = async function(req, res) {
+    try {
+        const { razorpay_payment_id, razorpay_order_id, razorpay_signature, amount } = req.body;
+        
+        // Validate required fields
+        if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature || !amount) {
+            console.error('Missing required parameters:', {
+                hasPaymentId: !!razorpay_payment_id,
+                hasOrderId: !!razorpay_order_id,
+                hasSignature: !!razorpay_signature,
+                hasAmount: !!amount
+            });
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required payment information'
+            });
+        }
+        
+        // Validate and parse amount
+        const amountValue = parseFloat(amount);
+        if (isNaN(amountValue) || amountValue <= 0) {
+            console.error('Invalid amount provided:', amount);
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid amount provided'
+            });
+        }
+        
+        const userId = req.user._id;
+        if (!userId) {
+            console.error('User ID not found in request');
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
+
+        // Verify payment signature
+        const text = razorpay_order_id + '|' + razorpay_payment_id;
+        const generatedSignature = crypto
+            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+            .update(text)
+            .digest('hex');
+
+        if (generatedSignature !== razorpay_signature) {
+            console.error('Signature verification failed', {
+                expected: generatedSignature,
+                received: razorpay_signature,
+                order_id: razorpay_order_id,
+                payment_id: razorpay_payment_id,
+                text: text,
+                key_used: process.env.RAZORPAY_KEY_SECRET ? 'Key exists' : 'Key missing'
+            });
+            return res.status(400).json({
+                success: false,
+                message: 'Payment verification failed: Invalid signature',
+                debug: process.env.NODE_ENV === 'development' ? {
+                    expected: generatedSignature,
+                    received: razorpay_signature
+                } : undefined
+            });
+        }
+
+        // Find or create wallet
+        let wallet = await Wallet.findOne({ user: userId });
+        
+        if (!wallet) {
+            wallet = new Wallet({
+                user: userId,
+                balance: 0,
+                transactions: []
+            });
+        }
+
+        // Add money to wallet
+        wallet.balance = (wallet.balance || 0) + amountValue;
+        
+        // Add transaction
+        wallet.transactions.push({
+            type: 'credit',
+            amount: amountValue,
+            finalAmount: amountValue,
+            description: 'Wallet top-up',
+            status: 'completed',
+            razorpayPaymentId: razorpay_payment_id,
+            razorpayOrderId: razorpay_order_id,
+            offerDiscount: 0,
+            couponDiscount: 0
+        });
+
+        await wallet.save();
+
+        // Update user's wallet reference if not set
+        const user = await User.findById(userId);
+        if (!user.wallet) {
+            user.wallet = wallet._id;
+            await user.save();
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Money added to wallet successfully',
+            balance: wallet.balance
+        });
+
+    } catch (error) {
+        console.error('Error adding money to wallet:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to add money to wallet. Please contact support.'
+        });
+    }
+};
+
+// Get wallet details
+exports.getWallet = async function(req, res) {
+    try {
+        const userId = req.user._id;
+        
+        // Find or create wallet for the user
+        let wallet = await Wallet.findOne({ user: userId })
+            .sort({ 'transactions.date': -1 });
+            
+        if (!wallet) {
+            wallet = await Wallet.create({
+                user: userId,
+                balance: 0,
+                transactions: []
+            });
+        }
+        
+        // Get user's cart count for the header
+        const cart = await Cart.findOne({ user: userId });
+        const cartCount = cart ? cart.items.length : 0;
+        
+        // Add referral information
+        const referral = {
+            referrerBonus: 100,  // ₹100 for referrer
+            referredBonus: 50,   // ₹50 for referred friend
+            referralCode: req.user.referralCode || '',
+            earnings: wallet ? wallet.referralEarnings || 0 : 0  // Add earnings from wallet or default to 0
+        };
+        
+        res.render('user/wallet', {
+            title: 'My Wallet',
+            user: req.user,
+            wallet: wallet,
+            cartCount: cartCount,
+            txList: wallet.transactions || [],
+            referral: referral,
+            razorpayKey: process.env.RAZORPAY_KEY_ID || ''
+        });
+        
+    } catch (error) {
+        console.error('Error fetching wallet:', error);
+        req.flash('error', 'Failed to load wallet. Please try again.');
+        res.redirect('/user/dashboard');
+    }
+};
+
 // Generate unique referral code
 exports.generateReferralCode = function(userId) {
     const prefix = userId.toString().substring(0, 6);
@@ -42,16 +239,30 @@ exports.processReferralReward = async function(referrerId, referredId) {
                     type: 'credit',
                     amount: referrerBonus,
                     description: 'Referral bonus - Thank you for referring a friend!',
-                    status: 'completed'
+                    status: 'completed',
+                    offerDiscount: 0,
+                    couponDiscount: 0
                 }]
             }).save();
         } else {
             referrerWallet.balance += referrerBonus;
+            // Add transaction to wallet with order details
             referrerWallet.transactions.push({
-                type: 'credit',
-                amount: referrerBonus,
-                description: 'Referral bonus - Thank you for referring a friend!',
-                status: 'completed'
+                type: 'debit',
+                amount: referrerBonus, // Original order total before discounts
+                finalAmount: referrerBonus, // Final amount after all discounts
+                originalAmount: referrerBonus, // Keep original amount for reference
+                offerDiscount: 0,
+                couponDiscount: 0,
+                description: `Referral bonus - Thank you for referring a friend!`,
+                status: 'completed',
+                orderDetails: {
+                    items: [],
+                    subTotal: referrerBonus,
+                    total: referrerBonus,
+                    offerDiscount: 0,
+                    couponDiscount: 0
+                }
             });
             await referrerWallet.save();
         }
@@ -66,289 +277,35 @@ exports.processReferralReward = async function(referrerId, referredId) {
                     type: 'credit',
                     amount: referredBonus,
                     description: 'Welcome bonus for joining via referral!',
-                    status: 'completed'
+                    status: 'completed',
+                    offerDiscount: 0,
+                    couponDiscount: 0
                 }]
             }).save();
         } else {
             referredWallet.balance += referredBonus;
+            // Add transaction to wallet with order details
             referredWallet.transactions.push({
-                type: 'credit',
-                amount: referredBonus,
-                description: 'Welcome bonus for joining via referral!',
-                status: 'completed'
+                type: 'debit',
+                amount: referredBonus, // Original order total before discounts
+                finalAmount: referredBonus, // Final amount after all discounts
+                originalAmount: referredBonus, // Keep original amount for reference
+                offerDiscount: 0,
+                couponDiscount: 0,
+                description: `Welcome bonus for joining via referral!`,
+                status: 'completed',
+                orderDetails: {
+                    items: [],
+                    subTotal: referredBonus,
+                    total: referredBonus,
+                    offerDiscount: 0,
+                    couponDiscount: 0
+                }
             });
             await referredWallet.save();
         }
 
         return true;
-    } catch (error) {
-        console.error('Error processing referral reward:', error);
-        return false;
-    }
-};
-
-// Get wallet details and transactions
-exports.getWallet = async function(req, res) {
-    try {
-        // Prevent caching so the wallet page always shows latest balance
-        res.set({
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-        });
-
-        const userId = req.user._id;
-        const page = parseInt(req.query.page) || 1;
-        const limit = 3;
-        const skip = (page - 1) * limit;
-
-        // Get cart count for the user
-        let cartCount = 0;
-        if (req.user) {
-            const cart = await Cart.findOne({ user: req.user._id });
-            if (cart) {
-                cartCount = cart.items.reduce((count, item) => count + item.quantity, 0);
-            }
-        }
-
-        // Always fetch the latest wallet and all transactions
-        let wallet = await Wallet.findOne({ user: userId });
-        if (!wallet) {
-            wallet = await new Wallet({
-                user: userId,
-                balance: 0,
-                transactions: []
-            }).save();
-            await User.findByIdAndUpdate(userId, { wallet: wallet._id });
-        }
-
-        // Sort all transactions (latest first)
-        const allTransactions = [...wallet.transactions].sort((a, b) => b.date - a.date);
-        const paginatedTransactions = allTransactions.slice(skip, skip + limit);
-        const totalTransactions = allTransactions.length;
-        const totalPages = Math.ceil(totalTransactions / limit);
-
-        // Fetch the latest user from the database
-        const user = await User.findById(userId);
-        // If the user does not have a referralCode, generate and save it
-        if (user && (!user.referralCode || user.referralCode === '')) {
-            const generateReferralCode = exports.generateReferralCode;
-            user.referralCode = generateReferralCode(user._id);
-            await user.save();
-        }
-        
-        // Dynamically compute referral stats
-        const referralCount = await User.countDocuments({ referredBy: userId });
-        const referralEarnings = wallet.transactions
-            .filter(tx => tx.description && tx.description.includes('Referral bonus'))
-            .reduce((sum, tx) => sum + tx.amount, 0);
-            
-        res.render('user/wallet', {
-            user: user,
-            cartCount: cartCount,
-            wallet: {
-                ...wallet.toObject(),
-                transactions: {
-                    items: paginatedTransactions,
-                    currentPage: page,
-                    totalPages,
-                    hasPrevPage: page > 1,
-                    hasNextPage: page < totalPages,
-                    totalTransactions
-                }
-            },
-            referral: {
-                code: user && user.referralCode ? user.referralCode : '',
-                count: referralCount,
-                earnings: referralEarnings,
-                referrerBonus: 100,
-                referredBonus: 50
-            },
-            cartCount: req.cartCount || 0,
-            title: 'Wallet',
-            razorpayKey: process.env.RAZORPAY_KEY_ID || ''
-        });
-
-    } catch (error) {
-        console.error('Error fetching wallet details:', error);
-        // Fetch user for referral info
-        const user = await User.findById(userId);
-        // If the user does not have a referralCode, generate and save it
-        if (user && (!user.referralCode || user.referralCode === '')) {
-            const generateReferralCode = exports.generateReferralCode;
-            user.referralCode = generateReferralCode(user._id);
-            await user.save();
-        }
-        res.render('user/wallet', {
-            title: 'My Wallet',
-            error: 'Failed to fetch wallet details. Please try again.',
-            wallet: { balance: 0, transactions: [] },
-            referral: {
-                code: user && user.referralCode ? user.referralCode : '',
-                count: user && user.referralCount ? user.referralCount : 0,
-                earnings: user && user.referralEarnings ? user.referralEarnings : 0,
-                referrerBonus: 100,
-                referredBonus: 50
-            },
-            currentPage: 1,
-            totalPages: 1,
-            user: req.user,
-            cartCount: 0,
-            razorpayKey: process.env.RAZORPAY_KEY_ID // Add to error case as well
-        });
-    }
-};
-
-// Initialize add money transaction
-exports.initializeAddMoney = async function(req, res) {
-    try {
-        // Check if Razorpay is initialized
-        if (!razorpay) {
-            return res.status(500).json({
-                success: false,
-                message: 'Payment system is temporarily unavailable'
-            });
-        }
-
-        // Check if Razorpay key is available
-        if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-            return res.status(500).json({
-                success: false,
-                message: 'Payment system is not configured properly'
-            });
-        }
-
-        const { amount } = req.body;
-        const userId = req.user._id;
-
-        // Validate amount
-        const parsedAmount = parseFloat(amount);
-        if (isNaN(parsedAmount) || parsedAmount <= 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'Please enter a valid amount greater than 0'
-            });
-        }
-
-        // Create Razorpay order
-        const options = {
-            amount: Math.round(parsedAmount * 100), // Convert to paise
-            currency: 'INR',
-            receipt: `w_${Date.now().toString().slice(-8)}`,
-            notes: {
-                userId: userId.toString(),
-                type: 'wallet_recharge'
-            }
-        };
-
-        const order = await razorpay.orders.create(options);
-
-        // Send response
-        res.status(200).json({
-            success: true,
-            message: 'Payment initialized successfully',
-            order: {
-                id: order.id,
-                amount: order.amount,
-                currency: order.currency
-            }
-        });
-
-    } catch (error) {
-        console.error('Error initializing payment:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to initialize payment. Please try again.'
-        });
-    }
-};
-
-// Verify payment and add money to wallet
-exports.verifyAndAddMoney = async function(req, res) {
-    try {
-        // Check if Razorpay is initialized
-        if (!razorpay) {
-            return res.status(500).json({
-                success: false,
-                message: 'Payment system is temporarily unavailable'
-            });
-        }
-
-        const {
-            razorpay_order_id,
-            razorpay_payment_id,
-            razorpay_signature
-        } = req.body;
-
-        // Validate required fields
-        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-            return res.status(400).json({
-                success: false,
-                message: 'Missing required payment information'
-            });
-        }
-
-        // Verify signature
-        const body = razorpay_order_id + '|' + razorpay_payment_id;
-        const expectedSignature = crypto
-            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-            .update(body.toString())
-            .digest('hex');
-
-        const isAuthentic = expectedSignature === razorpay_signature;
-
-        if (!isAuthentic) {
-            return res.status(400).json({
-                success: false,
-                message: 'Payment verification failed'
-            });
-        }
-
-        // Get order details
-        const order = await razorpay.orders.fetch(razorpay_order_id);
-        const amountInRupees = order.amount / 100;
-
-        // Get user from the order notes
-        const userId = order.notes.userId;
-        const user = await User.findById(userId);
-
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found'
-            });
-        }
-
-        // Create or update wallet transaction
-        let wallet = await Wallet.findOne({ user: userId });
-        
-        if (!wallet) {
-            wallet = new Wallet({
-                user: userId,
-                balance: amountInRupees,
-                transactions: [{
-                    type: 'credit',
-                    amount: amountInRupees,
-                    description: 'Added money to wallet via Razorpay',
-                    paymentId: razorpay_payment_id,
-                    orderId: razorpay_order_id,
-                    status: 'completed'
-                }]
-            });
-        } else {
-            wallet.balance += amountInRupees;
-            wallet.transactions.push({
-                type: 'credit',
-                amount: amountInRupees,
-                description: 'Added money to wallet via Razorpay',
-                paymentId: razorpay_payment_id,
-                orderId: razorpay_order_id,
-                status: 'completed'
-            });
-        }
-
-        await wallet.save();
-
         // Update user's wallet reference
         if (!user.wallet) {
             user.wallet = wallet._id;

@@ -10,7 +10,7 @@ const OfferService = require("../../services/offerService");
 const mongoose = require("mongoose");
 const Coupon = require("../../models/couponSchema");
 const Wallet = require("../../models/walletSchema"); 
-
+const { validateAndUpdateCartCoupon } = require("../../helpers/couponHelper");
 
 const razorpay =
   process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET
@@ -178,13 +178,50 @@ exports.submitRating = async (req, res) => {
 exports.calculateCartTotal = async (cart) => {
   let subtotal = 0;
   let deliveryCharge = 0; // Delivery always free
+  let couponDiscount = 0;
+  let validCoupon = null;
 
   if (!cart || !cart.items) {
     return {
       subtotal: 0,
       deliveryCharge: 0,
       total: "0.00",
+      couponDiscount: 0,
+      validCoupon: null
     };
+  }
+
+  // Validate the applied coupon if exists
+  if (cart.appliedCoupon && cart.appliedCoupon.code) {
+    try {
+      const coupon = await Coupon.findOne({
+        code: cart.appliedCoupon.code,
+        isActive: true
+      });
+
+      // If coupon is valid and not expired
+      if (coupon && coupon.isValid()) {
+        validCoupon = {
+          code: coupon.code,
+          discountType: coupon.discountType,
+          discountValue: coupon.discountValue,
+          minPurchase: coupon.minPurchase,
+          maxDiscount: coupon.maxDiscount,
+          couponId: coupon._id
+        };
+      } else {
+        // Clear invalid coupon from cart
+        cart.appliedCoupon = undefined;
+        cart.couponDiscount = 0;
+        await cart.save();
+      }
+    } catch (error) {
+      console.error('Error validating coupon:', error);
+      // In case of error, remove the coupon
+      cart.appliedCoupon = undefined;
+      cart.couponDiscount = 0;
+      await cart.save();
+    }
   }
 
   // Calculate subtotal
@@ -222,6 +259,21 @@ exports.calculateCartTotal = async (cart) => {
     }
   }
 
+  // Calculate coupon discount if valid coupon exists
+  if (validCoupon) {
+    const discount = validCoupon.discountType === 'percentage'
+      ? Math.min(
+          (subtotal * validCoupon.discountValue) / 100,
+          validCoupon.maxDiscount || Infinity
+        )
+      : Math.min(validCoupon.discountValue, validCoupon.maxDiscount || Infinity);
+    
+    couponDiscount = Math.max(0, discount);
+  }
+
+  // Calculate total after all discounts
+  const total = Math.max(0, subtotal - couponDiscount + deliveryCharge);
+
   // Apply free delivery for orders above ₹500
   if (subtotal >= 500) {
     deliveryCharge = 0;
@@ -230,7 +282,9 @@ exports.calculateCartTotal = async (cart) => {
   return {
     subtotal,
     deliveryCharge,
-    total: (subtotal + deliveryCharge).toFixed(2),
+    couponDiscount,
+    validCoupon,
+    total: total.toFixed(2),
   };
 };
 
@@ -1105,7 +1159,6 @@ exports.checkProductInCart = async (req, res) => {
     console.error("Error checking cart status:", error);
     res.status(500).json({
       error: "Failed to check cart status",
-      inCart: false,
     });
   }
 };
@@ -1116,10 +1169,9 @@ exports.getCartPage = async (req, res) => {
       return res.redirect("/login");
     }
 
-    const cart = await Cart.findOne({ user: req.user._id }).populate({
+    let cart = await Cart.findOne({ user: req.user._id }).populate({
       path: "items.product",
-      select:
-        "name regularPrice salesPrice productImage category isListed isBlocked quantity",
+      select: "name regularPrice salesPrice productImage category isListed isBlocked quantity",
       populate: [
         {
           path: "category",
@@ -1128,6 +1180,11 @@ exports.getCartPage = async (req, res) => {
         },
       ],
     });
+
+    // Validate and update coupon status
+    if (cart) {
+      cart = await validateAndUpdateCartCoupon(cart);
+    }
 
     if (!cart || !cart.items || cart.items.length === 0) {
       return res.render("user/cart", {
@@ -1212,10 +1269,23 @@ exports.getCartPage = async (req, res) => {
     // Save the updated cart with new prices
     await cart.save();
 
-    // Calculate totals
-    const totals = cart.calculateTotals();
+    // Calculate totals with coupon validation
+    const totals = await exports.calculateCartTotal(cart);
 
-    // Add totals to cart object
+    // Update cart with validated coupon info
+    if (totals.validCoupon) {
+      cart.appliedCoupon = totals.validCoupon;
+      cart.couponDiscount = totals.couponDiscount;
+    } else if (cart.appliedCoupon) {
+      // Clear invalid coupon
+      cart.appliedCoupon = undefined;
+      cart.couponDiscount = 0;
+    }
+
+    // Save cart with updated coupon info
+    await cart.save();
+
+    // Add totals to cart object for the view
     cart.subtotal = totals.subtotal;
     cart.deliveryCharge = totals.deliveryCharge;
     cart.total = totals.total;

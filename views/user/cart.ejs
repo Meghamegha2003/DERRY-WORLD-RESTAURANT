@@ -543,11 +543,17 @@
         <div class="container">
             <% try { %>
                 <% if (!cartItems || cartItems.length === 0) { %>
-                    <div class="empty-cart text-center">
-                        <img src="/images/empty-cart.png" alt="Empty Cart" class="empty-cart-img mb-4" style="max-width: 200px;">
-                        <h3 class="empty-cart-title mb-4">Your cart is empty</h3>
-                        <p class="empty-cart-text mb-4">Looks like you haven't added any items to your cart yet.</p>
-                        <a href="/menu" class="btn btn-primary">Continue Shopping</a>
+                    <div class="empty-cart text-center py-5 my-5">
+                        <div class="empty-cart-inner bg-white p-5 rounded-3 shadow-sm" style="max-width: 500px; margin: 0 auto;">
+                            <div class="empty-cart-icon mb-4">
+                                <i class="fas fa-shopping-cart" style="font-size: 4rem; color: #ffbe33;"></i>
+                            </div>
+                            <h3 class="empty-cart-title mb-3" style="color: #2c3e50; font-weight: 600;">Your Cart is Empty</h3>
+                            <p class="empty-cart-text mb-4" style="color: #7f8c8d; font-size: 1.1rem;">Looks like you haven't added any items to your cart yet.</p>
+                            <a href="/menu" class="btn btn-warning text-white px-4 py-2" style="background: linear-gradient(135deg, #ffbe33 0%, #fd7e14 100%); border: none; border-radius: 8px; font-weight: 500; transition: all 0.3s ease;">
+                                <i class="fas fa-utensils me-2"></i>Explore Our Menu
+                            </a>
+                        </div>
                     </div>
                 <% } else { %>
                     <div class="row">

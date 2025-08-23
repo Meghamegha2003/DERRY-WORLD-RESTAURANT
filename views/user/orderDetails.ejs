@@ -893,18 +893,17 @@
           </div>
 
       <div class="price-row">
-  <span>Payment Status</span>
-  <div class="d-flex align-items-center">
-    <% if (order.paymentStatus === 'Failed') { %>
-      <span class="badge bg-danger ms-2">Failed</span>
-        <button onclick="retryPayment('<%= order._id %>')" class="btn btn-warning btn-sm ms-3">Retry Payment</button>
-    <% } else if (order.paymentStatus === 'Pending') { %>
-      <span class="badge bg-warning text-dark ms-2">Pending</span>
-    <% } else if (order.paymentStatus === 'Paid') { %>
-      <span class="badge bg-success ms-2">Paid</span>
-    <% } %>
-  </div>
-</div>
+        <span>Payment Status</span>
+        <div class="d-flex align-items-center">
+          <% if (order.paymentStatus === 'Failed') { %>
+            <span class="badge bg-danger">Failed</span>
+          <% } else if (order.paymentStatus === 'Pending') { %>
+            <span class="badge bg-warning text-dark">Pending</span>
+          <% } else if (order.paymentStatus === 'Paid') { %>
+            <span class="badge bg-success">Paid</span>
+          <% } %>
+        </div>
+      </div>
 
 <% if (order.paymentMethod.toLowerCase() === 'online' && (order.paymentStatus === 'Pending' || order.paymentStatus === 'Failed')) { %>
   <div class="d-grid mt-3">

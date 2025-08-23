@@ -1,13 +1,15 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
-const { Order, ORDER_STATUS, PAYMENT_STATUS } = require('../../models/orderSchema');
+const { Order, ORDER_STATUS } = require('../../models/orderSchema');
+const { PAYMENT_STATUS } = require('../../utils/httpStatus');
 const User = require('../../models/userSchema');
 const Cart = require('../../models/cartSchema');
 const Wallet = require('../../models/walletSchema');
-const OfferService = require('../../services/offerService');
+const Product = require('../../models/productSchema');
+const { calculateOrderTotals } = require('../../helpers/orderHelper');
+const { extractAddress } = require('../../helpers/addressHelper');
 const { getBestOffer } = require('../../helpers/offerHelper');
-const { calculateOrderTotals } = require('./checkoutController');
 
 let razorpay;
 try {
@@ -28,86 +30,304 @@ try {
 exports.getOrderItems = async (cartItems) => {
     return Promise.all(
         cartItems.map(async item => {
-            const bestOffer = await getBestOffer(item.product);
-            const finalPrice = bestOffer.finalPrice || item.product.salesPrice || item.product.regularPrice;
+            // Ensure we have the full product with populated category for accurate offer calculation
+            const product = await Product.findById(item.product._id).populate('category');
+            if (!product) {
+                throw new Error(`Product ${item.product._id} not found`);
+            }
+            
+            // Get the best offer for this product
+            const bestOffer = await getBestOffer(product);
+            
+            // Calculate prices
+            const regularPrice = product.regularPrice || 0;
+            const finalPrice = bestOffer.finalPrice;
+            const offerDiscount = bestOffer.hasOffer ? (regularPrice - finalPrice) * item.quantity : 0;
+            
+            // Store offer details with the item
             return {
-                product: item.product._id,
+                product: product._id,
                 quantity: item.quantity,
-                price: finalPrice,
-                total: finalPrice * item.quantity,
-                status: ORDER_STATUS.PROCESSING
+                price: finalPrice, // Final price after all offers
+                regularPrice: regularPrice, // Original price
+                total: finalPrice * item.quantity, // Total after all discounts
+                offerDiscount: parseFloat(offerDiscount.toFixed(2)), // Total discount from offers
+                status: ORDER_STATUS.PROCESSING,
+                offerDetails: bestOffer.hasOffer ? {
+                    type: bestOffer.offer?.type,
+                    name: bestOffer.offer?.name,
+                    discountPercentage: bestOffer.discountPercentage,
+                    originalDiscount: bestOffer.offer?.discountValue
+                } : null
             };
         })
     );
 }
 
-// 📦 Shared function to extract shipping address
-exports.extractAddress = (address) => {
-    return {
-        addressType: address.addressType || 'Home',
-        fullName: address.fullName,
-        phone: address.phone,
-        addressLine1: address.addressLine1,
-        addressLine2: address.addressLine2 || '',
-        city: address.city,
-        state: address.state || 'Kerala',
-        pincode: address.pincode
-    };
-}
+// Using extractAddress from addressHelper.js
 
 // 🧹 Clear cart after order
-exports.clearCart = async (cart) => {
+exports.clearCart = async (cart, options = {}) => {
     cart.items = [];
     cart.couponDiscount = 0;
     cart.appliedCoupon = null;
-    await cart.save();
+    await cart.save(options);
 }
 
 // ----------------------------
 // ✅ Razorpay Order Creation
 // ----------------------------
 exports.createRazorpayOrder = async (req, res) => {
+    // In development, we'll skip transactions if not in a replica set
+    const useTransaction = process.env.NODE_ENV !== 'development';
+    const session = useTransaction ? await mongoose.startSession() : null;
+    
+    if (useTransaction) {
+        session.startTransaction();
+    }
+    
     try {
         if (!razorpay) throw new Error('Razorpay is not properly initialized');
 
         const userId = req.user._id;
         const { addressId } = req.body;
 
-        const cart = await Cart.findOne({ user: userId }).populate({
-            path: 'items.product',
-            populate: { path: 'category' }
-        });
+        const queryOptions = useTransaction ? { session } : {};
+        
+        const cart = await Cart.findOne({ user: userId })
+            .populate({
+                path: 'items.product',
+                populate: { path: 'category' }
+            })
+            .session(useTransaction ? session : null);
 
         if (!cart || !cart.items.length) {
+            if (useTransaction) {
+                await session.abortTransaction();
+                session.endSession();
+            }
             return res.status(400).json({ success: false, message: 'Your cart is empty' });
         }
 
         const { total } = await calculateOrderTotals(cart);
+        const user = await User.findById(userId).session(useTransaction ? session : null);
+        const address = user.addresses.id(addressId);
 
-        const receiptId = `ord_${Date.now().toString().slice(-8)}_${userId.toString().slice(-4)}`;
-
-        const razorpayOrder = await razorpay.orders.create({
-            amount: Math.round(total * 100),
-            currency: 'INR',
-            receipt: receiptId,
-            notes: {
-                userId: userId.toString(),
-                addressId,
-                cartId: cart._id.toString()
+        if (!address) {
+            if (useTransaction) {
+                await session.abortTransaction();
+                session.endSession();
             }
-        });
+            return res.status(400).json({ success: false, message: 'Invalid delivery address' });
+        }
 
-        res.status(200).json({
-            success: true,
-            order: {
-                id: razorpayOrder.id,
-                amount: total,
-                currency: razorpayOrder.currency
+        // Validate product prices and calculate item totals
+        const orderItems = cart.items.map(item => {
+            // Use salesPrice instead of price
+            const price = Number(item.product.salesPrice);
+            const regularPrice = Number(item.product.regularPrice) || price;
+            const quantity = Number(item.quantity);
+            
+            if (isNaN(price) || isNaN(quantity) || price <= 0 || quantity <= 0) {
+                console.error('Invalid product data:', {
+                    name: item.product.name,
+                    salesPrice: item.product.salesPrice,
+                    regularPrice: item.product.regularPrice,
+                    quantity: item.quantity
+                });
+                throw new Error(`Invalid price or quantity for product: ${item.product.name}`);
             }
+            
+            const total = price * quantity;
+            
+            return {
+                product: item.product._id,
+                quantity: quantity,
+                price: price,
+                regularPrice: regularPrice,
+                total: total,
+                name: item.product.name,
+                image: item.product.image,
+                status: 'Active' // Required by orderItemSchema
+            };
         });
+        
+        // Validate address fields
+        if (!address || !address.fullName || !address.addressLine1 || !address.city || !address.state || !address.pincode) {
+            console.error('Incomplete address information:', {
+                fullName: address?.fullName,
+                addressLine1: address?.addressLine1,
+                city: address?.city,
+                state: address?.state,
+                pincode: address?.pincode
+            });
+            throw new Error('Incomplete address information');
+        }
+        
+        // Generate a unique order number with timestamp and random component
+        function generateOrderNumber() {
+            const timestamp = Date.now();
+            const random = Math.floor(Math.random() * 10000);
+            return `ORD-${timestamp}-${random}`;
+        }
+        
+        // Create order in database first
+        let order;
+        let attempts = 0;
+        const maxAttempts = 3;
+        const saveOptions = useTransaction ? { session } : {};
+        
+        while (attempts < maxAttempts) {
+            try {
+                const orderData = {
+                    orderNumber: generateOrderNumber(),
+                    user: userId,
+                    items: orderItems,
+                    shippingAddress: {
+                        addressType: address.addressType || 'Home',
+                        fullName: address.fullName,
+                        phone: address.phone || '',
+                        addressLine1: address.addressLine1,
+                        addressLine2: address.addressLine2 || '',
+                        city: address.city,
+                        state: address.state,
+                        pincode: address.pincode.toString()
+                    },
+                    paymentMethod: 'online',
+                    paymentStatus: 'Pending',
+                    razorpay: {
+                        status: 'created',
+                        attemptCount: 1
+                    },
+                    status: 'Active',
+                    orderStatus: 'Pending',
+                    total: total,
+                    totalAmount: total,
+                    orderDate: new Date()
+                };
+                
+                order = new Order(orderData);
+                await order.save(saveOptions);
+                break;
+                
+            } catch (error) {
+                if (error.code === 11000 && error.keyPattern && error.keyPattern.orderNumber) {
+                    // Duplicate order number, retry with a new one
+                    attempts++;
+                    if (attempts >= maxAttempts) {
+                        throw new Error('Failed to generate a unique order number after multiple attempts');
+                    }
+                } else {
+                    throw error;
+                }
+            }
+        }
+
+        // Create Razorpay order
+        let razorpayOrder;
+        try {
+            razorpayOrder = await razorpay.orders.create({
+                amount: Math.round(total * 100), // Convert to paise
+                currency: 'INR',
+                receipt: order._id.toString(),
+                payment_capture: 1 // Auto capture payment
+            });
+
+            if (!razorpayOrder || !razorpayOrder.id) {
+                throw new Error('Failed to create Razorpay order: Invalid response from Razorpay');
+            }
+
+            // Update order with Razorpay order ID in both places for backward compatibility
+            order.razorpay = order.razorpay || {};
+            order.razorpay.status = 'created';
+            order.razorpay.orderId = razorpayOrder.id;
+            
+            // Also store in payment object for backward compatibility
+            order.payment = order.payment || {};
+            order.payment.razorpayOrderId = razorpayOrder.id;
+            order.payment.status = 'pending';
+            
+            // Save the order with Razorpay details
+            await order.save(saveOptions);
+            
+            console.log('Updated order with Razorpay ID:', {
+                orderId: order._id,
+                razorpayOrderId: razorpayOrder.id
+            });
+            
+            // Clear the cart
+            await exports.clearCart(cart, saveOptions);
+            
+            // Commit the transaction if using one
+            if (useTransaction) {
+                await session.commitTransaction();
+                session.endSession();
+            }
+            
+            // Send success response to client
+            return res.status(200).json({
+                success: true,
+                order: {
+                    id: razorpayOrder.id,
+                    amount: razorpayOrder.amount, // Use the amount from razorpayOrder
+                    currency: razorpayOrder.currency || 'INR',
+                    orderId: order._id,
+                    key: process.env.RAZORPAY_KEY_ID
+                }
+            });
+            
+        } catch (razorpayError) {
+            console.error('Razorpay order creation failed:', razorpayError);
+            
+            // Update order status to reflect the failure
+            order.razorpay.status = 'failed';
+            order.razorpay.failureReason = razorpayError.message || 'Razorpay order creation failed';
+            order.paymentStatus = 'Failed';
+            
+            // Save the failed state
+            await order.save(saveOptions);
+            
+            // Abort transaction if using one
+            if (useTransaction && session) {
+                await session.abortTransaction();
+                session.endSession();
+            }
+            
+            // Send error response to client
+            return res.status(500).json({
+                success: false,
+                message: `Payment processing failed: ${razorpayError.message || 'Unable to create payment order'}`
+            });
+        }
     } catch (error) {
         console.error('Error creating Razorpay order:', error);
-        res.status(500).json({ success: false, message: error.message || 'Failed to create payment order' });
+        
+        // Clean up any created order if it exists
+        if (typeof order !== 'undefined' && order && order._id) {
+            try {
+                await Order.findByIdAndDelete(order._id);
+                console.log('Cleaned up order after error:', order._id);
+            } catch (cleanupError) {
+                console.error('Error cleaning up order after error:', cleanupError);
+            }
+        }
+        
+        // Abort transaction if it exists
+        if (useTransaction && session) {
+            try {
+                await session.abortTransaction();
+                session.endSession();
+            } catch (txError) {
+                console.error('Error aborting transaction:', txError);
+            }
+        }
+        
+        res.status(500).json({ 
+            success: false, 
+            message: error.message || 'Failed to create payment order',
+            code: error.code,
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 };
 
@@ -116,13 +336,37 @@ exports.createRazorpayOrder = async (req, res) => {
 // ----------------------------
 exports.verifyPayment = async (req, res) => {
     try {
+        console.log('=== PAYMENT VERIFICATION STARTED ===');
+        console.log('Payment verification request received:', {
+            body: req.body,
+            headers: req.headers,
+            user: req.user ? req.user._id : 'No user',
+            timestamp: new Date().toISOString()
+        });
+
         // Support both nested and legacy payload shapes
-const razorpayOrderId = req.body.order || req.body.razorpay_order_id;
-const razorpayPaymentId = req.body.payment?.razorpay_payment_id || req.body.razorpay_payment_id;
-const razorpaySignature = req.body.payment?.razorpay_signature || req.body.razorpay_signature;
-if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
-    throw new Error('Payment verification data missing');
-}
+        const razorpayOrderId = req.body.order || req.body.razorpay_order_id;
+        const razorpayPaymentId = req.body.payment?.razorpay_payment_id || req.body.razorpay_payment_id;
+        const razorpaySignature = req.body.payment?.razorpay_signature || req.body.razorpay_signature;
+        
+        console.log('Extracted payment data:', {
+            razorpayOrderId,
+            razorpayPaymentId,
+            razorpaySignature: razorpaySignature ? '***SIGNATURE_PRESENT***' : 'MISSING'
+        });
+        
+        if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+            console.error('Missing payment verification data:', {
+                razorpayOrderId,
+                razorpayPaymentId,
+                razorpaySignature
+            });
+            return res.status(400).json({
+                success: false,
+                message: 'Payment verification data missing',
+                details: { razorpayOrderId, razorpayPaymentId, razorpaySignature }
+            });
+        }
 
         // Calculate expected signature
         const expectedSignature = crypto
@@ -131,18 +375,258 @@ if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
             .digest('hex');
 
         if (expectedSignature !== razorpaySignature) {
-            throw new Error('Payment verification failed');
+            console.error('Invalid signature:', {
+                expected: expectedSignature,
+                received: razorpaySignature,
+                orderId: razorpayOrderId,
+                paymentId: razorpayPaymentId
+            });
+            return res.status(400).json({
+                success: false,
+                message: 'Payment verification failed: Invalid signature',
+                code: 'INVALID_SIGNATURE'
+            });
         }
 
-        // Fetch Razorpay order to retrieve internal orderId
-        const razorpayOrder = await razorpay.orders.fetch(razorpayOrderId);
-        const { orderId } = razorpayOrder.notes;
+        console.log('Looking up order with Razorpay ID:', razorpayOrderId);
+        
+        // Try to find the order by razorpayOrderId first (check both payment.razorpayOrderId and razorpay.orderId)
+        const query = {
+            $or: [
+                { 'payment.razorpayOrderId': razorpayOrderId },
+                { 'razorpay.orderId': razorpayOrderId }
+            ]
+        };
 
-        // Find and update existing order
-        const existingOrder = await Order.findById(orderId);
+        // Only add ObjectId query if razorpayOrderId is a valid ObjectId
+        if (mongoose.Types.ObjectId.isValid(razorpayOrderId)) {
+            query.$or.push({ _id: new mongoose.Types.ObjectId(razorpayOrderId) });
+        }
+
+        let existingOrder = await Order.findOne(query);
+        
+        // If not found, try to get from Razorpay API using the receipt ID
         if (!existingOrder) {
-            throw new Error('Order not found');
+            console.log('Order not found by razorpayOrderId, trying Razorpay API...');
+            const razorpayOrder = await razorpay.orders.fetch(razorpayOrderId);
+            
+            // Try to find by receipt ID (which should be our order ID)
+            if (razorpayOrder.receipt) {
+                console.log('Trying to find order by receipt ID:', razorpayOrder.receipt);
+                existingOrder = await Order.findById(razorpayOrder.receipt);
+                
+                if (existingOrder) {
+                    console.log('Found order by receipt ID, updating Razorpay order ID');
+                    // Update the order with the Razorpay order ID for future reference
+                    existingOrder.razorpay = existingOrder.razorpay || {};
+                    existingOrder.razorpay.orderId = razorpayOrderId;
+                    existingOrder.payment = existingOrder.payment || {};
+                    existingOrder.payment.razorpayOrderId = razorpayOrderId;
+                    await existingOrder.save();
+                }
+            }
+            
+            // If still not found, try notes as fallback
+            if (!existingOrder && razorpayOrder.notes?.orderId) {
+                existingOrder = await Order.findById(razorpayOrder.notes.orderId);
+            }
+            
+            // If still not found, try by receipt (legacy)
+            if (!existingOrder) {
+                existingOrder = await Order.findOne({ receipt: razorpayOrder.receipt });
+            }
         }
+        
+        if (existingOrder) {
+            console.log('Found order:', existingOrder._id);
+            console.log('Updating order with payment details...');
+            
+            // Update order with payment details
+            existingOrder.payment.status = 'completed';
+            existingOrder.payment.razorpayPaymentId = razorpayPaymentId;
+            existingOrder.payment.paidAt = new Date();
+            existingOrder.status = 'confirmed';
+            
+            // Clear the cart
+            const cart = await Cart.findOne({ user: existingOrder.user });
+            if (cart) {
+                await exports.clearCart(cart);
+            }
+            
+            // Save the updated order
+            await existingOrder.save();
+            
+            console.log('Order updated successfully:', {
+                _id: existingOrder._id,
+                payment: existingOrder.payment,
+                receipt: existingOrder.receipt,
+                status: existingOrder.status
+            });
+            
+            return res.status(200).json({
+                success: true,
+                message: 'Payment verified successfully',
+                order: {
+                    id: existingOrder._id,
+                    status: existingOrder.status,
+                    payment: existingOrder.payment
+                }
+            });
+        }
+        
+        console.log('Order not found in database, trying fallback methods...');
+        // 2. Try receipt field (might contain Razorpay order ID)
+        if (!existingOrder) {
+            existingOrder = await Order.findOne({ 'receipt': razorpayOrderId });
+            if (existingOrder) {
+                console.log('Found order by receipt field:', existingOrder._id);
+            }
+        }
+        
+        // 3. Try partial match on payment.razorpayOrderId
+        if (!existingOrder) {
+            existingOrder = await Order.findOne({
+                'payment.razorpayOrderId': { $regex: razorpayOrderId, $options: 'i' }
+            });
+            if (existingOrder) {
+                console.log('Found order by partial payment.razorpayOrderId match:', existingOrder._id);
+            }
+        }
+        
+        // 4. Try to fetch from Razorpay and match by notes
+        if (!existingOrder) {
+            try {
+                console.log('Fetching order from Razorpay...');
+                const razorpayOrder = await razorpay.orders.fetch(razorpayOrderId);
+                console.log('Fetched Razorpay order:', {
+                    id: razorpayOrder.id,
+                    amount: razorpayOrder.amount,
+                    receipt: razorpayOrder.receipt,
+                    status: razorpayOrder.status,
+                    notes: razorpayOrder.notes
+                });
+                
+                // Try to find by order ID in Razorpay notes
+                if (razorpayOrder.notes && razorpayOrder.notes.orderId) {
+                    existingOrder = await Order.findById(razorpayOrder.notes.orderId);
+                    if (existingOrder) {
+                        console.log('Found order by Razorpay notes.orderId:', existingOrder._id);
+                    }
+                }
+                
+                // Try to find by receipt number from Razorpay
+                if (!existingOrder && razorpayOrder.receipt) {
+                    console.log('Trying to find order by receipt:', razorpayOrder.receipt);
+                    
+                    // Try exact match on receipt field
+                    existingOrder = await Order.findOne({ 'receipt': razorpayOrder.receipt });
+                    
+                    // If not found, try with 'order_' prefix
+                    if (!existingOrder && !razorpayOrder.receipt.startsWith('order_')) {
+                        existingOrder = await Order.findOne({ 'receipt': `order_${razorpayOrder.receipt}` });
+                    }
+                    
+                    // If still not found, try to extract order ID from receipt
+                    if (!existingOrder && razorpayOrder.notes) {
+                        console.log('Checking Razorpay notes for order matching:', razorpayOrder.notes);
+                        
+                        // Try to find by cartId from Razorpay notes
+                        if (razorpayOrder.notes.cartId) {
+                            console.log('Trying to find order by cartId:', razorpayOrder.notes.cartId);
+                            existingOrder = await Order.findOne({ 'cart': razorpayOrder.notes.cartId });
+                            if (existingOrder) {
+                                console.log('Found order by cartId:', existingOrder._id);
+                            }
+                        }
+                        
+                        // Try to find by addressId from Razorpay notes
+                        if (!existingOrder && razorpayOrder.notes.addressId) {
+                            console.log('Trying to find order by addressId:', razorpayOrder.notes.addressId);
+                            try {
+                                existingOrder = await Order.findOne({ 
+                                    'shippingAddress': new mongoose.Types.ObjectId(razorpayOrder.notes.addressId),
+                                    'payment.razorpayOrderId': razorpayOrder.id
+                                });
+                                if (existingOrder) {
+                                    console.log('Found order by addressId and Razorpay ID:', existingOrder._id);
+                                }
+                            } catch (error) {
+                                console.error('Error finding order by addressId:', error.message);
+                            }
+                        }
+                        
+                        // If still not found, try to find by user ID and amount
+                        if (!existingOrder && razorpayOrder.notes.userId && razorpayOrder.amount) {
+                            console.log('Trying to find order by userId and amount:', {
+                                userId: razorpayOrder.notes.userId,
+                                amount: razorpayOrder.amount / 100 // Convert back to currency units
+                            });
+                            existingOrder = await Order.findOne({
+                                'user': new mongoose.Types.ObjectId(razorpayOrder.notes.userId),
+                                'total': razorpayOrder.amount / 100,
+                                'payment.status': 'pending',
+                                'status': 'pending'
+                            }).sort({ createdAt: -1 }); // Get the most recent matching order
+                            
+                            if (existingOrder) {
+                                console.log('Found pending order by user ID and amount:', existingOrder._id);
+                            }
+                        }
+                    }
+                    
+                    if (existingOrder) {
+                        console.log('Found order by receipt/notes:', existingOrder._id);
+                        // Update the order with Razorpay order ID for future reference
+                        existingOrder.payment = existingOrder.payment || {};
+                        existingOrder.payment.razorpayOrderId = razorpayOrder.id;
+                        await existingOrder.save();
+                        console.log('Updated order with Razorpay ID for future reference');
+                    }
+                }
+                
+                // If we found an order, update it with the Razorpay order ID for future reference
+                if (existingOrder) {
+                    existingOrder.payment = existingOrder.payment || {};
+                    existingOrder.payment.razorpayOrderId = razorpayOrderId;
+                    await existingOrder.save();
+                    console.log('Updated order with Razorpay ID for future reference');
+                }
+                
+            } catch (error) {
+                console.error('Error fetching Razorpay order:', error.message);
+                if (error.response) {
+                    console.error('Razorpay API error:', error.response.data);
+                }
+            }
+        }
+
+        // If order still not found, log detailed error
+        if (!existingOrder) {
+            const errorMessage = `Order not found for Razorpay order ID: ${razorpayOrderId}. User: ${req.user?._id || 'Not authenticated'}`;
+            console.error(errorMessage, {
+                razorpayOrderId,
+                razorpayPaymentId,
+                user: req.user?._id,
+                time: new Date().toISOString()
+            });
+            
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found. Please contact support with this reference: ' + razorpayOrderId,
+                code: 'ORDER_NOT_FOUND',
+                details: {
+                    razorpayOrderId,
+                    timestamp: new Date().toISOString()
+                }
+            });
+        }
+        
+        console.log('Found order:', {
+            orderId: existingOrder._id,
+            status: existingOrder.status,
+            amount: existingOrder.amount,
+            user: existingOrder.user
+        });
 
         existingOrder.paymentStatus = PAYMENT_STATUS.PAID;
         // existingOrder.orderStatus is kept at Pending; admin must update to Processing
@@ -175,63 +659,258 @@ if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
 // ✅ Wallet Payment Process
 // ----------------------------
 exports.processWalletPayment = async (req, res) => {
+    const useTransactions = process.env.NODE_ENV === 'production';
+    const session = useTransactions ? await mongoose.startSession() : null;
+    
     try {
         const userId = req.user._id;
-        const { addressId, cartId } = req.body;
+        const { addressId } = req.body;
 
-        const user = await User.findById(userId);
-        const cart = await Cart.findById(cartId).populate({ path: 'items.product', populate: { path: 'category' } });
+        // Start transaction if enabled
+        if (useTransactions) {
+            session.startTransaction();
+        }
 
-        if (!user?.wallet || !cart) {
-            return res.status(400).json({ success: false, message: 'User or cart not found' });
+        // Find user (with or without session)
+        const query = User.findById(userId);
+        if (useTransactions) query.session(session);
+        const user = await query;
+        
+        if (!user) {
+            if (useTransactions) {
+                await session.abortTransaction();
+                session.endSession();
+            }
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Find user's cart
+        const cartQuery = Cart.findOne({ user: userId })
+            .populate({ path: 'items.product', populate: { path: 'category' } });
+            
+        if (useTransactions) cartQuery.session(session);
+        const cart = await cartQuery;
+
+        if (!cart || !cart.items || cart.items.length === 0) {
+            if (useTransactions) {
+                await session.abortTransaction();
+                session.endSession();
+            }
+            return res.status(400).json({ success: false, message: 'Your cart is empty' });
         }
 
         const address = user.addresses.id(addressId);
-        if (!address) return res.status(404).json({ success: false, message: 'Shipping address not found' });
-
-        const [orderItems, { subtotal, couponDiscount, deliveryCharge, total }] = await Promise.all([
-            getOrderItems(cart.items),
-            calculateOrderTotals(cart)
-        ]);
-
-        if (user.wallet.balance < total) {
-            return res.status(400).json({ success: false, message: 'Insufficient wallet balance' });
+        if (!address) {
+            if (useTransactions) {
+                await session.abortTransaction();
+                session.endSession();
+            }
+            return res.status(404).json({ success: false, message: 'Shipping address not found' });
         }
 
-        const newOrder = await Order.create({
-            user: userId,
-            items: orderItems,
-            shippingAddress: extractAddress(address),
-            paymentMethod: 'wallet',
-            paymentStatus: PAYMENT_STATUS.PAID,
-            orderStatus: ORDER_STATUS.PROCESSING,
-            subtotal,
-            couponDiscount,
-            deliveryCharge,
-            total
-        });
+        // First get order items with best offers applied
+        const orderItems = await exports.getOrderItems(cart.items);
+        
+        // Calculate order totals based on the items with offers
+        const subtotal = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const offerDiscount = orderItems.reduce((sum, item) => sum + (item.offerDiscount || 0), 0);
+        const couponDiscount = cart.couponDiscount || 0;
+        const deliveryCharge = 0; // Free delivery
+        const total = Math.max(0, subtotal - couponDiscount + deliveryCharge);
 
-        await Wallet.create({
-            user: userId,
-            type: 'debit',
-            amount: total,
-            description: `Payment for order #${newOrder._id}`,
-            orderReference: newOrder._id,
-            status: 'completed'
-        });
+        // Log detailed order information
+        console.log('\n--- Order Calculation Details ---');
+        console.log('Cart Items:', cart.items.map(item => ({
+            name: item.product?.name,
+            quantity: item.quantity,
+            regularPrice: item.product?.regularPrice,
+            salePrice: item.product?.salesPrice,
+            finalPrice: item.product?.offerDetails?.finalPrice,
+            hasOffer: item.product?.offerDetails?.hasOffer,
+            offerDiscount: item.product?.offerDetails?.offerDiscount
+        })));
 
-        user.wallet.balance -= total;
-        await user.save();
-        await clearCart(cart);
+        // Calculate final amount after all discounts and offers
+        const finalAmount = Math.max(0, total); // Ensure amount is not negative
+        
+        console.log('\n--- Order Totals ---');
+        console.log('Subtotal:', subtotal);
+        console.log('Coupon Discount:', couponDiscount);
+        console.log('Offer Discount:', offerDiscount);
+        console.log('Delivery Charge:', deliveryCharge);
+        console.log('Total:', total);
+        console.log('Final Amount:', finalAmount);
+        console.log('------------------------\n');
+        
+        // Log wallet balance before deduction
+        console.log('Wallet Balance Before:', user.wallet.balance);
+        console.log('Amount to Deduct:', finalAmount);
+        console.log('Will have sufficient balance?', user.wallet.balance >= finalAmount);
+        
+        // Check if user has sufficient balance
+        if (user.wallet.balance < finalAmount) {
+            if (useTransactions) {
+                await session.abortTransaction();
+                session.endSession();
+            }
+            return res.status(400).json({
+                success: false, 
+                message: `Insufficient wallet balance. Your balance is ₹${user.wallet.balance.toFixed(2)} but the order total is ₹${finalAmount.toFixed(2)}`,
+                currentBalance: user.wallet.balance,
+                orderTotal: finalAmount
+            });
+        }
 
-        res.status(200).json({
-            success: true,
-            message: 'Order placed successfully using wallet payment',
-            orderId: newOrder._id
-        });
+        try {
+            // Prepare order items with required fields
+            const processedOrderItems = orderItems.map(item => ({
+                ...item,
+                status: 'Active', // Default status for new order items
+                // Ensure all required fields are present
+                regularPrice: item.regularPrice || item.price,
+                price: item.price,
+                total: item.price * item.quantity
+            }));
+
+            // Extract and format address according to schema
+            const shippingAddress = {
+                fullName: address.fullName || address.name,
+                phone: address.phone,
+                addressLine1: address.addressLine1 || address.address,
+                addressLine2: address.addressLine2 || address.address2 || '',
+                city: address.city,
+                state: address.state,
+                pincode: address.pincode,
+                addressType: address.addressType || 'Home',
+                isDefault: address.isDefault || false
+            };
+
+            // Create the order with proper schema validation
+            const newOrder = new Order({
+                user: userId,
+                items: processedOrderItems,
+                shippingAddress: shippingAddress,
+                paymentMethod: 'wallet',
+                paymentStatus: 'Paid', // Must match the enum in orderSchema
+                orderStatus: 'Processing', // Must match the enum in orderSchema
+                subtotal,
+                couponDiscount: couponDiscount || 0,
+                offerDiscount: offerDiscount || 0,
+                deliveryCharge: deliveryCharge || 0,
+                total,
+                payment: {
+                    status: 'Paid',
+                    amount: finalAmount,
+                    method: 'wallet',
+                    paidAt: new Date()
+                }
+            });
+
+            // Save options with or without session
+            const saveOptions = useTransactions ? { session } : {};
+            
+            // Save the order
+            const savedOrder = await newOrder.save(saveOptions);
+
+           
+
+            // Check if user has a wallet, if not create one
+            if (!user.wallet) {
+                const newWallet = new Wallet({
+                    user: userId,
+                    balance: 0,
+                    transactions: []
+                });
+                await newWallet.save(saveOptions);
+                user.wallet = newWallet._id;
+            }
+
+            // Get current wallet balance and calculate new balance with final amount
+            const currentWallet = await Wallet.findOne({ user: userId });
+            const currentBalance = currentWallet?.balance || 0;
+            const newBalance = currentBalance - finalAmount;
+
+            // Create transaction data
+            const transactionData = {
+                type: 'debit',
+                amount: finalAmount,
+                description: `Payment for order #${savedOrder.orderNumber}`,
+                date: new Date(),
+                status: 'completed',
+                orderReference: savedOrder._id,
+                orderId: savedOrder.orderNumber,
+                paymentId: `wallet_${Date.now()}`,
+                previousBalance: currentBalance,
+                newBalance: newBalance
+            };
+            
+            // Update the wallet with the new balance and transaction
+            const wallet = await Wallet.findOneAndUpdate(
+                { user: userId },
+                {
+                    $set: { balance: newBalance },
+                    $push: { transactions: transactionData }
+                },
+                { 
+                    new: true, 
+                    session: session || null,
+                    upsert: true // Create wallet if it doesn't exist
+                }
+            );
+            
+            if (!wallet) {
+                throw new Error('Failed to process wallet payment: Wallet not found');
+            }
+            
+            // Update user reference if this is a new wallet
+            if (!user.wallet.equals(wallet._id)) {
+                user.wallet = wallet._id;
+                await user.save(saveOptions);
+            }
+
+            // Clear the cart
+            await exports.clearCart(cart, saveOptions);
+
+            // Commit transaction if using transactions
+            if (useTransactions) {
+                await session.commitTransaction();
+                session.endSession();
+            }
+
+            // Send success response with redirect URL
+            return res.status(200).json({
+                success: true,
+                message: 'Order placed successfully using wallet balance',
+                order: savedOrder,
+                walletBalance: wallet.balance,
+                redirectUrl: `/orders/${savedOrder._id}`
+            });
+
+        } catch (error) {
+            // If there's an error, clean up resources
+            if (useTransactions) {
+                if (session.inTransaction()) {
+                    await session.abortTransaction();
+                }
+                if (session.inTransaction() === false) {
+                    session.endSession();
+                }
+            }
+            
+            console.error('Wallet payment error:', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Failed to process wallet payment',
+                error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            });
+        }
     } catch (error) {
-        console.error('Wallet payment error:', error);
-        res.status(500).json({ success: false, message: error.message || 'Wallet payment failed' });
+        console.error('Unexpected error in wallet payment:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'An unexpected error occurred while processing your payment',
+            error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 };
 

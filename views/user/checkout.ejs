@@ -4,6 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="cart-id" content="<%= cart._id %>" />
     <title>Derry World - Checkout</title>
 
     <link rel="stylesheet" type="text/css" href="/css/bootstrap.css" />
@@ -607,11 +608,12 @@
 ₹<%=
   cart.items && cart.items.length > 0
     ? cart.items.reduce((sum, item) => {
-        let price = (item.product && item.product.offerDetails && item.product.offerDetails.finalPrice)
-          ? item.product.offerDetails.finalPrice
-          : (item.product && item.product.salesPrice && item.product.salesPrice < item.product.regularPrice)
-            ? item.product.salesPrice
-            : (item.product ? item.product.regularPrice : 0);
+        // Use the finalPrice from offerDetails if available, otherwise use sale price or regular price
+        const price = item.product.offerDetails?.finalPrice || 
+                     (item.product.salesPrice && item.product.salesPrice < item.product.regularPrice 
+                      ? item.product.salesPrice 
+                      : item.product.regularPrice);
+        
         return sum + (price * item.quantity);
       }, 0).toFixed(2)
     : '0.00'
@@ -628,7 +630,7 @@
                         <span>Delivery Charge</span>
                         <span>FREE</span>
                     </div>
-                    <div class="summary-item total">
+                    <div class="summary-item total" id="orderTotal" data-total="<%= cart.total %>">
                         <span>Total</span>
                         <span>₹<%= cart.total.toFixed(2) %></span>
                     </div>
@@ -711,348 +713,28 @@
         </div>
     </div>
 
- <script>
-    
-    let selectedPaymentMethod = '';
-    let selectedAddressId = '';
-
-    const razorpay = new Razorpay(options);
-
-razorpay.on('payment.failed', function (response) {
-  // Optional: show SweetAlert or alert with failure reason
-  console.log("Payment failed", response.error);
-
-  // POST failure details to backend
-  fetch('/payment/failure', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      orderId: YOUR_ORDER_ID,
-      reason: response.error.description,
-    }),
-  });
-});
-
- document.addEventListener('DOMContentLoaded', () => {
-        initializeEventHandlers();
-
-        const firstAddress = document.querySelector('.address-card');
-        if (firstAddress) {
-            const addressId = firstAddress.dataset.address;
-            selectAddress(addressId);
-        }
-
-        const orderTotal = <%= cart.total.toFixed(2) %>;
-
-        if (orderTotal > 1000) {
-            const codCard = document.getElementById('codCard');
-            if (codCard) {
-                codCard.style.display = 'none';
-            }
-
-            // If COD was the default, switch to online or wallet
-            if (selectedPaymentMethod === 'cod') {
-                selectPaymentMethod('online'); // or 'wallet'
-            }
-        } else {
-            selectPaymentMethod('cod');
-        }
-
-        document.querySelectorAll('.address-card').forEach(card => {
-            card.addEventListener('mouseenter', function () {
-                this.querySelector('.address-actions')?.classList.add('d-block');
-            });
-            card.addEventListener('mouseleave', function () {
-                this.querySelector('.address-actions')?.classList.remove('d-block');
-            });
-        });
-    });
-   
-    function getSelectedAddressId() {
-        const hiddenInput = document.getElementById('selectedAddressId');
-        return hiddenInput ? hiddenInput.value : '';
-    }
-
-    function deleteAddress(addressId) {
-        Swal.fire({
-            title: 'Are you sure?',
-            text: 'This address will be permanently deleted.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Yes, delete it!'
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                try {
-                    const response = await fetch(`/addresses/${addressId}`, {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    const data = await response.json();
-                    if (data.success) {
-                        await Swal.fire({
-                            icon: 'success',
-                            title: 'Deleted!',
-                            text: 'Address has been deleted.',
-                            showConfirmButton: false,
-                            timer: 1500
-                        });
-                        location.reload();
-                    } else {
-                        throw new Error(data.message || 'Failed to delete address');
-                    }
-                } catch (error) {
-                    console.error('Error deleting address:', error);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: error.message || 'Failed to delete address'
-                    });
-                }
-            }
-        });
-    }
-
-    function saveAddress() {
-        const form = document.getElementById('addressForm');
-        if (!form.checkValidity()) {
-            form.reportValidity();
-            return;
-        }
-
-        const formData = new FormData(form);
-        const addressData = Object.fromEntries(formData.entries());
-
-        if (!addressData.addressId) delete addressData.addressId;
-
-        const url = addressData.addressId ? `/addresses/${addressData.addressId}` : '/addresses';
-
-        fetch(url, {
-            method: addressData.addressId ? 'PUT' : 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(addressData)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Success',
-                    text: addressData.addressId ? 'Address updated successfully' : 'Address added successfully',
-                    timer: 1500,
-                    showConfirmButton: false
-                }).then(() => location.reload());
-            } else {
-                throw new Error(data.error || 'Failed to save address');
-            }
-        })
-        .catch(error => {
-            console.error('Error saving address:', error);
-            Swal.fire({ icon: 'error', title: 'Error', text: error.message || 'Failed to save address' });
-        });
-    }
-
-    function selectPaymentMethod(method) {
-        selectedPaymentMethod = method;
-        document.querySelectorAll('.payment-method-card').forEach(card => {
-            card.classList.remove('selected');
-        });
-        const selectedCard = document.querySelector(`.payment-method-card[data-method="${method}"]`);
-        if (selectedCard) selectedCard.classList.add('selected');
-    }
-
-    function selectAddress(addressId) {
-        selectedAddressId = addressId;
-        document.querySelectorAll('.address-card').forEach(card => card.classList.remove('selected'));
-        const selectedCard = document.querySelector(`.address-card[data-address="${addressId}"]`);
-        if (selectedCard) selectedCard.classList.add('selected');
-
-        let hiddenInput = document.getElementById('selectedAddressId');
-        const form = document.getElementById('checkoutForm') || document.querySelector('form');
-        if (!hiddenInput) {
-            hiddenInput = document.createElement('input');
-            hiddenInput.type = 'hidden';
-            hiddenInput.name = 'selectedAddressId';
-            hiddenInput.id = 'selectedAddressId';
-            if (form) form.appendChild(hiddenInput);
-        }
-        hiddenInput.value = addressId;
-    }
-
-    function placeOrder() {
-    let addressInput = document.getElementById('selectedAddressId');
-    selectedAddressId = addressInput ? addressInput.value : '';
-
-    let paymentInput = document.getElementById('selectedPaymentMethod');
-    if (!paymentInput) {
-        paymentInput = document.createElement('input');
-        paymentInput.type = 'hidden';
-        paymentInput.name = 'selectedPaymentMethod';
-        paymentInput.id = 'selectedPaymentMethod';
-        document.body.appendChild(paymentInput);
-    }
-    paymentInput.value = selectedPaymentMethod;
-
-    if (!selectedAddressId) {
-        Swal.fire({ icon: 'error', title: 'Error', text: 'Please select a delivery address' });
-        return;
-    }
-
-    if (!selectedPaymentMethod) {
-        Swal.fire({ icon: 'error', title: 'Error', text: 'Please select a payment method' });
-        return;
-    }
-
-    const orderTotal = <%= cart.total.toFixed(2) %>;
-    if (selectedPaymentMethod === 'cod' && orderTotal > 1000) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'COD Not Allowed',
-            text: 'Cash on Delivery is not available for orders above ₹1000. Please choose another payment method.'
-        });
-        return;
-    }
-
-    Swal.fire({
-        title: 'Processing...',
-        text: 'Please wait while we process your order',
-        allowOutsideClick: false,
-        showConfirmButton: false,
-        didOpen: () => Swal.showLoading()
-    });
-
-fetch('/checkout/process', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    addressId: selectedAddressId,
-    paymentMethod: selectedPaymentMethod
-  })
-})
-.then(async (res) => {
-  const data = await res.json();
-
-  if (!res.ok) {
-    // 🚨 Handle error case explicitly
-    const unavailableMatch = data.message?.match(/no longer available: (.+)/i);
-    if (unavailableMatch) {
-      const items = unavailableMatch[1];
-      return Swal.fire({
-        icon: 'error',
-        title: 'Items Unavailable',
-        html: `
-          <p>The following items are no longer available:</p>
-          <p><strong>${items}</strong></p>
-          <p>Please remove them from your cart.</p>
-        `,
-        confirmButtonText: 'Go to Cart',
-        confirmButtonColor: '#d33'
-      }).then(() => {
-        window.location.href = '/cart';
-      });
-    }
-
-    return Swal.fire({
-      icon: 'error',
-      title: 'Error',
-      text: data.message || 'Something went wrong. Please try again.'
-    });
-  }
-
-  // ✅ Continue success flow...
-  if (selectedPaymentMethod === 'online') {
-    const options = {
-      key: data.key,
-      amount: data.order.amount,
-      currency: data.order.currency,
-      name: 'Derry World Restaurant',
-      description: 'Food Order Payment',
-      order_id: data.order.id,
-      prefill: {
-        name: '<%= user.name %>',
-        email: '<%= user.email %>',
-        contact: '<%= user.phone %>'
-      },
-      handler: async function (response) {
-        try {
-          const resVerify = await fetch('/payment/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              order: data.order.id,
-              payment: {
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature
-              }
-            })
-          });
-          const verifyData = await resVerify.json();
-          if (verifyData.success) {
-            window.location.href = `/orders/${verifyData.orderId}`;
-          } else {
-            throw new Error(verifyData.message || 'Verification failed');
-          }
-        } catch (err) {
-          Swal.fire({ icon: 'error', title: 'Payment Verification Error', text: err.message });
-        }
-      },
-      modal: {
-        ondismiss: function () {
-          Swal.fire({
-            icon: 'info',
-            title: 'Order Placed, But Payment Incomplete',
-            html: `
-              <p>Your order has been placed successfully, but the payment was not completed.</p>
-              <p>You can complete the payment later from your <a href="/orders/${data.order.orderId}" class="fw-bold">orders page</a>.</p>
-            `,
-            confirmButtonText: 'Go to Orders'
-          }).then(() => {
-            window.location.href = `/orders/${data.order.orderId}`;
-          });
-        }
-      }
-    };
-
-    const rzp = new Razorpay(options);
-    rzp.open();
-  } else {
-    Swal.fire({
-      icon: 'success',
-      title: 'Order Placed Successfully!',
-      text: 'Thank you for your order.',
-      confirmButtonText: 'View Order'
-    }).then(() => {
-      window.location.href = `/orders/${data.orderId}`;
-    });
-  }
-})
-.catch(error => {
-  console.error('Order error:', error);
-  Swal.fire({ icon: 'error', title: 'Error', text: error.message || 'Failed to place order. Please try again.' });
-});
-
-
-}
-
-    function initializeEventHandlers() {
-        const editBtns = document.querySelectorAll('.edit-address');
-        editBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const { addressId, fullName, phone, addressLine1, addressLine2, city, state, pincode, addressType } = btn.dataset;
-                showEditAddressModal(addressId, fullName, phone, addressLine1, addressLine2, city, state, pincode, addressType);
-            });
-        });
-
-        const deleteBtns = document.querySelectorAll('.delete-address');
-        deleteBtns.forEach(btn => {
-            btn.addEventListener('click', () => deleteAddress(btn.dataset.addressId));
-        });
-    }
-
-     </script>
+ 
 
  <%- include('../partials/user/footer') %>
 
+    <!-- Razorpay SDK -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    
+    <!-- Initialize Razorpay Key -->
+    <script>
+        // Pass Razorpay key from server to client
+        const razorpayKey = '<%= razorpayKey || "" %>';
+        
+        // Debug logging
+        if (!razorpayKey) {
+            console.error('Razorpay key is not set. Please check your environment variables.');
+        } else {
+            console.log('Razorpay key loaded successfully');
+            console.log('Razorpay Key ID:', razorpayKey);
+        }
+    </script>
+    
+    <!-- Checkout Script with Razorpay Key as data attribute -->
+    <script src="/js/checkout.js" data-razorpay-key="<%= razorpayKey || '' %>"></script>
 </body>
 </html>

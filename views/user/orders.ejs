@@ -427,12 +427,6 @@
             <!-- Details -->
             <div class="flex-grow-1 p-3 d-flex flex-column justify-content-between">
                 <div>
-                    <% if (order.paymentStatus === 'Failed') { %>
-                        <div class="alert alert-danger mb-2 d-flex align-items-center gap-2 py-1 px-2" style="font-size: 0.9rem;">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <span><strong>Payment Failed:</strong> This order was not completed successfully.</span>
-                        </div>
-                    <% } %>
 
                     <div class="fw-semibold fs-6 mb-1">
                         <span class="text-secondary small">Order ID: <strong>#<%= order._id.toString().slice(-8).toUpperCase() %></strong></span><br>

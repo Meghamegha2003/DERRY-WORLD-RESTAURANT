@@ -1,5 +1,6 @@
 
 const HttpStatus = Object.freeze({
+  // HTTP Status Codes
   OK: 200,
   CREATED: 201,
   BAD_REQUEST: 400,
@@ -11,4 +12,18 @@ const HttpStatus = Object.freeze({
   INTERNAL_SERVER_ERROR: 500
 });
 
-module.exports = HttpStatus;
+// Payment Status Constants
+const PAYMENT_STATUS = Object.freeze({
+  PENDING: 'pending',
+  PAID: 'paid',
+  FAILED: 'failed',
+  REFUNDED: 'refunded',
+  CANCELLED: 'cancelled',
+  PROCESSING: 'processing',
+  COMPLETED: 'completed'
+});
+
+module.exports = {
+  ...HttpStatus,
+  PAYMENT_STATUS
+};

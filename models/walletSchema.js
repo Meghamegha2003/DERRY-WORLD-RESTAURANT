@@ -3,13 +3,29 @@ const mongoose = require('mongoose');
 const transactionSchema = new mongoose.Schema({
     type: {
         type: String,
-        enum: ['credit', 'debit'],
+        enum: ['credit', 'debit', 'refund'],
         required: true
     },
     amount: {
         type: Number,
         required: true,
         min: [0, 'Amount cannot be negative']
+    },
+    finalAmount: {
+        type: Number,
+        default: 0
+    },
+    originalAmount: {
+        type: Number,
+        default: 0
+    },
+    offerDiscount: {
+        type: Number,
+        default: 0
+    },
+    couponDiscount: {
+        type: Number,
+        default: 0
     },
     description: {
         type: String,
@@ -42,6 +58,29 @@ const transactionSchema = new mongoose.Schema({
         type: String,
         enum: ['pending', 'completed', 'failed'],
         default: 'completed'
+    },
+    // Additional fields for order details if needed
+    orderDetails: {
+        items: [{
+            product: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Menu'
+            },
+            quantity: Number,
+            price: Number,
+            offerApplied: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Offer'
+            },
+            couponApplied: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Coupon'
+            },
+            offerDiscount: Number,
+            couponDiscount: Number
+        }],
+        subTotal: Number,
+        total: Number
     }
 });
 
@@ -63,7 +102,6 @@ const walletSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Add compound index for better query performance
 walletSchema.index({ user: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Wallet', walletSchema);
