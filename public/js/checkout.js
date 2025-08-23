@@ -87,6 +87,11 @@ async function handleDirectOrder() {
             throw new Error('Please select a delivery address');
         }
 
+        console.log('Sending checkout request with:', {
+            addressId: selectedAddressId,
+            paymentMethod: selectedPaymentMethod || 'cod'
+        });
+
         const response = await fetch('/checkout/process', {
             method: 'POST',
             credentials: 'same-origin',
@@ -101,11 +106,118 @@ async function handleDirectOrder() {
             })
         });
 
-        const result = await response.json();
+        const result = await response.json().catch(e => ({}));
         
         if (!response.ok) {
-            throw new Error(result.message || 'Failed to create order');
+            console.error('Checkout failed with status:', response.status, 'Response:', result);
+            throw new Error(result.message || result.error || 'Failed to process checkout');
         }
+        
+        // If cart was cleared on the server, update the UI accordingly
+        if (result.cartCleared) {
+            updateCartUI();
+        }
+
+        try {
+            // Clear cart on the server
+            const clearResponse = await fetch('/cart/clear', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                }
+            });
+            
+            if (!clearResponse.ok) {
+                console.warn('Failed to clear server cart:', await clearResponse.text());
+            }
+        } catch (clearError) {
+            console.warn('Error clearing server cart:', clearError);
+        }
+        
+        // Function to force update cart UI and sync with server
+        async function forceUpdateCartUI() {
+            console.log('Force updating cart UI...');
+            
+            try {
+                // 1. Clear local storage
+                localStorage.removeItem('cart');
+                localStorage.removeItem('appliedCoupon');
+                
+                // 2. Update cart count in header
+                const cartCountElements = document.querySelectorAll('.cart-count');
+                if (cartCountElements && cartCountElements.length > 0) {
+                    cartCountElements.forEach(el => {
+                        el.textContent = '0';
+                        el.style.display = 'none';
+                    });
+                }
+                
+                // 3. Clear cart items display if on cart page
+                const cartItemsContainer = document.querySelector('.cart-items');
+                if (cartItemsContainer) {
+                    cartItemsContainer.innerHTML = '<div class="text-center py-5"><p>Your cart is empty</p></div>';
+                }
+                
+                // 4. Update cart summary if on cart page
+                const cartSummary = document.querySelector('.cart-summary');
+                if (cartSummary) {
+                    const totalElements = cartSummary.querySelectorAll('.total-amount');
+                    const subTotalElements = cartSummary.querySelectorAll('.subtotal-amount');
+                    const discountElements = cartSummary.querySelectorAll('.discount-amount');
+                    
+                    totalElements.forEach(el => el.textContent = '0.00');
+                    subTotalElements.forEach(el => el.textContent = '0.00');
+                    discountElements.forEach(el => el.textContent = '0.00');
+                }
+                
+                // 5. Force a refresh of the cart data from the server
+                try {
+                    const response = await fetch('/api/cart', {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache',
+                            'Expires': '0'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const cartData = await response.json();
+                        console.log('Refreshed cart data from server:', cartData);
+                        
+                        // If cart is not empty on server, clear it
+                        if (cartData.items && cartData.items.length > 0) {
+                            console.log('Cart still has items on server, forcing clear...');
+                            await fetch('/cart/clear', {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: { 
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                                }
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Error refreshing cart data:', error);
+                }
+                
+                console.log('Cart UI force update complete');
+                return true;
+                
+            } catch (error) {
+                console.error('Error in forceUpdateCartUI:', error);
+                return false;
+            }
+        }
+        
+        // Force update cart UI and sync with server
+        await forceUpdateCartUI();
 
         // Show success message and redirect
         const confirmResult = await Swal.fire({
@@ -239,18 +351,34 @@ async function verifyPayment(paymentResponse, amount) {
             // Close loading dialog
             await loadingSwal.close();
 
+            // Clear cart and coupon from localStorage
+            localStorage.removeItem('cart');
+            localStorage.removeItem('appliedCoupon');
+            
+            // Update cart count in the header
+            const cartCountElements = document.querySelectorAll('.cart-count');
+            if (cartCountElements && cartCountElements.length > 0) {
+                cartCountElements.forEach(el => {
+                    el.textContent = '0';
+                    el.style.display = 'none';
+                });
+            }
+
             // Show success message
             await Swal.fire({
                 title: 'Payment Successful!',
                 text: 'Your order has been placed successfully!',
                 icon: 'success',
+                showCancelButton: true,
                 confirmButtonColor: '#ffbe33',
+                cancelButtonColor: '#6c757d',
                 confirmButtonText: 'View Order',
+                cancelButtonText: 'Continue Shopping',
                 allowOutsideClick: false
             });
 
-            // Redirect to success page with order ID
-            window.location.href = `/order-success?order_id=${result.order.id || result.orderId}`;
+            // Redirect to order details page
+            window.location.href = `/orders/${result.order?._id || result.orderId || ''}`;
             
         } catch (error) {
             await loadingSwal.close();
@@ -296,24 +424,67 @@ async function placeOrder() {
     // For Wallet payment
     if (selectedPaymentMethod === 'wallet') {
         try {
-            const response = await fetch('/payment/wallet', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                },
-                body: JSON.stringify({
-                    addressId: selectedAddressId
-                    // Cart will be fetched from user's session on the server side
-                })
-            });
+            let response;
+            try {
+                console.log('Initiating wallet payment with address ID:', selectedAddressId);
+                const requestUrl = '/payment/wallet';
+                const requestOptions = {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        addressId: selectedAddressId
+                    })
+                };
+                console.log('Sending request to:', requestUrl, 'with options:', requestOptions);
+                
+                response = await fetch(requestUrl, requestOptions);
+                console.log('Received response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Server responded with error:', errorText);
+                    throw new Error(`Server error: ${response.status} ${response.statusText}`);
+                }
+            } catch (error) {
+                console.error('Error details:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack,
+                    response: error.response,
+                    status: error.status,
+                    statusText: error.statusText
+                });
+                throw new Error('Unable to process wallet payment. Please check your connection and try again.');
+            }
 
-            const result = await response.json();
+            let result;
+            try {
+                result = await response.json();
+                console.log('Wallet payment response:', result);
+                
+                if (!response.ok) {
+                    throw new Error(result.message || 'Failed to process wallet payment');
+                }
+            } catch (jsonError) {
+                console.error('Error parsing JSON response:', jsonError);
+                throw new Error('Invalid response from server. Please try again.');
+            }
+
+            // Clear cart and coupon from localStorage
+            localStorage.removeItem('cart');
+            localStorage.removeItem('appliedCoupon');
             
-            if (!response.ok) {
-                throw new Error(result.message || 'Failed to process wallet payment');
+            // Update cart count in the header
+            const cartCountElements = document.querySelectorAll('.cart-count');
+            if (cartCountElements && cartCountElements.length > 0) {
+                cartCountElements.forEach(el => {
+                    el.textContent = '0';
+                    el.style.display = 'none';
+                });
             }
 
             // Show success message and redirect to order details
@@ -356,9 +527,6 @@ async function placeOrder() {
     });
 
     try {
-        // Get CSRF token from meta tag
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        
         console.log('Creating Razorpay order with:', {
             addressId: selectedAddressId,
             paymentMethod: selectedPaymentMethod,
@@ -366,20 +534,25 @@ async function placeOrder() {
         });
 
         // For online payment, create Razorpay order
-        const response = await fetch('/payment/razorpay/create', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': csrfToken || ''
-            },
-            body: JSON.stringify({
-                addressId: selectedAddressId,
-                paymentMethod: selectedPaymentMethod,
-                amount: Math.round(orderTotal * 100) // Convert to paise
-            })
-        });
+        let response;
+        try {
+            response = await fetch('/payment/razorpay/create', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    addressId: selectedAddressId,
+                    paymentMethod: selectedPaymentMethod,
+                    amount: Math.round(orderTotal * 100) // Convert to paise
+                })
+            });
+        } catch (error) {
+            console.error('Network error during fetch:', error);
+            throw new Error('Unable to connect to the server. Please check your internet connection and try again.');
+        }
 
         // First, get the response as text
         const responseText = await response.text();
@@ -439,14 +612,39 @@ async function placeOrder() {
             await loadingSwal.close();
         }
         
-        let errorMessage = error.message || 'Failed to place order';
+        let errorMessage = 'Failed to place order. Please try again.';
         
-        // Handle network errors
-        if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
-            errorMessage = 'Network error: Could not connect to the server. Please check your internet connection and try again.';
+        // Handle different types of errors
+        if (error.name === 'TypeError') {
+            if (error.message === 'Failed to fetch') {
+                errorMessage = 'Network error: Could not connect to the server. Please check your internet connection and try again.';
+            } else if (error.message.includes('JSON.parse')) {
+                errorMessage = 'Error processing server response. Please try again or contact support if the issue persists.';
+            }
+        } else if (error.response) {
+            // Handle HTTP error responses
+            if (error.response.status === 401) {
+                errorMessage = 'Your session has expired. Please log in again.';
+            } else if (error.response.status === 403) {
+                errorMessage = 'You do not have permission to perform this action.';
+            } else if (error.response.status === 404) {
+                errorMessage = 'The requested resource was not found.';
+            } else if (error.response.status >= 500) {
+                errorMessage = 'A server error occurred. Please try again later.';
+            }
+        } else if (error.message) {
+            // Use the error message from the server if available
+            errorMessage = error.message;
         }
         
+        // Show error to user
         await showError('Error', errorMessage);
+        
+        // Re-enable the place order button
+        const placeOrderBtn = document.getElementById('place-order-btn');
+        if (placeOrderBtn) {
+            placeOrderBtn.disabled = false;
+        }
     }
 }
 

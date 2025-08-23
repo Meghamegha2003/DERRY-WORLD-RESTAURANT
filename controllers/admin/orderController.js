@@ -472,13 +472,7 @@ exports.handleReturnAction = async (req, res) => {
 
         await order.save();
         if (action === 'approve') {
-            const wallet = await Wallet.findOne({ user: order.user });
-            const io = req.app.get('io');
-            const activeUsers = req.app.get('activeUsers');
-            const socketId = activeUsers.get(order.user.toString());
-            if (socketId) {
-                io.to(socketId).emit('walletUpdated', { userId: order.user.toString(), balance: wallet.balance });
-            }
+            // Real-time updates removed
         }
 
         if (req.xhr || req.headers.accept?.includes('application/json')) {
@@ -537,16 +531,7 @@ exports.handleOrderCancellation = async (order, reason = 'Cancelled by admin') =
             await wallet.save();
             await User.findByIdAndUpdate(order.user, { wallet: wallet._id });
 
-            // Emit real-time wallet update
-            const io = req.app.get('io');
-            const activeUsers = req.app.get('activeUsers');
-            const socketId = activeUsers.get(order.user.toString());
-            if (socketId) {
-                io.to(socketId).emit('walletUpdated', {
-                    userId: order.user.toString(),
-                    balance: wallet.balance
-                });
-            }
+            // Real-time updates removed
         }
 
         await order.save();

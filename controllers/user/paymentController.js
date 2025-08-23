@@ -1,5 +1,6 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const { Order, ORDER_STATUS } = require('../../models/orderSchema');
 const { PAYMENT_STATUS } = require('../../utils/httpStatus');
@@ -68,11 +69,80 @@ exports.getOrderItems = async (cartItems) => {
 
 // 🧹 Clear cart after order
 exports.clearCart = async (cart, options = {}) => {
-    cart.items = [];
-    cart.couponDiscount = 0;
-    cart.appliedCoupon = null;
-    await cart.save(options);
-}
+    try {
+        console.log('=== STARTING CART CLEAR ===');
+        console.log('Cart before clear:', {
+            _id: cart?._id,
+            user: cart?.user,
+            itemsCount: cart?.items?.length,
+            couponCode: cart?.couponCode,
+            total: cart?.total,
+            subTotal: cart?.subTotal
+        });
+
+        if (!cart) {
+            console.log('No cart provided to clear');
+            return;
+        }
+        
+        // Clear all cart items and reset values
+        const updateData = {
+            $set: {
+                items: [],
+                couponDiscount: 0,
+                couponValue: 0,
+                total: 0,
+                subTotal: 0,
+                updatedAt: new Date()
+            },
+            $unset: {
+                appliedCoupon: "",
+                couponCode: "",
+                couponType: ""
+            }
+        };
+
+        console.log('Attempting to clear cart with update:', JSON.stringify(updateData, null, 2));
+        
+        const result = await Cart.findOneAndUpdate(
+            { _id: cart._id },
+            updateData,
+            { 
+                ...options,
+                new: true,
+                runValidators: false,
+                strict: false
+            }
+        );
+
+        console.log('Cart clear result:', {
+            matchedCount: result?.matchedCount,
+            modifiedCount: result?.modifiedCount,
+            result: result
+        });
+
+        // Verify the cart was actually cleared
+        const updatedCart = await Cart.findById(cart._id);
+        console.log('Cart after clear verification:', {
+            _id: updatedCart?._id,
+            itemsCount: updatedCart?.items?.length,
+            couponCode: updatedCart?.couponCode,
+            total: updatedCart?.total,
+            subTotal: updatedCart?.subTotal
+        });
+
+        console.log('=== CART CLEAR COMPLETE ===');
+        return result;
+    } catch (error) {
+        console.error('Error clearing cart:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code
+        });
+        throw error;
+    }
+};
 
 // ----------------------------
 // ✅ Razorpay Order Creation
@@ -431,7 +501,6 @@ exports.verifyPayment = async (req, res) => {
                 existingOrder = await Order.findById(razorpayOrder.notes.orderId);
             }
             
-            // If still not found, try by receipt (legacy)
             if (!existingOrder) {
                 existingOrder = await Order.findOne({ receipt: razorpayOrder.receipt });
             }
@@ -441,13 +510,20 @@ exports.verifyPayment = async (req, res) => {
             console.log('Found order:', existingOrder._id);
             console.log('Updating order with payment details...');
             
-            // Update order with payment details
-            existingOrder.payment.status = 'completed';
+            if (!existingOrder.payment) {
+                existingOrder.payment = {};
+            }
+            
+            // Update payment details and order status
+            existingOrder.payment = existingOrder.payment || {};
+            existingOrder.payment.status = 'Paid';
             existingOrder.payment.razorpayPaymentId = razorpayPaymentId;
             existingOrder.payment.paidAt = new Date();
-            existingOrder.status = 'confirmed';
+            existingOrder.orderStatus = 'Pending'; // Keep order status as Pending initially
+            existingOrder.paymentStatus = 'Paid';  // Explicitly set payment status to Paid
+            existingOrder.razorpay = existingOrder.razorpay || {};
+            existingOrder.razorpay.status = 'captured'; // Set Razorpay status to captured
             
-            // Clear the cart
             const cart = await Cart.findOne({ user: existingOrder.user });
             if (cart) {
                 await exports.clearCart(cart);
@@ -463,12 +539,14 @@ exports.verifyPayment = async (req, res) => {
                 status: existingOrder.status
             });
             
+            // Redirect to order details page
             return res.status(200).json({
                 success: true,
-                message: 'Payment verified successfully',
+                message: 'Order placed successfully',
+                redirectUrl: `/orders/${existingOrder._id}`,
                 order: {
                     id: existingOrder._id,
-                    status: existingOrder.status,
+                    status: existingOrder.orderStatus,
                     payment: existingOrder.payment
                 }
             });
@@ -640,9 +718,12 @@ exports.verifyPayment = async (req, res) => {
 
         await existingOrder.save();
 
-        // Optional: clear cart if using
-        // const cart = await Cart.findById(razorpayOrder.notes.cartId);
-        // if (cart) await clearCart(cart);
+        // Set order token in cookie to prevent going back to checkout
+        const orderToken = jwt.sign(
+            { orderId: order._id.toString(), userId: req.user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: '1h' }
+        );
 
         res.status(200).json({
             success: true,
@@ -742,21 +823,35 @@ exports.processWalletPayment = async (req, res) => {
         console.log('Final Amount:', finalAmount);
         console.log('------------------------\n');
         
+        // Ensure user has a wallet and get the latest balance
+        let wallet = await Wallet.findOne({ user: userId });
+        if (!wallet) {
+            wallet = new Wallet({
+                user: userId,
+                balance: 0,
+                transactions: []
+            });
+            await wallet.save(useTransactions ? { session } : {});
+        } else if (useTransactions) {
+            // If using transactions, get the latest wallet state
+            wallet = await Wallet.findOne({ user: userId }).session(session);
+        }
+
         // Log wallet balance before deduction
-        console.log('Wallet Balance Before:', user.wallet.balance);
+        console.log('Wallet Balance Before:', wallet.balance);
         console.log('Amount to Deduct:', finalAmount);
-        console.log('Will have sufficient balance?', user.wallet.balance >= finalAmount);
-        
+        console.log('Will have sufficient balance?', wallet.balance >= finalAmount);
+
         // Check if user has sufficient balance
-        if (user.wallet.balance < finalAmount) {
+        if (wallet.balance < finalAmount) {
             if (useTransactions) {
                 await session.abortTransaction();
                 session.endSession();
             }
             return res.status(400).json({
                 success: false, 
-                message: `Insufficient wallet balance. Your balance is ₹${user.wallet.balance.toFixed(2)} but the order total is ₹${finalAmount.toFixed(2)}`,
-                currentBalance: user.wallet.balance,
+                message: `Insufficient wallet balance. Your balance is ₹${wallet.balance.toFixed(2)} but the order total is ₹${finalAmount.toFixed(2)}`,
+                currentBalance: wallet.balance,
                 orderTotal: finalAmount
             });
         }
@@ -792,7 +887,7 @@ exports.processWalletPayment = async (req, res) => {
                 shippingAddress: shippingAddress,
                 paymentMethod: 'wallet',
                 paymentStatus: 'Paid', // Must match the enum in orderSchema
-                orderStatus: 'Processing', // Must match the enum in orderSchema
+                orderStatus: 'Pending', // Changed from 'Processing' to 'Pending' to match online payment flow
                 subtotal,
                 couponDiscount: couponDiscount || 0,
                 offerDiscount: offerDiscount || 0,
@@ -868,35 +963,29 @@ exports.processWalletPayment = async (req, res) => {
                 await user.save(saveOptions);
             }
 
-            // Clear the cart
-            await exports.clearCart(cart, saveOptions);
-
-            // Commit transaction if using transactions
+            // Commit the transaction if using transactions
             if (useTransactions) {
                 await session.commitTransaction();
                 session.endSession();
             }
 
-            // Send success response with redirect URL
+            // Clear the user's cart after successful order creation
+            // This is done outside the transaction to avoid issues with the cart being cleared before the order is created
+            await exports.clearCart(cart);
+
+            // Send success response
             return res.status(200).json({
                 success: true,
-                message: 'Order placed successfully using wallet balance',
-                order: savedOrder,
-                walletBalance: wallet.balance,
+                message: 'Payment processed successfully',
+                order: {
+                    _id: savedOrder._id,
+                    orderNumber: savedOrder.orderNumber,
+                    total: savedOrder.total,
+                    status: savedOrder.orderStatus
+                },
                 redirectUrl: `/orders/${savedOrder._id}`
             });
-
         } catch (error) {
-            // If there's an error, clean up resources
-            if (useTransactions) {
-                if (session.inTransaction()) {
-                    await session.abortTransaction();
-                }
-                if (session.inTransaction() === false) {
-                    session.endSession();
-                }
-            }
-            
             console.error('Wallet payment error:', error);
             return res.status(500).json({
                 success: false,

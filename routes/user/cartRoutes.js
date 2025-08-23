@@ -14,6 +14,8 @@ router.get('/check/:productId', auth, cartController.checkProductInCart);
 
 router.post('/coupons/apply', auth, cartController.applyCoupon);
 router.post('/coupons/remove', auth, cartController.removeCoupon);
+router.post('/remove-coupon', auth, cartController.removeCouponOnAdd);
 router.get('/coupons/available', auth, cartController.getAvailableCoupons);
+router.post('/clear', auth, cartController.clearCart);
 
 module.exports = router;

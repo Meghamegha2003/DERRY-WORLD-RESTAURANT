@@ -17,8 +17,8 @@ async function validateAndUpdateCartCoupon(cart) {
       isBlocked: { $ne: true }
     });
 
-    // If coupon is not found or invalid, remove it from cart
-    if (!coupon || !coupon.isValid()) {
+    // If coupon is not found, invalid, or cart total is less than minimum purchase, remove it from cart
+    if (!coupon || !coupon.isValid() || cart.total < (coupon.minPurchase || 0)) {
       cart.appliedCoupon = undefined;
       cart.couponDiscount = 0;
       await cart.save();

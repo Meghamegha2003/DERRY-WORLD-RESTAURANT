@@ -396,21 +396,7 @@ exports.cancelOrder = async (req, res) => {
           date: new Date(),
         });
         await wallet.save();
-        const io = req.app.get && req.app.get("io");
-        const activeUsers = req.app.get && req.app.get("activeUsers");
-        if (io && activeUsers) {
-          const socketId = activeUsers.get(req.user._id.toString());
-          if (socketId) {
-            io.to(socketId).emit("walletUpdated", {
-              userId: req.user._id.toString(),
-              balance: wallet.balance,
-            });
-          } else {
-            console.log(
-              "[CANCEL_ORDER] No active socket for user, walletUpdated not emitted"
-            );
-          }
-        }
+        // Real-time updates removed
       } catch (err) {
         throw err;
       }
@@ -1008,7 +994,7 @@ exports.showRetryPaymentPage = async (req, res) => {
     const orderId = req.params.orderId;
     const order = await Order.findById(orderId).populate("items.product");
 
-    if (!order || order.paymentStatus !== "Failed") {
+    if (!order || (order.paymentStatus !== "Failed" && order.paymentStatus !== "Pending")) {
       return res.status(400).render("error", { message: "Invalid or already paid order." });
     }
 
@@ -1043,7 +1029,7 @@ exports.initiateRetryPayment = async (req, res) => {
     const orderId = req.params.orderId;
     const order = await Order.findById(orderId);
 
-    if (!order || order.orderStatus !== "Pending") {
+    if (!order || (order.paymentStatus !== "Pending" && order.paymentStatus !== "Failed")) {
       return res.status(400).json({ success: false, message: "Invalid or already paid order." });
     }
 

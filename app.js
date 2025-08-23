@@ -60,8 +60,6 @@ app.use(getFlash);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-
-
 mongoose.connect(process.env.MONGODB_URI)
-.then(()=>app.listen(3000,()=>console.log( `server run on http://localhost:3000/`)))
+.then(()=>app.listen(3000,()=>{console.log(`server run on http://localhost:3000/`); module.exports = app;}))
 .catch((err)=>console.error(err))

@@ -413,6 +413,51 @@
             margin-left: 4px;
         }
 
+        .discount-badge {
+            background-color: #28a745;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 8px;
+            display: inline-block;
+            line-height: 1.2;
+        }
+
+        .price-info {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .original-price {
+            text-decoration: line-through;
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+
+        .final-price {
+            font-weight: 600;
+            color: #212529;
+            font-size: 1.1em;
+        }
+
+        .offer-name {
+            background-color: #e8f5e9;
+            padding: 3px 8px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            font-size: 0.85em;
+        }
+
+        .offer-name i {
+            margin-right: 4px;
+        }
+
         .free-delivery {
             color: #28a745;
         }
@@ -742,11 +787,23 @@
                     <div class="price-info">
                       <span class="original-price">₹<%= item.regularPrice.toFixed(2) %></span>
                       <span class="final-price">₹<%= item.price.toFixed(2) %></span>
+                      <% if (item.offerDetails.discountPercentage > 0) { %>
+                        <span class="discount-badge"><%= item.offerDetails.discountPercentage %>% OFF</span>
+                      <% } %>
                     </div>
+                    <% if (item.offerDetails.offer) { %>
+                      <div class="offer-name text-success small mt-1">
+                        <i class="fas fa-tag me-1"></i> <%= item.offerDetails.offer.name %>
+                      </div>
+                    <% } %>
                   <% } else if (item.product.salesPrice && item.product.salesPrice < item.regularPrice) { %>
                     <div class="price-info">
                       <span class="original-price">₹<%= item.regularPrice.toFixed(2) %></span>
                       <span class="final-price">₹<%= item.product.salesPrice.toFixed(2) %></span>
+                      <% const saleDiscount = Math.round(((item.regularPrice - item.product.salesPrice) / item.regularPrice) * 100); %>
+                      <% if (saleDiscount > 0) { %>
+                        <span class="discount-badge"><%= saleDiscount %>% OFF</span>
+                      <% } %>
                     </div>
                   <% } else { %>
                     <div class="price-info">
@@ -755,7 +812,7 @@
                   <% } %>
                   <div class="quantity">Quantity: <%= item.quantity %></div>
                   <div class="item-total">
-                    Line Total: ₹<%= (item.quantity * (item.offerDetails?.hasOffer ? item.price : item.product.salesPrice || item.regularPrice)).toFixed(2) %>
+                    Line Total: ₹<%= (item.quantity * item.price).toFixed(2) %>
                   </div>
 
                   <!-- Status badge -->
@@ -853,6 +910,32 @@
 
     </div>
 
+    <!-- Prevent back button to checkout page -->
+    <script>
+        // Prevent going back to checkout page after order placement
+        if (window.history && window.history.pushState) {
+            // Push a new state to prevent back navigation to checkout
+            window.history.pushState(null, null, window.location.href);
+            
+            // Handle back button press
+            window.onpopstate = function() {
+                // If user tries to go back, push them forward again
+                window.history.pushState(null, null, window.location.href);
+                // Optionally redirect to home or orders page
+                // window.location.href = '/';
+            };
+            
+            // Also handle when page is loaded from cache (like when using browser back button)
+            window.onpageshow = function(event) {
+                if (event.persisted) {
+                    window.history.pushState(null, null, window.location.href);
+                    // Optionally redirect to home or orders page
+                    // window.location.href = '/';
+                }
+            };
+        }
+    </script>
+
     <!-- Price Summary + Retry Payment -->
     <div class="order-summary">
       <div class="order-info-card price-summary">
@@ -899,25 +982,24 @@
             <span class="badge bg-danger">Failed</span>
           <% } else if (order.paymentStatus === 'Pending') { %>
             <span class="badge bg-warning text-dark">Pending</span>
-          <% } else if (order.paymentStatus === 'Paid') { %>
+          <% } else if (order.paymentStatus === 'Paid' || order.paymentStatus === 'Success') { %>
             <span class="badge bg-success">Paid</span>
           <% } %>
         </div>
       </div>
 
-<% if (order.paymentMethod.toLowerCase() === 'online' && (order.paymentStatus === 'Pending' || order.paymentStatus === 'Failed')) { %>
+<% if (order.paymentStatus === 'Paid' || order.paymentStatus === 'Success') { %>
+  <div class="d-grid mt-2">
+    <a href="/orders/<%= order._id %>/invoice" class="btn btn-outline-primary btn-block" target="_blank">
+      <i class="fas fa-download me-2"></i> Download Invoice
+    </a>
+  </div>
+<% } else if (order.paymentMethod.toLowerCase() === 'online' && (order.paymentStatus === 'Pending' || order.paymentStatus === 'Failed')) { %>
   <div class="d-grid mt-3">
     <button id="retryBtn" onclick="retryPayment('<%= order._id %>')" class="btn btn-warning btn-block">
       <i class="fas fa-<%= order.paymentStatus === 'Failed' ? 'redo-alt' : 'credit-card' %> me-2"></i>
       <%= order.paymentStatus === 'Failed' ? 'Retry Payment' : 'Pay Now' %>
     </button>
-  </div>
-<% } %>
-<% if (order.paymentStatus === 'Paid') { %>
-  <div class="d-grid mt-2">
-    <a href="/orders/<%= order._id %>/invoice" class="btn btn-outline-primary btn-block" target="_blank">
-      <i class="fas fa-download me-2"></i> Download Invoice
-    </a>
   </div>
 <% } %>
 

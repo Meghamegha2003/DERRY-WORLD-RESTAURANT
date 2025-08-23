@@ -128,7 +128,23 @@
                                                     year: 'numeric'
                                                 }) : '-' %></td>
                                                 <td>
-                                                    <%= transaction?.description || '-' %>
+                                                    <% 
+                                                        let description = transaction?.description || '';
+                                                        const orderNumber = transaction?.orderId || transaction?.orderReference;
+                                                        
+                                                        if (orderNumber) {
+                                                            // Format order ID to match orders page (last 8 characters in uppercase)
+                                                            const formattedOrderId = orderNumber.toString().slice(-8).toUpperCase();
+                                                            if (description.toLowerCase().includes('order')) {
+                                                                description = `Payment for order #${formattedOrderId}`;
+                                                            } else if (description.toLowerCase().includes('refund')) {
+                                                                description = `Refund for order #${formattedOrderId}`;
+                                                            } else {
+                                                                description = `Order #${formattedOrderId}`;
+                                                            }
+                                                        }
+                                                    %>
+                                                    <%= description || '-' %>
                                                 </td>
                                                 <% 
                                                     // Get the original amount (before any discounts)
@@ -188,31 +204,85 @@
                                     </tbody>
                                 </table>
 
-                                <!-- Pagination -->
+                                <!-- Pagination with Ellipsis -->
                                 <% if (wallet.transactions.totalPages > 1) { %>
+                                    <% 
+                                        const totalPages = wallet.transactions.totalPages;
+                                        const currentPage = wallet.transactions.currentPage;
+                                        const maxVisiblePages = 3; // Maximum number of page links to show
+                                        let startPage, endPage;
+                                        
+                                        if (totalPages <= maxVisiblePages) {
+                                            // Show all pages if total pages are less than max visible
+                                            startPage = 1;
+                                            endPage = totalPages;
+                                        } else {
+                                            // Calculate start and end pages
+                                            const maxPagesBeforeCurrent = Math.floor(maxVisiblePages / 2);
+                                            const maxPagesAfterCurrent = Math.ceil(maxVisiblePages / 2) - 1;
+                                            
+                                            if (currentPage <= maxPagesBeforeCurrent) {
+                                                // Near the beginning
+                                                startPage = 1;
+                                                endPage = maxVisiblePages;
+                                            } else if (currentPage + maxPagesAfterCurrent >= totalPages) {
+                                                // Near the end
+                                                startPage = totalPages - maxVisiblePages + 1;
+                                                endPage = totalPages;
+                                            } else {
+                                                // Somewhere in the middle
+                                                startPage = currentPage - maxPagesBeforeCurrent;
+                                                endPage = currentPage + maxPagesAfterCurrent;
+                                            }
+                                        }
+                                    %>
+                                    
                                     <nav aria-label="Transaction history pagination" class="d-flex justify-content-center my-4">
-                                        <ul class="pagination">
-                                            <% if (wallet.transactions.hasPrevPage) { %>
+                                        <ul class="pagination pagination-sm">
+                                            <!-- Previous Page Link -->
+                                            <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+                                                <a class="page-link" href="<%= currentPage === 1 ? '#' : `/wallet?page=${currentPage - 1}` %>" aria-label="Previous">
+                                                    <i class="fas fa-chevron-left"></i>
+                                                </a>
+                                            </li>
+                                            
+                                            <!-- First Page -->
+                                            <% if (startPage > 1) { %>
                                                 <li class="page-item">
-                                                    <a class="page-link" href="/wallet?page=<%= wallet.transactions.currentPage - 1 %>" aria-label="Previous">
-                                                        <span aria-hidden="true">&laquo;</span>
-                                                    </a>
+                                                    <a class="page-link" href="/wallet?page=1">1</a>
                                                 </li>
+                                                <% if (startPage > 2) { %>
+                                                    <li class="page-item disabled">
+                                                        <span class="page-link">...</span>
+                                                    </li>
+                                                <% } %>
                                             <% } %>
-
-                                            <% for(let i = 1; i <= wallet.transactions.totalPages; i++) { %>
-                                                <li class="page-item <%= wallet.transactions.currentPage === i ? 'active' : '' %>">
+                                            
+                                            <!-- Page Numbers -->
+                                            <% for (let i = startPage; i <= endPage; i++) { %>
+                                                <li class="page-item <%= currentPage === i ? 'active' : '' %>">
                                                     <a class="page-link" href="/wallet?page=<%= i %>"><%= i %></a>
                                                 </li>
                                             <% } %>
-
-                                            <% if (wallet.transactions.hasNextPage) { %>
+                                            
+                                            <!-- Last Page -->
+                                            <% if (endPage < totalPages) { %>
+                                                <% if (endPage < totalPages - 1) { %>
+                                                    <li class="page-item disabled">
+                                                        <span class="page-link">...</span>
+                                                    </li>
+                                                <% } %>
                                                 <li class="page-item">
-                                                    <a class="page-link" href="/wallet?page=<%= wallet.transactions.currentPage + 1 %>" aria-label="Next">
-                                                        <span aria-hidden="true">&raquo;</span>
-                                                    </a>
+                                                    <a class="page-link" href="/wallet?page=<%= totalPages %>"><%= totalPages %></a>
                                                 </li>
                                             <% } %>
+                                            
+                                            <!-- Next Page Link -->
+                                            <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+                                                <a class="page-link" href="<%= currentPage === totalPages ? '#' : `/wallet?page=${currentPage + 1}` %>" aria-label="Next">
+                                                    <i class="fas fa-chevron-right"></i>
+                                                </a>
+                                            </li>
                                         </ul>
                                     </nav>
                                 <% } %>
@@ -387,38 +457,81 @@
         border-radius: 50%;
     }
 
+    /* Pagination Styles */
     .pagination {
-        margin-bottom: 0;
+        margin: 1.5rem 0;
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
     }
 
-    .page-link {
-        color: #28a745;
-        border-color: #dee2e6;
+    .pagination .page-item {
+        margin: 0 0.2rem;
     }
 
-    .page-item.active .page-link {
-        background-color: #28a745;
-        border-color: #28a745;
+    .pagination .page-link {
+        color: #4a5568;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        min-width: 3.25rem;
+        height: 2.75rem;
+        padding: 0 0.75rem;
+        margin: 0 0.3rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: all 0.2s ease-in-out;
+        box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.1);
+    }
+
+    .pagination .page-link:hover {
+        background-color: #f7fafc;
+        border-color: #cbd5e0;
+        color: #2d3748;
+        transform: translateY(-1px);
+    }
+
+    .pagination .page-item.active .page-link {
+        background-color: #4299e1;
+        border-color: #4299e1;
         color: white;
+        font-weight: 600;
+        box-shadow: 0 1px 3px 0 rgba(66, 153, 225, 0.5);
     }
 
-    .page-link:hover {
-        color: #1e7e34;
-        background-color: #e9ecef;
-        border-color: #dee2e6;
+    .pagination .page-item.active .page-link:hover {
+        background-color: #3182ce;
+        border-color: #3182ce;
     }
 
-    .page-item.disabled .page-link {
-        color: #6c757d;
-        pointer-events: none;
-        background-color: #fff;
-        border-color: #dee2e6;
+    .pagination .page-item.disabled .page-link {
+        color: #a0aec0;
+        background-color: #f7fafc;
+        border-color: #e2e8f0;
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+
+    .pagination .page-item .page-link i {
+        font-size: 0.75rem;
+    }
+
+    /* Ellipsis styling */
+    .pagination .page-item.disabled .page-link {
+        border: none;
+        background: transparent;
+        font-size: 1.25rem;
+        line-height: 1;
+        padding-top: 0.5rem;
+        box-shadow: none;
     }
 
     @media (max-width: 768px) {
         .pagination {
             flex-wrap: wrap;
-            justify-content: center;
         }
 
         .page-item {

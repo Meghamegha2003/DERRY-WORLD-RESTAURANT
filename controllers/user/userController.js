@@ -74,13 +74,27 @@ const getCartCount = async (userId) => {
 
 exports.renderLoginPage = async (req, res) => {
   try {
+    // Clear any existing user token
+    res.clearCookie('userToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      sameSite: 'strict'
+    });
+
     res.render('user/login', {
       title: 'Login',
       path: '/login',
-      error: null
+      error: req.query.error || null,
+      errorType: req.query.errorType || null
     });
   } catch (error) {
-    res.status(HttpStatus.INTERNAL_SERVER_ERROR).send('Something went wrong');
+    console.error('Error rendering login page:', error);
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('error', {
+      message: 'Something went wrong',
+      error: {},
+      path: '/login'
+    });
   }
 };
 

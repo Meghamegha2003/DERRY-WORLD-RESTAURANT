@@ -529,19 +529,35 @@ exports.removeFromCart = async (req, res) => {
     // Remove the item
     cart.items.splice(itemIndex, 1);
 
+    // If no items left in cart, clear any applied coupon
+    if (cart.items.length === 0 && cart.appliedCoupon) {
+        cart.appliedCoupon = undefined;
+        cart.couponDiscount = 0;
+    } else if (cart.appliedCoupon) {
+        // If there are still items, revalidate the coupon
+        const couponValidation = await validateAndUpdateCartCoupon(cart);
+        if (!couponValidation.valid) {
+            cart.appliedCoupon = undefined;
+            cart.couponDiscount = 0;
+        }
+    }
+
     // Save cart
     await cart.save();
 
     // Calculate new totals
     const totals = cart.calculateTotals();
 
-    // Return updated cart info
+    // Return updated cart info with coupon details
     res.json({
       success: true,
       subtotal: totals.subtotal,
       total: totals.total,
       deliveryCharge: totals.deliveryCharge,
+      couponDiscount: cart.couponDiscount || 0,
+      hasCoupon: !!cart.appliedCoupon,
       itemCount: exports.getUniqueProductCount(cart),
+      cartEmpty: cart.items.length === 0
     });
   } catch (error) {
     res.status(500).json({
@@ -557,48 +573,75 @@ exports.placeOrder = async (req, res) => {
     const userId = req.user._id.toString();
 
     const user = await User.findById(userId);
-    const cart = await Cart.findOne({ user: userId });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
 
+    // Find cart and populate items
+    const cart = await Cart.findOne({ user: userId }).populate('items.product');
     if (!cart || !cart.items || cart.items.length === 0) {
       return res.status(400).json({ success: false, message: "Cart is empty" });
     }
 
     const address = user.addresses.id(addressId);
     if (!address) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid address" });
+      return res.status(400).json({ success: false, message: "Invalid address" });
     }
 
     // Calculate total
-    const total = cart.items.reduce((sum, item) => {
-      return sum + item.price * item.quantity;
+    const subtotal = cart.items.reduce((sum, item) => {
+      return sum + (item.product.price * item.quantity);
     }, 0);
 
-    // Create order
+    // Create order with cart items
     const order = new Order({
       user: userId,
-      items: cart.items,
-      address: address,
-      total: total,
+      items: cart.items.map(item => ({
+        product: item.product._id,
+        quantity: item.quantity,
+        price: item.product.price,
+        name: item.product.name,
+        image: item.product.images[0] || ''
+      })),
+      shippingAddress: {
+        fullName: address.fullName,
+        addressLine1: address.addressLine1,
+        addressLine2: address.addressLine2 || '',
+        city: address.city,
+        state: address.state,
+        pincode: address.pincode,
+        phone: address.phone
+      },
       paymentMethod: paymentMethod,
-      status: "Pending",
+      subtotal: subtotal,
+      total: subtotal, // Will be updated with any discounts
+      status: 'pending',
+      paymentStatus: 'pending',
+      appliedCoupon: cart.appliedCoupon || null,
+      couponDiscount: cart.couponDiscount || 0
     });
 
+    // Save the order
     await order.save();
 
-    // Clear cart
-    const cartToClear = await Cart.findOne({ user: userId });
-    if (cartToClear) {
-      cartToClear.items = [];
-      cartToClear.totalAmount = 0;
-      await cartToClear.save();
+    // Clear the cart and reset coupon
+    cart.items = [];
+    cart.appliedCoupon = null;
+    cart.couponDiscount = 0;
+    cart.couponCode = null;
+    await cart.save();
+
+    // If there was an applied coupon, update its usage
+    if (cart.appliedCoupon && cart.appliedCoupon.couponId) {
+      await Coupon.findByIdAndUpdate(cart.appliedCoupon.couponId, {
+        $inc: { usedCount: 1 }
+      });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: "Order placed successfully",
-      orderId: order._id,
+      orderId: order._id
     });
   } catch (error) {
     console.error("Error placing order:", error);
@@ -1468,6 +1511,44 @@ exports.removeCoupon = async (req, res) => {
   }
 };
 
+exports.removeCouponOnAdd = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const cart = await Cart.findOne({ user: userId });
+
+    if (!cart) {
+      return res.status(404).json({ success: false, message: 'Cart not found' });
+    }
+
+    // Remove coupon from cart
+    cart.coupon = undefined;
+    cart.discount = 0;
+    cart.couponCode = undefined;
+    cart.appliedCoupon = null;
+    
+    // Recalculate totals without coupon
+    const { subtotal, total, deliveryCharge } = await this.calculateCartTotal(cart);
+    cart.subtotal = subtotal;
+    cart.total = total;
+    cart.deliveryCharge = deliveryCharge;
+    
+    await cart.save();
+    
+    res.json({ 
+      success: true, 
+      message: 'Coupon removed successfully',
+      cart: await this.calculateCartSummary(cart)
+    });
+  } catch (error) {
+    console.error('Error removing coupon:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to remove coupon',
+      error: error.message 
+    });
+  }
+};
+
 exports.getAvailableCoupons = async (req, res) => {
   try {
     const userId = req.user._id.toString();
@@ -1631,5 +1712,72 @@ exports.decrementCartItem = async (req, res) => {
     res
       .status(500)
       .json({ success: false, message: "Failed to decrease quantity" });
+  }
+};
+
+// Clear the user's cart completely
+exports.clearCart = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  
+  try {
+    const userId = req.user._id;
+    
+    // Find and update the cart in a single operation
+    const updatedCart = await Cart.findOneAndUpdate(
+      { user: userId },
+      {
+        $set: {
+          items: [],
+          couponDiscount: 0,
+          couponValue: 0,
+          total: 0,
+          subTotal: 0,
+          updatedAt: new Date()
+        },
+        $unset: {
+          appliedCoupon: "",
+          couponCode: "",
+          couponType: ""
+        }
+      },
+      { 
+        new: true,
+        session,
+        runValidators: false,
+        strict: false
+      }
+    );
+    
+    if (!updatedCart) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ success: false, message: 'Cart not found' });
+    }
+    
+    await session.commitTransaction();
+    session.endSession();
+    
+    res.json({ 
+      success: true, 
+      message: 'Cart cleared successfully',
+      cart: {
+        _id: updatedCart._id,
+        items: [],
+        subTotal: 0,
+        total: 0,
+        couponDiscount: 0
+      }
+    });
+    
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error('Error clearing cart:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to clear cart',
+      error: error.message 
+    });
   }
 };

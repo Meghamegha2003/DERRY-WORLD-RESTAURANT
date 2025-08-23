@@ -174,10 +174,11 @@ exports.verifyAndAddMoney = async function(req, res) {
 exports.getWallet = async function(req, res) {
     try {
         const userId = req.user._id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = 10; // Number of transactions per page
         
         // Find or create wallet for the user
-        let wallet = await Wallet.findOne({ user: userId })
-            .sort({ 'transactions.date': -1 });
+        let wallet = await Wallet.findOne({ user: userId });
             
         if (!wallet) {
             wallet = await Wallet.create({
@@ -195,16 +196,45 @@ exports.getWallet = async function(req, res) {
         const referral = {
             referrerBonus: 100,  // ₹100 for referrer
             referredBonus: 50,   // ₹50 for referred friend
-            referralCode: req.user.referralCode || '',
-            earnings: wallet ? wallet.referralEarnings || 0 : 0  // Add earnings from wallet or default to 0
+            count: wallet.referralCount || 0,
+            code: req.user.referralCode || '',
+            earnings: wallet ? wallet.referralEarnings || 0 : 0
         };
+
+        // Get total number of transactions
+        const totalTransactions = wallet.transactions.length;
+        const totalPages = Math.ceil(totalTransactions / limit);
+        const startIndex = (page - 1) * limit;
+        const endIndex = Math.min(page * limit, totalTransactions);
+        
+        // Get paginated transactions (sorted by date descending - newest first)
+        const transactions = wallet.transactions
+            .slice()
+            .sort((a, b) => {
+                const dateA = a.date || a.createdAt || 0;
+                const dateB = b.date || b.createdAt || 0;
+                return new Date(dateB) - new Date(dateA);
+            })
+            .slice(startIndex, endIndex);
         
         res.render('user/wallet', {
             title: 'My Wallet',
             user: req.user,
-            wallet: wallet,
+            wallet: {
+                ...wallet.toObject(),
+                transactions: {
+                    items: transactions,
+                    total: totalTransactions,
+                    limit: limit,
+                    currentPage: page,
+                    totalPages: totalPages,
+                    hasNextPage: endIndex < totalTransactions,
+                    hasPrevPage: startIndex > 0,
+                    nextPage: page < totalPages ? page + 1 : null,
+                    prevPage: page > 1 ? page - 1 : null
+                }
+            },
             cartCount: cartCount,
-            txList: wallet.transactions || [],
             referral: referral,
             razorpayKey: process.env.RAZORPAY_KEY_ID || ''
         });

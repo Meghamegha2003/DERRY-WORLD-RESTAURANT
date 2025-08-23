@@ -6,35 +6,38 @@ const productController = require('../../controllers/user/productController');
 const wishlistController = require('../../controllers/user/wishlistController');
 const walletController = require('../../controllers/user/walletController');
 const cartController = require('../../controllers/user/cartController');
-const { auth, optionalAuth } = require('../../middlewares/authMiddleware');
+const { auth, optionalAuth, preventAuthPages } = require('../../middlewares/authMiddleware');
+const { cacheControl, preventBackAfterLogin } = require('../../middlewares/cacheControl');
 
 const router = express.Router();
 
+// Apply cache control to all auth-related routes
+const authRoutes = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-otp'];
+
 // <====Login Routes====>
 router.get('/', optionalAuth, userController.renderHomePage);
-router.get('/login', userController.renderLoginPage);
-router.post('/login', userController.loginUser);
+router.get('/login', cacheControl, preventBackAfterLogin, userController.renderLoginPage);
+router.post('/login', cacheControl, userController.loginUser);
 
 // <====Register Routes====>
-router.get('/register', userController.renderRegisterPage);
-router.post('/register', userController.registerUser);
+router.get('/register', cacheControl, preventBackAfterLogin, userController.renderRegisterPage);
+router.post('/register', cacheControl, userController.registerUser);
 router.get('/verify-otp', userController.renderVerifyOtpPage);
 router.post('/verify-otp', userController.verifyOTP);
 router.post('/resend-otp', userController.resendOTP);
 
 // <====Forgot Password Routes====>
-router.get('/forgot-password', userController.renderForgotPassword);
-router.post('/forgot-password', userController.handleForgotPassword);
+router.get('/forgot-password', cacheControl, preventBackAfterLogin, userController.renderForgotPassword);
+router.post('/forgot-password', cacheControl, userController.handleForgotPassword);
 
 // <====Reset Password Routes====>
-router.get('/reset-password/:token', userController.renderResetPassword);
-router.post('/reset-password/:token', userController.handleResetPassword);
-router.post('/verify-referral', userController.verifyReferralCode);
+router.get('/reset-password/:token', cacheControl, preventBackAfterLogin, userController.renderResetPassword);
+router.post('/reset-password/:token', cacheControl, userController.handleResetPassword);
+router.post('/verify-referral', cacheControl, userController.verifyReferralCode);
 
 // <====Google Auth Routes====>
 router.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/login' }), userController.googleCallback);
-
 
 // <====Menu Page Routes====>
 router.get('/menu', auth, menuController.renderMenuPage);

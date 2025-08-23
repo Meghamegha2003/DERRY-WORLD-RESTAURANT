@@ -33,7 +33,6 @@
     <!-- SweetAlert2 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    
     <script>
       // Check if user is blocked on page load
       document.addEventListener('DOMContentLoaded', function() {
@@ -48,125 +47,44 @@
           // Show blocked message
           Swal.fire({
             title: 'Account Blocked',
-            text: 'Your account has been blocked. Please contact support for more information.',
+            text: 'Your account has been blocked by the administrator. Please contact support for more information.',
             icon: 'error',
             confirmButtonText: 'OK',
-            allowOutsideClick: false
+            allowOutsideClick: false,
+            allowEscapeKey: false
           }).then(() => {
             // Redirect to login page
             window.location.href = '/login';
           });
         }
       });
-      let isConnected = false;
-      let userId = null;
 
-      <% if (locals.user) { %>
-        userId = '<%= user._id %>';
-      <% } %>
-
-      // Function to emit userId
-      function emitUserId() {
-        if (userId && isConnected) {
-          console.log('[DEBUG] Emitting storeUserId event:', userId);
-          socket.emit('storeUserId', userId);
+      // Handle user blocked event (for page reloads)
+      async function handleUserBlocked() {
+        try {
+          // Clear user token and storage
+          document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+          localStorage.clear();
+          sessionStorage.clear();
+          
+          // Show blocked message
+          await Swal.fire({
+            title: 'Account Blocked',
+            text: 'Your account has been blocked by the administrator. Please contact support for more information.',
+            icon: 'error',
+            confirmButtonText: 'OK',
+            allowOutsideClick: false,
+            allowEscapeKey: false
+          });
+          
+          // Redirect to login page
+          window.location.href = '/login';
+        } catch (error) {
+          console.error('Error handling block event:', error);
+          window.location.href = '/login';
         }
       }
 
-      socket.on('connect', () => {
-        console.log('[DEBUG] Socket.io connected with ID:', socket.id);
-        isConnected = true;
-        emitUserId();
-      });
-
-      socket.on('connect_error', (error) => {
-        console.error('[DEBUG] Socket.io connection error:', error);
-        isConnected = false;
-      });
-
-      socket.on('socketStored', (data) => {
-        console.log('[DEBUG] Server acknowledged socket storage:', data);
-      });
-
-      // Listen for block events
-      socket.on('userBlocked', async (data) => {
-        console.log('[DEBUG] Received userBlocked event:', data);
-
-        try {
-          // Check if this block event is for the current user
-          <% if (locals.user) { %>
-            if (!data.userId || data.userId === '<%= user._id %>') {
-              console.log('[DEBUG] Block event matches current user');
-              
-              // Show blocked message
-              await Swal.fire({
-                icon: 'error',
-                title: 'Account Blocked',
-                text: data.message,
-                confirmButtonText: 'OK',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                didOpen: () => {
-                  // Prevent any navigation away from this dialog
-                  window.onbeforeunload = (e) => {
-                    e.preventDefault();
-                    e.returnValue = '';
-                    return '';
-                  };
-                }
-              });
-
-              console.log('[DEBUG] Clearing user token and session...');
-
-              // Clear all cookies
-              document.cookie.split(';').forEach(function(c) {
-                document.cookie = c.trim().split('=')[0] + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-              });
-
-              // Clear localStorage
-              localStorage.clear();
-              
-              // Clear sessionStorage
-              sessionStorage.clear();
-
-              // Disconnect socket
-              socket.disconnect();
-
-              console.log('[DEBUG] Redirecting to login...');
-              
-              // Remove navigation prevention
-              window.onbeforeunload = null;
-
-              // Force reload to login page
-              window.location.replace('/login');
-            }
-          <% } %>
-        } catch (error) {
-          console.error('[DEBUG] Error handling block event:', error);
-          // Force reload even if there's an error
-          window.location.replace('/login');
-        }
-      });
-
-      socket.on('disconnect', (reason) => {
-        console.log('[DEBUG] Socket.io disconnected:', reason);
-        isConnected = false;
-      });
-
-      // Attempt to reconnect if connection is lost
-      socket.on('reconnect', (attemptNumber) => {
-        console.log('[DEBUG] Socket.io reconnected after', attemptNumber, 'attempts');
-        isConnected = true;
-        emitUserId();
-      });
-
-      socket.on('reconnect_error', (error) => {
-        console.error('[DEBUG] Socket.io reconnection error:', error);
-      });
-
-      socket.on('reconnect_failed', () => {
-        console.error('[DEBUG] Socket.io reconnection failed after all attempts');
-      });
     </script>
     
 

@@ -12,6 +12,25 @@ const Toast = Swal.mixin({
 
 
 function addToCart(productId, quantity = 1) {
+    // First remove any applied coupon
+    const appliedCoupon = document.querySelector('.applied-coupon');
+    if (appliedCoupon) {
+        // Remove from UI
+        const couponCode = appliedCoupon.getAttribute('data-coupon-code');
+        appliedCoupon.remove();
+        document.querySelector('.coupon-section').style.display = 'block';
+        
+        // Remove from localStorage
+        localStorage.removeItem('appliedCoupon');
+        
+        // Remove from server-side session
+        fetch('/cart/remove-coupon', {
+            method: 'POST',
+            credentials: 'same-origin'
+        }).catch(console.error);
+    }
+    
+    // Then add the new item to cart
     fetch(`/cart/add/${productId}`, {
         method: 'POST',
         headers: {
@@ -33,6 +52,11 @@ function addToCart(productId, quantity = 1) {
                 title: 'Item added to cart'
             });
             updateCartCount(response.cartCount);
+            
+            // Reload the page to reflect cart changes if we're on the cart page
+            if (window.location.pathname === '/cart') {
+                window.location.reload();
+            }
         }
     })
     .catch(error => {
@@ -71,9 +95,24 @@ function removeFromCart(productId) {
             })
             .then(response => {
                 if (response.success) {
-                    $(`#cart-item-${productId}`).fadeOut(300, function() {
-                        $(this).remove();
-
+                    const $item = $(`#cart-item-${productId}`);
+                    $item.fadeOut(300, function() {
+                        $item.remove();
+                        
+                        // Check if cart is now empty
+                        if (response.cartEmpty) {
+                            // Clear coupon from UI if it exists
+                            const $appliedCoupon = $('.applied-coupon');
+                            if ($appliedCoupon.length) {
+                                $appliedCoupon.remove();
+                                $('.coupon-section').show();
+                                // Clear from localStorage
+                                localStorage.removeItem('appliedCoupon');
+                            }
+                        }
+                        
+                        // Update cart totals
+                        updateCartTotals(response);
                     });
                 }
             })
@@ -192,18 +231,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 
                 // Update the UI with server response data
                 if (data) {
-                    // Update the cart summary
-                    const subtotalEl = document.getElementById('subtotal');
-                    const totalEl = document.getElementById('total');
-                    const deliveryChargeEl = document.getElementById('delivery-charge');
-                    
-                    if (data.subtotal !== undefined && subtotalEl) {
-                        subtotalEl.textContent = '₹' + data.subtotal.toFixed(2);
-                    }
-                    
-                    if (data.total !== undefined && totalEl) {
-                        totalEl.textContent = '₹' + data.total.toFixed(2);
-                    }
+                    // Update cart totals
+                    updateCartTotals(data);
                     
                     // Update coupon discount if it exists
                     if (data.couponDiscount > 0) {
@@ -232,6 +261,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     
                     // Update delivery charge
+                    const deliveryChargeEl = document.getElementById('delivery-charge');
                     if (data.deliveryCharge !== undefined && deliveryChargeEl) {
                         deliveryChargeEl.textContent = data.deliveryCharge === 0 ? 'FREE' : '₹' + data.deliveryCharge.toFixed(2);
                     }
@@ -243,6 +273,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     position: 'top-end',
                     icon: 'success',
                     title: data.message || 'Cart updated',
+                    showConfirmButton: false,
+                    timer: 1500,
                     background: '#f0f9f4',
                     color: '#1a7f37',
                     showConfirmButton: false,
@@ -262,9 +294,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 console.error('Quantity update failed:', error.message);
                 Swal.fire({
                     icon: 'error',
-                    title: 'Error',
-                    text: error.message || 'Failed to update quantity',
-                    confirmButtonColor: '#d33'
+                    title: 'Update Failed',
+                    text: error.message || 'Failed to update quantity. Please try again.',
+                    confirmButtonColor: '#ff4444',
+                    confirmButtonText: 'OK',
+                    customClass: {
+                        confirmButton: 'btn btn-danger'
+                    }
                 });
             }
         });
@@ -554,9 +590,13 @@ async function applyCouponCode(code) {
     } catch (error) {
         Swal.fire({
             icon: 'error',
-            title: 'Error',
-            text: error.message || 'Failed to apply coupon',
-            confirmButtonColor: '#d33'
+            title: 'Action Failed',
+            text: error.message || 'Failed to apply coupon. Please try again.',
+            confirmButtonColor: '#ff4444',
+            confirmButtonText: 'OK',
+            customClass: {
+                confirmButton: 'btn btn-danger'
+            }
         });
     }
 }
@@ -600,58 +640,47 @@ async function removeCoupon() {
     });
 }
 
-function updateCartTotals(totals) {
-    // Update subtotal
+function updateCartTotals(response) {
+    // Get DOM elements
     const subtotalElement = document.getElementById('subtotal');
-    if (subtotalElement) {
-        subtotalElement.textContent = `₹${totals.subtotal.toFixed(2)}`;
+    const totalElement = document.getElementById('total');
+    const deliveryChargeElement = document.getElementById('delivery-charge');
+    const couponSection = document.querySelector('.coupon-section');
+    const appliedCouponEl = document.querySelector('.applied-coupon');
+    
+    // Update prices
+    if (subtotalElement && response.subtotal !== undefined) {
+        subtotalElement.textContent = `₹${response.subtotal.toFixed(2)}`;
     }
 
-    // Update delivery charge
-    const deliveryElement = document.getElementById('delivery-charge');
-    if (deliveryElement) {
-        if (totals.subtotal >= 500) {
-            deliveryElement.textContent = 'Free Delivery!';
-            deliveryElement.classList.add('text-success');
-            
-            // Remove any existing delivery message
-            const oldMessage = document.querySelector('.delivery-message');
-            if (oldMessage) {
-                oldMessage.remove();
-            }
-        } else {
-            deliveryElement.textContent = `₹${totals.deliveryCharge.toFixed(2)}`;
-            deliveryElement.classList.remove('text-success');
-            
-            // Update free delivery message
-            const remainingForFree = 500 - totals.subtotal;
-            const oldMessage = document.querySelector('.delivery-message');
-            if (oldMessage) {
-                oldMessage.remove();
-            }
-            if (remainingForFree > 0) {
-                deliveryElement.insertAdjacentHTML('afterend', 
-                    `<div class="text-muted small delivery-message">Add ₹${remainingForFree.toFixed(2)} more for free delivery</div>`
-                );
-            }
+    // Update delivery charge to always show FREE
+    if (deliveryChargeElement) {
+        deliveryChargeElement.textContent = 'FREE';
+        deliveryChargeElement.classList.add('text-success');
+        
+        // Remove any existing delivery message
+        const oldMessage = document.querySelector('.delivery-message');
+        if (oldMessage) {
+            oldMessage.remove();
         }
     }
 
     // Update coupon discount
     const discountElement = document.getElementById('coupon-discount');
     if (discountElement) {
-        if (totals.discount > 0) {
-            discountElement.textContent = `-₹${totals.discount.toFixed(2)}`;
-            discountElement.closest('.d-flex').style.display = 'flex';
+        if (response.couponDiscount > 0) {
+            discountElement.textContent = `-₹${response.couponDiscount.toFixed(2)}`;
+            const parent = discountElement.closest('.d-flex, .discount-row');
+            if (parent) parent.style.display = 'flex';
         } else {
-            discountElement.closest('.d-flex').style.display = 'none';
+            const parent = discountElement?.closest('.d-flex, .discount-row');
+            if (parent) parent.style.display = 'none';
         }
     }
 
     // Update final total
-    const totalElement = document.getElementById('total');
-    if (totalElement) {
-        totalElement.textContent = `₹${totals.total.toFixed(2)}`;
+    if (totalElement && response.total !== undefined) {
+        totalElement.textContent = `₹${response.total.toFixed(2)}`;
     }
 }
 
