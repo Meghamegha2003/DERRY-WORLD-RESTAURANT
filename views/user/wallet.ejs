@@ -135,10 +135,12 @@
                                                         if (orderNumber) {
                                                             // Format order ID to match orders page (last 8 characters in uppercase)
                                                             const formattedOrderId = orderNumber.toString().slice(-8).toUpperCase();
-                                                            if (description.toLowerCase().includes('order')) {
-                                                                description = `Payment for order #${formattedOrderId}`;
-                                                            } else if (description.toLowerCase().includes('refund')) {
+                                                            if (description.toLowerCase().includes('cancelled') || description.toLowerCase().includes('cancel')) {
+                                                                description = `Order #${formattedOrderId} Cancelled`;
+                                                            } else if (description.toLowerCase().includes('order') && description.toLowerCase().includes('refund')) {
                                                                 description = `Refund for order #${formattedOrderId}`;
+                                                            } else if (description.toLowerCase().includes('order')) {
+                                                                description = `Payment for order #${formattedOrderId}`;
                                                             } else {
                                                                 description = `Order #${formattedOrderId}`;
                                                             }

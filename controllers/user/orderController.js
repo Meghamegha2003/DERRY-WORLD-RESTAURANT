@@ -365,6 +365,7 @@ exports.cancelOrder = async (req, res) => {
       }
     }
 
+    // Process refund for non-COD paid orders
     if (
       updatedOrder.paymentMethod &&
       updatedOrder.paymentMethod.toLowerCase() !== "cod" &&
@@ -372,9 +373,15 @@ exports.cancelOrder = async (req, res) => {
         updatedOrder.paymentStatus
       )
     ) {
-      const refundAmount = updatedOrder.totalAmount || updatedOrder.total;
-
       try {
+        const refundAmount = updatedOrder.totalAmount || updatedOrder.total;
+        
+        if (isNaN(refundAmount) || refundAmount <= 0) {
+          console.error(`[CANCEL_ORDER] Invalid refund amount: ${refundAmount}`);
+          throw new Error(`Invalid refund amount: ${refundAmount}`);
+        }
+
+        // Find or create wallet
         let wallet = await Wallet.findOne({ user: req.user._id });
         if (!wallet) {
           wallet = new Wallet({
@@ -383,26 +390,58 @@ exports.cancelOrder = async (req, res) => {
             transactions: [],
           });
         }
-        wallet.balance += refundAmount;
-        wallet.transactions.push({
+
+        // Update wallet balance
+        const previousBalance = wallet.balance;
+        wallet.balance = Number((wallet.balance + refundAmount).toFixed(2));
+        
+        // Add transaction record
+        const transaction = {
           type: "credit",
-          amount: refundAmount,
-          description: `Refund for cancelled order #${updatedOrder._id
-            .toString()
-            .slice(-8)
-            .toUpperCase()}`,
-          orderId: updatedOrder._id.toString(),
+          amount: Number(refundAmount.toFixed(2)),
+          description: `Refund for cancelled order #${updatedOrder._id.toString().slice(-8).toUpperCase()}`,
+          orderId: updatedOrder._id,
           status: "completed",
           date: new Date(),
-        });
+          previousBalance: previousBalance,
+          newBalance: wallet.balance,
+          referenceId: `REF-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+        };
+        
+        wallet.transactions.push(transaction);
         await wallet.save();
-        // Real-time updates removed
-      } catch (err) {
-        throw err;
+
+        // Update order with refund details
+        updatedOrder.refundDetails = {
+          amount: refundAmount,
+          refundedAt: new Date(),
+          method: 'wallet_credit',
+          status: 'completed',
+          transactionId: transaction.referenceId
+        };
+        
+        await updatedOrder.save();
+        
+        console.log(`[CANCEL_ORDER] Successfully refunded ${refundAmount} to user ${req.user._id}'s wallet`);
+        
+      } catch (error) {
+        console.error('[CANCEL_ORDER] Refund processing failed:', error);
+        // Continue with order cancellation even if refund fails, but log the error
+        updatedOrder.refundDetails = {
+          amount: refundAmount,
+          refundedAt: new Date(),
+          method: 'wallet_credit',
+          status: 'failed',
+          error: error.message,
+          referenceId: `ERR-${Date.now()}`
+        };
+        await updatedOrder.save();
+        
+        throw new Error(`Order cancelled, but there was an issue with the refund: ${error.message}`);
       }
     } else {
       console.log(
-        "[CANCEL_ORDER] No wallet refund needed for COD or unpaid order."
+        `[CANCEL_ORDER] No wallet refund needed. Payment method: ${updatedOrder.paymentMethod}, Status: ${updatedOrder.paymentStatus}`
       );
     }
 

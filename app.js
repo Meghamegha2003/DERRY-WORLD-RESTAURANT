@@ -2,9 +2,7 @@ const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
-const passport = require('passport');
 require('dotenv').config();
-require('./config/passport');
 
 // Import routes
 const adminRouter = require('./routes/admin/adminRouter');
@@ -21,9 +19,9 @@ const adminProductRoutes = require('./routes/admin/productRoutes');
 const userCouponRoutes = require('./routes/user/couponRoutes');
 const paymentRoutes = require('./routes/user/paymentRoutes');
 const adminWalletRoutes = require('./routes/admin/walletRoutes');
-const { setMessage, getFlash } = require('./middlewares/flashMiddleware');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandlers');
 const { auth, adminAuth } = require('./middlewares/authMiddleware');
+const { cacheControl, preventBackAfterLogin, preventCache } = require('./middlewares/cacheControl');
 
 const app = express();
 
@@ -34,9 +32,30 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(process.env.COOKIE_SECRET));
 
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Cache control middleware
+app.use(cacheControl);
+app.use(preventBackAfterLogin);
 
+// Apply preventCache to all routes that should not be cached after logout
+app.use((req, res, next) => {
+    if (req.cookies.userToken) {
+        res.locals.authenticated = true;
+    }
+    next();
+});
+
+// Static files with cache control
+app.use(express.static(path.join(__dirname, 'public'), {
+    setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
+    }
+}));
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+    setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
+    }
+}));
 
 const adminGroup = express.Router();
 adminGroup.use('/offers', adminOfferRoutes);
@@ -46,17 +65,17 @@ adminGroup.use('/categories', adminCategoryRoutes);
 adminGroup.use('/coupons', adminCouponRoutes);
 adminGroup.use('/wallet', adminWalletRoutes);
 
-app.use('/admin', adminRouter);  
-app.use('/admin', adminGroup);  
+// Admin routes with cache control
+app.use('/admin', preventCache, adminRouter);
+app.use('/admin', preventCache, adminGroup);  
 app.use('/payment', paymentRoutes);
 app.use('/auth/google', googleOAuthRoutes);
-app.use('/cart', auth, cartRouter);
-app.use('/', userRouter);
+// User routes with appropriate cache control
+app.use('/cart', preventCache, auth, cartRouter);
+app.use('/', preventCache, userRouter);
 app.use('/user/coupons', auth, userCouponRoutes);
 app.use('/checkout', auth, checkoutRouter);
 app.use('/orders', auth, userOrderRoutes);
-app.use(setMessage);
-app.use(getFlash);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

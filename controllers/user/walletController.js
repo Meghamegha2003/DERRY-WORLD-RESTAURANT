@@ -217,6 +217,39 @@ exports.getWallet = async function(req, res) {
             })
             .slice(startIndex, endIndex);
         
+        // Format transactions for the view
+        const txList = transactions.map(tx => {
+            // Ensure we have a proper date
+            const txDate = tx.date || tx.createdAt || new Date();
+            
+            // Format the transaction description based on type
+            let description = tx.description || '';
+            if (tx.orderId) {
+                const orderId = tx.orderId.toString().slice(-8).toUpperCase();
+                if (description.toLowerCase().includes('cancelled') || description.toLowerCase().includes('cancel')) {
+                    description = `Order #${orderId} Cancelled`;
+                } else if (description.toLowerCase().includes('refund')) {
+                    description = `Refund for order #${orderId}`;
+                } else if (description.toLowerCase().includes('order')) {
+                    description = `Payment for order #${orderId}`;
+                }
+            }
+            
+            return {
+                _id: tx._id || new mongoose.Types.ObjectId(),
+                date: txDate,
+                type: tx.type || 'credit',
+                amount: tx.amount || 0,
+                description: description,
+                status: tx.status || 'completed',
+                orderId: tx.orderId,
+                orderReference: tx.orderId, // Add orderReference for backward compatibility
+                referenceId: tx.referenceId || `TXN-${Date.now()}`,
+                previousBalance: tx.previousBalance || 0,
+                newBalance: tx.newBalance || (tx.amount || 0)
+            };
+        });
+
         res.render('user/wallet', {
             title: 'My Wallet',
             user: req.user,
@@ -234,6 +267,7 @@ exports.getWallet = async function(req, res) {
                     prevPage: page > 1 ? page - 1 : null
                 }
             },
+            txList: txList, // Add transactions in the format expected by the view
             cartCount: cartCount,
             referral: referral,
             razorpayKey: process.env.RAZORPAY_KEY_ID || ''
