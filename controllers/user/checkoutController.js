@@ -421,33 +421,12 @@ exports.processCheckout = async (req, res) => {
     switch (paymentMethod.toLowerCase()) {
       case "cod":
         const codOrder = await exports.createOrder(user, cart, address, "cod", total);
-        
-        // Clear the cart after successful order
-        const cartCleared = await Cart.findOneAndUpdate(
-          { user: user._id },
-          {
-            $set: {
-              items: [],
-              couponDiscount: 0,
-              couponValue: 0,
-              total: 0,
-              subTotal: 0,
-              updatedAt: new Date()
-            },
-            $unset: {
-              appliedCoupon: "",
-              couponCode: "",
-              couponType: ""
-            }
-          },
-          { new: true }
-        );
 
         return res.json({
           success: true,
           message: "Order placed successfully",
           orderId: codOrder._id,
-          cartCleared: !!cartCleared
+          cartCleared: true
         });
         
 
@@ -485,33 +464,12 @@ exports.processCheckout = async (req, res) => {
           "wallet",
           total
         );
-        
-        // Clear the cart after successful wallet payment
-        const cartCleared = await Cart.findOneAndUpdate(
-          { user: user._id },
-          {
-            $set: {
-              items: [],
-              couponDiscount: 0,
-              couponValue: 0,
-              total: 0,
-              subTotal: 0,
-              updatedAt: new Date()
-            },
-            $unset: {
-              appliedCoupon: "",
-              couponCode: "",
-              couponType: ""
-            }
-          },
-          { new: true }
-        );
 
         return res.json({
           success: true,
           message: "Order placed successfully using wallet balance",
           orderId: walletOrder._id,
-          cartCleared: !!cartCleared
+          cartCleared: true
         });
       }
 

@@ -45,17 +45,8 @@ app.use((req, res, next) => {
 });
 
 // Static files with cache control
-app.use(express.static(path.join(__dirname, 'public'), {
-    setHeaders: (res) => {
-        res.setHeader('Cache-Control', 'public, max-age=31536000');
-    }
-}));
-
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
-    setHeaders: (res) => {
-        res.setHeader('Cache-Control', 'public, max-age=31536000');
-    }
-}));
+app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 const adminGroup = express.Router();
 adminGroup.use('/offers', adminOfferRoutes);
@@ -70,7 +61,6 @@ app.use('/admin', preventCache, adminRouter);
 app.use('/admin', preventCache, adminGroup);  
 app.use('/payment', paymentRoutes);
 app.use('/auth/google', googleOAuthRoutes);
-// User routes with appropriate cache control
 app.use('/cart', preventCache, auth, cartRouter);
 app.use('/', preventCache, userRouter);
 app.use('/user/coupons', auth, userCouponRoutes);

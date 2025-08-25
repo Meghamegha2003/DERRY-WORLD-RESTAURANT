@@ -179,7 +179,24 @@ exports.createRazorpayOrder = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Your cart is empty' });
         }
 
-        const { total } = await calculateOrderTotals(cart);
+        // Get order items with offers applied
+        const orderItems = await exports.getOrderItems(cart.items);
+        
+        // Calculate order totals properly including coupon discount
+        const subtotal = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const offerDiscount = orderItems.reduce((sum, item) => sum + (item.offerDiscount || 0), 0);
+        const couponDiscount = cart.couponDiscount || 0;
+        const deliveryCharge = 0; // Free delivery
+        const total = Math.max(0, subtotal - couponDiscount + deliveryCharge);
+        
+        console.log('\n--- Razorpay Order Calculation ---');
+        console.log('Subtotal:', subtotal);
+        console.log('Coupon Discount:', couponDiscount);
+        console.log('Offer Discount:', offerDiscount);
+        console.log('Delivery Charge:', deliveryCharge);
+        console.log('Total:', total);
+        console.log('--------------------------------\n');
+        
         const user = await User.findById(userId).session(useTransaction ? session : null);
         const address = user.addresses.id(addressId);
 
@@ -191,36 +208,17 @@ exports.createRazorpayOrder = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid delivery address' });
         }
 
-        // Validate product prices and calculate item totals
-        const orderItems = cart.items.map(item => {
-            // Use salesPrice instead of price
-            const price = Number(item.product.salesPrice);
-            const regularPrice = Number(item.product.regularPrice) || price;
-            const quantity = Number(item.quantity);
-            
-            if (isNaN(price) || isNaN(quantity) || price <= 0 || quantity <= 0) {
-                console.error('Invalid product data:', {
-                    name: item.product.name,
-                    salesPrice: item.product.salesPrice,
-                    regularPrice: item.product.regularPrice,
-                    quantity: item.quantity
-                });
-                throw new Error(`Invalid price or quantity for product: ${item.product.name}`);
-            }
-            
-            const total = price * quantity;
-            
-            return {
-                product: item.product._id,
-                quantity: quantity,
-                price: price,
-                regularPrice: regularPrice,
-                total: total,
-                name: item.product.name,
-                image: item.product.image,
-                status: 'Active' // Required by orderItemSchema
-            };
-        });
+        // Prepare order items with proper structure
+        const processedOrderItems = orderItems.map(item => ({
+            product: item.product,
+            quantity: item.quantity,
+            price: item.price,
+            regularPrice: item.regularPrice,
+            total: item.total,
+            offerDiscount: item.offerDiscount || 0,
+            status: 'Active',
+            offerDetails: item.offerDetails
+        }));
         
         // Validate address fields
         if (!address || !address.fullName || !address.addressLine1 || !address.city || !address.state || !address.pincode) {
@@ -252,7 +250,7 @@ exports.createRazorpayOrder = async (req, res) => {
                 const orderData = {
                     orderNumber: generateOrderNumber(),
                     user: userId,
-                    items: orderItems,
+                    items: processedOrderItems,
                     shippingAddress: {
                         addressType: address.addressType || 'Home',
                         fullName: address.fullName,
@@ -271,6 +269,11 @@ exports.createRazorpayOrder = async (req, res) => {
                     },
                     status: 'Active',
                     orderStatus: 'Pending',
+                    subtotal: subtotal,
+                    couponDiscount: couponDiscount,
+                    couponCode: cart.couponCode || cart.appliedCoupon?.code,
+                    offerDiscount: offerDiscount,
+                    deliveryCharge: deliveryCharge,
                     total: total,
                     totalAmount: total,
                     orderDate: new Date()

@@ -8,6 +8,8 @@ const User = require("../../models/userSchema");
 const Product = require("../../models/productSchema");
 const Wallet = require("../../models/walletSchema");
 const { getBestOffer } = require("../../helpers/offerHelper");
+const { recalculateOrderCoupon } = require("../../helpers/couponHelper");
+const { processOrderRefund, processItemRefund } = require("../../services/refundService");
 const PDFDocument = require("pdfkit");
 
 const Razorpay = require("razorpay");
@@ -365,7 +367,7 @@ exports.cancelOrder = async (req, res) => {
       }
     }
 
-    // Process refund for non-COD paid orders
+    // Process refund using the refund service
     if (
       updatedOrder.paymentMethod &&
       updatedOrder.paymentMethod.toLowerCase() !== "cod" &&
@@ -374,74 +376,21 @@ exports.cancelOrder = async (req, res) => {
       )
     ) {
       try {
-        const refundAmount = updatedOrder.totalAmount || updatedOrder.total;
+        const refundResult = await processOrderRefund(updatedOrder, 'Cancellation');
         
-        if (isNaN(refundAmount) || refundAmount <= 0) {
-          console.error(`[CANCEL_ORDER] Invalid refund amount: ${refundAmount}`);
-          throw new Error(`Invalid refund amount: ${refundAmount}`);
+        if (!refundResult.success) {
+          throw new Error(refundResult.message);
         }
-
-        // Find or create wallet
-        let wallet = await Wallet.findOne({ user: req.user._id });
-        if (!wallet) {
-          wallet = new Wallet({
-            user: req.user._id,
-            balance: 0,
-            transactions: [],
-          });
-        }
-
-        // Update wallet balance
-        const previousBalance = wallet.balance;
-        wallet.balance = Number((wallet.balance + refundAmount).toFixed(2));
         
-        // Add transaction record
-        const transaction = {
-          type: "credit",
-          amount: Number(refundAmount.toFixed(2)),
-          description: `Refund for cancelled order #${updatedOrder._id.toString().slice(-8).toUpperCase()}`,
-          orderId: updatedOrder._id,
-          status: "completed",
-          date: new Date(),
-          previousBalance: previousBalance,
-          newBalance: wallet.balance,
-          referenceId: `REF-${Date.now()}-${Math.floor(Math.random() * 1000)}`
-        };
-        
-        wallet.transactions.push(transaction);
-        await wallet.save();
-
-        // Update order with refund details
-        updatedOrder.refundDetails = {
-          amount: refundAmount,
-          refundedAt: new Date(),
-          method: 'wallet_credit',
-          status: 'completed',
-          transactionId: transaction.referenceId
-        };
-        
-        await updatedOrder.save();
-        
-        console.log(`[CANCEL_ORDER] Successfully refunded ${refundAmount} to user ${req.user._id}'s wallet`);
+        console.log(`[CANCEL_ORDER] Refund processed successfully:`, refundResult);
         
       } catch (error) {
         console.error('[CANCEL_ORDER] Refund processing failed:', error);
-        // Continue with order cancellation even if refund fails, but log the error
-        updatedOrder.refundDetails = {
-          amount: refundAmount,
-          refundedAt: new Date(),
-          method: 'wallet_credit',
-          status: 'failed',
-          error: error.message,
-          referenceId: `ERR-${Date.now()}`
-        };
-        await updatedOrder.save();
-        
         throw new Error(`Order cancelled, but there was an issue with the refund: ${error.message}`);
       }
     } else {
       console.log(
-        `[CANCEL_ORDER] No wallet refund needed. Payment method: ${updatedOrder.paymentMethod}, Status: ${updatedOrder.paymentStatus}`
+        `[CANCEL_ORDER] No refund needed. Payment method: ${updatedOrder.paymentMethod}, Status: ${updatedOrder.paymentStatus}`
       );
     }
 
@@ -461,34 +410,6 @@ exports.cancelOrder = async (req, res) => {
   }
 };
 
-// Process refund to wallet
-exports.processRefund = async (userId, amount) => {
-  try {
-    let wallet = await Wallet.findOne({ user: userId });
-    if (!wallet) {
-      wallet = new Wallet({
-        user: userId,
-        balance: 0,
-        transactions: [],
-      });
-    }
-
-    wallet.balance += Number(amount);
-    wallet.transactions.push({
-      type: "credit",
-      amount: Number(amount),
-      description: "Refund from returned order",
-      date: new Date(),
-      status: "completed",
-    });
-
-    await wallet.save();
-    return true;
-  } catch (error) {
-    console.error("Error processing refund:", error);
-    return false;
-  }
-};
 
 // Cancel order item
 exports.cancelOrderItem = async (req, res) => {
@@ -558,29 +479,37 @@ exports.cancelOrderItem = async (req, res) => {
       }
     }
 
-    const refundAmount = item.price * item.quantity;
-
+    // Mark item as cancelled
     item.status = "Cancelled";
     item.cancelReason = reason;
     item.cancelledAt = new Date();
-    item.refundAmount = refundAmount;
-    item.refundStatus = "Pending";
 
+    const itemTotal = item.price * item.quantity;
+
+    // Process refund for non-COD orders
     if (
-      order.paymentMethod !== "cod" &&
-      order.paymentStatus === PAYMENT_STATUS.PAID
+      order.paymentMethod &&
+      order.paymentMethod.toLowerCase() !== "cod" &&
+      [PAYMENT_STATUS.PAID, PAYMENT_STATUS.REFUNDED].includes(order.paymentStatus)
     ) {
-      const refundSuccess = await exports.processRefund(userId, refundAmount);
-      if (!refundSuccess) {
-        console.error(`[CANCEL_ITEM] Refund processing failed for order ${order._id}`);
-      } else {
-        item.refundStatus = "Completed";
-        item.refundDate = new Date();
+      try {
+        const refundResult = await processItemRefund(order, item, 'Cancellation');
+        
+        if (!refundResult.success) {
+          console.error('[CANCEL_ITEM] Refund processing failed:', refundResult.message);
+          // Continue with cancellation even if refund fails
+        } else {
+          console.log(`[CANCEL_ITEM] Item refund processed successfully:`, refundResult);
+        }
+        
+      } catch (error) {
+        console.error('[CANCEL_ITEM] Error processing item refund:', error);
+        // Continue with cancellation even if refund fails
       }
     }
 
     // Ensure the order total doesn't go below zero
-    order.total = Math.max(0, order.total - refundAmount);
+    order.total = Math.max(0, order.total - itemTotal);
 
     const allItemsCancelled = order.items.every(
       (item) => item.status === "Cancelled"
@@ -604,12 +533,24 @@ exports.cancelOrderItem = async (req, res) => {
     // Always save order after modifications
     await order.save();
 
+    // Calculate updated order totals for frontend
+    const activeItems = order.items.filter(item => item.status !== 'Cancelled' && item.status !== 'Returned');
+    const newItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const newCouponDiscount = order.couponDiscount || 0;
+    const newTotal = newItemsTotal - newCouponDiscount + (order.deliveryCharge || 0);
+    
     res.json({
       success: true,
       message:
         order.paymentMethod !== "cod"
           ? "Item cancelled successfully. Amount has been credited to your wallet."
           : "Item cancelled successfully.",
+      updatedTotals: {
+        itemsTotal: newItemsTotal,
+        couponDiscount: newCouponDiscount,
+        deliveryCharge: order.deliveryCharge || 0,
+        finalTotal: newTotal
+      }
     });
   } catch (error) {
     console.error("Error cancelling order item:", error);
@@ -675,9 +616,21 @@ exports.requestItemReturn = async (req, res) => {
 
     await order.save();
 
+    // Calculate updated order totals for frontend
+    const activeItems = order.items.filter(item => item.status !== 'Cancelled' && item.status !== 'Returned');
+    const newItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const newCouponDiscount = order.couponDiscount || 0;
+    const newTotal = newItemsTotal - newCouponDiscount + (order.deliveryCharge || 0);
+    
     res.json({
       success: true,
       message: "Return request submitted successfully",
+      updatedTotals: {
+        itemsTotal: newItemsTotal,
+        couponDiscount: newCouponDiscount,
+        deliveryCharge: order.deliveryCharge || 0,
+        finalTotal: newTotal
+      }
     });
   } catch (error) {
     console.error("Error requesting item return:", error);
@@ -691,99 +644,101 @@ exports.requestItemReturn = async (req, res) => {
 
 // Admin: Approve return request
 exports.approveReturn = async (req, res) => {
+  const { orderId, itemId } = req.params;
+  // Admin might not have a user session, so we get userId from the order
+
   try {
-    const { orderId, itemId } = req.params;
+    const order = await Order.findById(orderId).populate('items.product');
 
-    await Order.updateOne(
-      { _id: orderId, "items.product": itemId },
-      {
-        $set: {
-          "items.$.returnStatus": "Approved",
-          "items.$.status": ORDER_STATUS.RETURN_APPROVED,
-        },
-      }
-    );
-
-    const updatedOrder = await Order.findById(orderId).populate(
-      "items.product"
-    );
-    const returnedItem = updatedOrder.items.find(
-      (item) => item.product._id.toString() === itemId.toString()
-    );
-    if (returnedItem && returnedItem.quantity) {
-      const prodId = returnedItem.product._id;
-      const newProduct = await Product.findByIdAndUpdate(
-        prodId,
-        { $inc: { quantity: returnedItem.quantity } },
-        { new: true }
-      );
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    const refundSuccess = await processRefund(
-      updatedOrder.user,
-      returnedItem.total
-    );
-    if (!refundSuccess) throw new Error("Failed to process refund");
+    const item = order.items.find((i) => i._id.toString() === itemId);
 
-    res.json({
-      success: true,
-      message: "Return approved and refund processed",
-    });
+    if (!item || item.returnStatus !== "Pending") {
+      return res.status(400).json({ success: false, message: "Item not found or return not pending" });
+    }
+
+    item.status = "Return Approved";
+    item.returnStatus = "Approved";
+    item.returnApprovedDate = new Date();
+
+    // Process refund for non-COD orders
+    if (
+      order.paymentMethod &&
+      order.paymentMethod.toLowerCase() !== "cod" &&
+      [PAYMENT_STATUS.PAID, PAYMENT_STATUS.REFUNDED].includes(order.paymentStatus)
+    ) {
+      try {
+        const refundResult = await processItemRefund(order, item, 'Return');
+        
+        if (!refundResult.success) {
+          console.error('[APPROVE_RETURN] Refund processing failed:', refundResult.message);
+          return res.status(500).json({ 
+            success: false, 
+            message: `Return approved but refund failed: ${refundResult.message}` 
+          });
+        }
+        
+        console.log(`[APPROVE_RETURN] Return refund processed successfully:`, refundResult);
+        
+      } catch (error) {
+        console.error('[APPROVE_RETURN] Error processing return refund:', error);
+        return res.status(500).json({ 
+          success: false, 
+          message: `Return approved but refund processing failed: ${error.message}` 
+        });
+      }
+    } else {
+      // For COD orders, just mark as completed
+      item.refundStatus = "Completed";
+      item.refundDate = new Date();
+    }
+
+    // Restore product quantity
+    if (item.product) {
+        await Product.findByIdAndUpdate(item.product._id, { $inc: { quantity: item.quantity } });
+    }
+
+    await order.save();
+    console.log('[APPROVE_RETURN] Return processed successfully');
+
+    res.json({ success: true, message: "Return approved and refund processed." });
+
   } catch (error) {
-    console.error("Error approving return:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to approve return" });
+    console.error("[APPROVE_RETURN] Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
 // Admin: Reject return request
 exports.rejectReturn = async (req, res) => {
+  const { orderId, itemId } = req.params;
+
   try {
-    const { orderId, itemId } = req.params;
-
     const order = await Order.findById(orderId);
+
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
+      return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    const orderItem = order.items.find(
-      (item) => item.product.toString() === itemId.toString()
-    );
+    const item = order.items.find((i) => i._id.toString() === itemId);
 
-    if (!orderItem || orderItem.returnStatus !== "Pending") {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid return request",
-      });
+    if (!item || item.returnStatus !== "Pending") {
+      return res.status(400).json({ success: false, message: "Item not found or return not pending" });
     }
 
-    await Order.updateOne(
-      {
-        _id: orderId,
-        "items.product": itemId,
-      },
-      {
-        $set: {
-          "items.$.returnStatus": "Rejected",
-          "items.$.status": ORDER_STATUS.RETURN_REJECTED,
-        },
-      }
-    );
+    item.status = "Delivered"; // Revert status
+    item.returnStatus = "Rejected";
 
-    res.json({
-      success: true,
-      message: "Return request rejected",
-    });
+    await order.save();
+
+    res.json({ success: true, message: "Return rejected." });
+
   } catch (error) {
-    console.error("Error rejecting return:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to reject return request",
-    });
+    console.error("[REJECT_RETURN] Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -1172,14 +1127,17 @@ exports.downloadInvoice = async (req, res) => {
       x += widths[i];
     });
 
+    // Filter only active items for invoice
+    const activeItems = order.items.filter(item => item.status === 'Active');
+
     // Grid lines
-    for (let i = 0; i < order.items.length + 1; i++) {
+    for (let i = 0; i < activeItems.length + 1; i++) {
       doc.strokeColor('#ccc').lineWidth(0.5).moveTo(tableLeft, tableTop + (i + 1) * rowHeight).lineTo(tableLeft + widthSum, tableTop + (i + 1) * rowHeight).stroke();
     }
 
     // Rows
     let y = tableTop + rowHeight;
-    order.items.forEach((item, index) => {
+    activeItems.forEach((item, index) => {
       if (index % 2 === 0) {
         doc.fillColor('#f9f9f9').rect(tableLeft, y, widthSum, rowHeight).fill();
       }
@@ -1193,12 +1151,18 @@ exports.downloadInvoice = async (req, res) => {
       y += rowHeight;
     });
 
-    // Summary
-    const preTotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
-    const discount = order.couponDiscount || 0;
-    const finalAmount = preTotal - discount;
+    // Summary - Calculate totals based on active items only
+    const preTotal = activeItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    
+    // Calculate proportional coupon discount for active items
+    const originalTotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    const activeItemsRatio = originalTotal > 0 ? preTotal / originalTotal : 0;
+    const proportionalDiscount = (order.couponDiscount || 0) * activeItemsRatio;
+    
+    const finalAmount = preTotal - proportionalDiscount;
+    
     doc.font('Helvetica').fontSize(10).text(`Total Amount: ₹${preTotal.toFixed(2)}`, tableLeft, y + 10, { width: widthSum, align: 'right' });
-    doc.text(`Discount: ₹${discount.toFixed(2)}`, { width: widthSum, align: 'right' });
+    doc.text(`Discount: ₹${proportionalDiscount.toFixed(2)}`, { width: widthSum, align: 'right' });
     doc.font('Helvetica-Bold').fillColor('red').text(`Final Amount: ₹${finalAmount.toFixed(2)}`, { width: widthSum, align: 'right' });
     doc.fillColor('black');
     doc.moveDown(2);

@@ -3,6 +3,7 @@ const { Order, ORDER_STATUS, PAYMENT_STATUS } = require('../../models/orderSchem
 const User = require('../../models/userSchema');
 const Product = require('../../models/productSchema');
 const Wallet = require('../../models/walletSchema');
+const { approveReturn, rejectReturn } = require('../user/orderController');
 
 const STATUS_TRANSITIONS = {
     'Pending': ['Processing', 'Cancelled'],
@@ -113,10 +114,6 @@ exports.getOrders = async (req, res) => {
         const skip = (page - 1) * limit;
         const filter = {};
 
-        if (req.query.status && req.query.status !== 'all' && Object.values(ORDER_STATUS).includes(req.query.status)) {
-            filter.orderStatus = req.query.status;
-        }
-
         if (req.query.paymentStatus && Object.values(PAYMENT_STATUS).includes(req.query.paymentStatus)) {
             filter.paymentStatus = req.query.paymentStatus;
         }
@@ -156,8 +153,6 @@ exports.getOrders = async (req, res) => {
                   // No users found, force empty result
                   filter.user = null;
                 }
-            } else if (searchType === 'status') {
-                filter.orderStatus = { $regex: searchValue, $options: 'i' };
             } else if (searchType === 'payment') {
                 filter.paymentMethod = { $regex: searchValue, $options: 'i' };
             }
@@ -187,10 +182,8 @@ exports.getOrders = async (req, res) => {
                 returnReason,
                 userName: order.user?.name || 'N/A',
                 userEmail: order.user?.email || 'N/A',
-                statusBadgeClass: exports.getStatusBadgeClass(order.orderStatus),
                 paymentStatusColor: exports.getPaymentStatusColor(order.paymentStatus),
-                formattedPaymentMethod: exports.formatPaymentMethod(order.paymentMethod),
-                nextStatuses: exports.getNextStatuses(order.orderStatus)
+                formattedPaymentMethod: exports.formatPaymentMethod(order.paymentMethod)
             };
         });
 
@@ -214,13 +207,11 @@ exports.getOrders = async (req, res) => {
             totalPages: Math.ceil(totalOrders / limit),
             totalOrders,
             query: req.query,
-            orderStatuses: ORDER_STATUS,
             paymentStatuses: PAYMENT_STATUS,
-            getStatusBadgeClass: exports.getStatusBadgeClass,
             getPaymentStatusColor: exports.getPaymentStatusColor,
             formatPaymentMethod: exports.formatPaymentMethod,
+            getStatusBadgeClass: exports.getStatusBadgeClass,
             getNextStatuses: exports.getNextStatuses,
-            ORDER_STATUS,
             path : '/admin/orders'
         });
     } catch (error) {
@@ -276,9 +267,9 @@ exports.updateOrderStatus = async (req, res) => {
         }
 
         if (status === 'Cancelled') {
-            await handleOrderCancellation(order);
+            await exports.handleOrderCancellation(order);
         } else if (status === 'Return Completed') {
-            await handleReturnCompletion(order);
+            await exports.handleReturnCompletion(order);
         } else if (status === ORDER_STATUS.DELIVERED) {
             order.deliveryDate = new Date();
         }
@@ -340,7 +331,11 @@ exports.getOrderDetails = async (req, res) => {
     try {
         const order = await Order.findById(req.params.id)
             .populate('user', 'name email phone')
-            .populate('items.product', 'name price images')
+            .populate({
+                path: 'items.product',
+                select: 'name price productImage',
+                model: 'Product'
+            })
             .lean();
 
         if (!order) {
@@ -350,12 +345,28 @@ exports.getOrderDetails = async (req, res) => {
             });
         }
 
+        // Format the order items to include image URLs
+        const itemsWithImages = order.items.map(item => ({
+            ...item,
+            imageUrl: item.product?.productImage?.[0] || '/images/placeholder.jpg'
+        }));
+
+        const subtotal = order.items.reduce((sum, item) => {
+            return sum + (item.price * item.quantity);
+        }, 0);
+
         const formattedOrder = {
             ...order,
-            statusBadgeClass: getStatusBadgeClass(order.orderStatus),
-            paymentStatusColor: getPaymentStatusColor(order.paymentStatus),
-            formattedPaymentMethod: formatPaymentMethod(order.paymentMethod),
-            nextStatuses: getNextStatuses(order.orderStatus)
+            items: itemsWithImages,
+            subtotal: subtotal,
+            tax: order.tax || 0,
+            shipping: order.shipping || 0,
+            discount: order.discount || 0,
+            total: order.total || subtotal + (order.tax || 0) + (order.shipping || 0) - (order.discount || 0),
+            statusBadgeClass: exports.getStatusBadgeClass(order.orderStatus),
+            paymentStatusColor: exports.getPaymentStatusColor(order.paymentStatus),
+            formattedPaymentMethod: exports.formatPaymentMethod(order.paymentMethod),
+            nextStatuses: exports.getNextStatuses(order.orderStatus)
         };
 
         if (req.xhr || req.headers.accept?.includes('application/json')) {
@@ -431,71 +442,17 @@ exports.handleRefund = async (order, item) => {
 };
 
 exports.handleReturnAction = async (req, res) => {
-    try {
-        const { orderId, itemId } = req.params;
-        const { action } = req.body;
+    const { orderId, itemId, action } = req.params;
 
-        const order = await Order.findById(orderId);
-        if (!order) {
-            return res.status(404).json({
-                success: false,
-                message: 'Order not found'
-            });
-        }
+    // To reuse the logic from user controller, we need to simulate req object
+    const simulatedReq = { params: { orderId, itemId } };
 
-        const item = order.items.id(itemId);
-        if (!item) {
-            return res.status(404).json({
-                success: false,
-                message: 'Order item not found'
-            });
-        }
-
-        if (action === 'approve') {
-            item.returnStatus = 'Approved';
-            await handleRefund(order, item);
-            try {
-                const prodId = item.product._id ? item.product._id : item.product;
-                await Product.findByIdAndUpdate(prodId, { $inc: { quantity: item.quantity } });
-                console.log('[ADMIN RETURN] Inventory restored for product', prodId, 'quantity', item.quantity);
-            } catch (err) {
-                console.error('[ADMIN RETURN] Error restoring inventory:', err);
-            }
-        } else if (action === 'reject') {
-            item.returnStatus = 'Rejected';
-        } else {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid action'
-            });
-        }
-
-        await order.save();
-        if (action === 'approve') {
-            // Real-time updates removed
-        }
-
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.json({
-                success: true,
-                message: `Return request ${action}ed successfully`,
-                item
-            });
-        }
-
-        res.redirect('/admin/orders/' + orderId);
-    } catch (error) {
-        console.error('Error in handleReturnAction:', error);
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to process return request'
-            });
-        }
-        res.status(500).render('error', {
-            message: 'Failed to process return request',
-            error
-        });
+    if (action === 'approve') {
+        return approveReturn(simulatedReq, res);
+    } else if (action === 'reject') {
+        return rejectReturn(simulatedReq, res);
+    } else {
+        return res.status(400).json({ success: false, message: 'Invalid action' });
     }
 };
 
@@ -540,5 +497,3 @@ exports.handleOrderCancellation = async (order, reason = 'Cancelled by admin') =
         throw error;
     }
 };
-
-

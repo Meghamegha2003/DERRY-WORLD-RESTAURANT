@@ -752,6 +752,16 @@
         .total-savings i {
             margin-right: 5px;
         }
+
+        .refund-breakdown {
+            background-color: #f8f9fa !important;
+            border: 1px solid #e9ecef;
+            font-size: 13px;
+        }
+
+        .refund-breakdown .text-success {
+            color: #28a745 !important;
+        }
     </style>
 </head>
 <!-- header -->
@@ -814,6 +824,46 @@
                   <div class="item-total">
                     Line Total: ₹<%= (item.quantity * item.price).toFixed(2) %>
                   </div>
+
+                  <!-- Refund breakdown for cancelled/returned items -->
+                  <% if ((item.status === 'Cancelled' || item.status === 'Returned' || item.status === 'Return Approved') && typeof item.refundAmount !== 'undefined') { %>
+                    <div class="refund-breakdown mt-2 p-2 bg-light rounded">
+                      <div class="small text-muted mb-1"><strong>Refund Breakdown:</strong></div>
+                      <div class="d-flex justify-content-between small">
+                        <span>Item Amount:</span>
+                        <span>₹<%= (item.quantity * item.price).toFixed(2) %></span>
+                      </div>
+                      <% 
+                        const itemTotal = item.quantity * item.price;
+                        // Use stored coupon data if available, otherwise calculate proportionally
+                        let itemCouponDiscount = 0;
+                        let itemCouponRatio = 0;
+                        
+                        if (typeof item.itemCouponDiscount !== 'undefined' && typeof item.couponRatio !== 'undefined') {
+                          // Use stored values from refund service
+                          itemCouponDiscount = item.itemCouponDiscount;
+                          itemCouponRatio = item.couponRatio;
+                        } else {
+                          // Fallback: calculate proportional coupon deduction
+                          const originalOrderTotal = order.items.reduce((sum, orderItem) => sum + (orderItem.price * orderItem.quantity), 0);
+                          itemCouponRatio = originalOrderTotal > 0 ? itemTotal / originalOrderTotal : 0;
+                          itemCouponDiscount = (order.couponDiscount || 0) * itemCouponRatio;
+                        }
+                        
+                        const actualRefundAmount = item.refundAmount || (itemTotal - itemCouponDiscount);
+                      %>
+                      <% if (itemCouponDiscount > 0) { %>
+                        <div class="d-flex justify-content-between small text-danger">
+                          <span>Coupon Deduction (<%= (itemCouponRatio * 100).toFixed(2) %>% of order):</span>
+                          <span>-₹<%= itemCouponDiscount.toFixed(2) %></span>
+                        </div>
+                      <% } %>
+                      <div class="d-flex justify-content-between small fw-bold border-top pt-1">
+                        <span>Total Refunded:</span>
+                        <span class="text-success">₹<%= actualRefundAmount.toFixed(2) %></span>
+                      </div>
+                    </div>
+                  <% } %>
 
                   <!-- Status badge -->
                   <% if (item.status === 'Cancelled') { %>
@@ -943,42 +993,59 @@
           <h2>Price Details</h2>
         </div>
         <div class="card-content">
-          <div class="price-row">
-            <span>Items Total</span>
-            <span>₹<%= order.items.reduce((sum, item) => sum + item.price * item.quantity, 0).toFixed(2) %></span>
-          </div>
-
-          <% if (order.couponDiscount > 0) { %>
-            <div class="price-row discount">
-              <span>Coupon Applied</span>
-              <span>-₹<%= order.couponDiscount.toFixed(2) %></span>
+          <% 
+            // Calculate current totals (excluding cancelled/returned items)
+            const activeItems = order.items.filter(item => item.status !== 'Cancelled' && item.status !== 'Returned');
+            const currentItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const currentCouponDiscount = order.couponDiscount || 0;
+            const currentTotal = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
+            
+            // Calculate refunded amounts
+            const cancelledReturnedItems = order.items.filter(item => item.status === 'Cancelled' || item.status === 'Returned');
+            const totalRefundedAmount = cancelledReturnedItems.reduce((sum, item) => sum + (item.refundAmount || 0), 0);
+          %>
+          
+          <div id="price-summary-content">
+            <div class="price-row">
+              <span>Items Total</span>
+              <span id="items-total">₹<%= currentItemsTotal.toFixed(2) %></span>
             </div>
-          <% } %>
 
-          <div class="price-row">
-            <span>Delivery Fee</span>
-            <% if (order.deliveryCharge > 0) { %>
-              <span>₹<%= order.deliveryCharge.toFixed(2) %></span>
-            <% } else { %>
-              <span class="free">FREE</span>
+            <% if (currentCouponDiscount > 0) { %>
+              <div class="price-row discount">
+                <span>Coupon Applied</span>
+                <span id="coupon-discount">-₹<%= currentCouponDiscount.toFixed(2) %></span>
+              </div>
             <% } %>
-          </div>
 
-          <div class="price-row total">
-            <span>Total Amount</span>
-            <span>
-              ₹<%= (
-                order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-                - (order.couponDiscount || 0)
-                + (order.deliveryCharge || 0)
-              ).toFixed(2) %>
-            </span>
+            <div class="price-row">
+              <span>Delivery Fee</span>
+              <% if (order.deliveryCharge > 0) { %>
+                <span>₹<%= order.deliveryCharge.toFixed(2) %></span>
+              <% } else { %>
+                <span class="free">FREE</span>
+              <% } %>
+            </div>
+            
+            <% if (totalRefundedAmount > 0) { %>
+              <div class="price-row" style="color: #28a745;">
+                <span>Total Refunded</span>
+                <span id="total-refunded">₹<%= totalRefundedAmount.toFixed(2) %></span>
+              </div>
+            <% } %>
+
+            <div class="price-row total">
+              <span>Current Total</span>
+              <span id="current-total">₹<%= currentTotal.toFixed(2) %></span>
+            </div>
           </div>
 
       <div class="price-row">
         <span>Payment Status</span>
         <div class="d-flex align-items-center">
-          <% if (order.paymentStatus === 'Failed') { %>
+          <% if (order.orderStatus === 'Cancelled' || order.orderStatus === 'Returned') { %>
+            <span class="badge bg-info">Refunded</span>
+          <% } else if (order.paymentStatus === 'Failed') { %>
             <span class="badge bg-danger">Failed</span>
           <% } else if (order.paymentStatus === 'Pending') { %>
             <span class="badge bg-warning text-dark">Pending</span>
@@ -988,7 +1055,18 @@
         </div>
       </div>
 
-<% if (order.paymentStatus === 'Paid' || order.paymentStatus === 'Success') { %>
+<%
+  // Check if there are any active items (not cancelled or returned)
+  const hasActiveItems = order.items.some(item => 
+    item.status === 'Active' || 
+    item.status === 'Processing' || 
+    item.status === 'Shipped' || 
+    item.status === 'Delivered' ||
+    item.status === 'Pending'
+  );
+  
+%>
+<% if ((order.paymentStatus === 'Paid' || order.paymentStatus === 'Success' || order.paymentStatus === 'Refunded') && hasActiveItems) { %>
   <div class="d-grid mt-2">
     <a href="/orders/<%= order._id %>/invoice" class="btn btn-outline-primary btn-block" target="_blank">
       <i class="fas fa-download me-2"></i> Download Invoice
@@ -1035,9 +1113,22 @@
       });
 
       if (res.ok) {
-        Swal.fire('Cancelled!', '', 'success').then(() => location.reload());
+        const data = await res.json();
+        
+        // Update price summary dynamically
+        if (data.updatedTotals) {
+          updatePriceSummary(data.updatedTotals);
+        }
+        
+        Swal.fire({
+          title: 'Item Cancelled!',
+          text: data.message || 'Item has been cancelled successfully.',
+          icon: 'success',
+          confirmButtonColor: '#ffbe33'
+        }).then(() => location.reload());
       } else {
-        Swal.fire('Error', 'Failed to cancel item', 'error');
+        const errorData = await res.json();
+        Swal.fire('Error', errorData.message || 'Failed to cancel item', 'error');
       }
     }
   }
@@ -1062,9 +1153,22 @@
       });
 
       if (res.ok) {
-        Swal.fire('Requested!', '', 'success').then(() => location.reload());
+        const data = await res.json();
+        
+        // Update price summary dynamically
+        if (data.updatedTotals) {
+          updatePriceSummary(data.updatedTotals);
+        }
+        
+        Swal.fire({
+          title: 'Return Requested!',
+          text: data.message || 'Return request has been submitted successfully.',
+          icon: 'success',
+          confirmButtonColor: '#ffbe33'
+        }).then(() => location.reload());
       } else {
-        Swal.fire('Error', 'Failed to request return', 'error');
+        const errorData = await res.json();
+        Swal.fire('Error', errorData.message || 'Failed to request return', 'error');
       }
     }
   }
@@ -1161,6 +1265,48 @@
     } finally {
       retryBtn.disabled = false;
       retryBtn.innerHTML = '<i class="fas fa-redo-alt me-2"></i> Retry Payment';
+    }
+  }
+
+  // Function to update price summary dynamically
+  function updatePriceSummary(updatedTotals) {
+    const itemsTotalElement = document.getElementById('items-total');
+    const couponDiscountElement = document.getElementById('coupon-discount');
+    const currentTotalElement = document.getElementById('current-total');
+    const totalRefundedElement = document.getElementById('total-refunded');
+    
+    if (itemsTotalElement) {
+      itemsTotalElement.textContent = `₹${updatedTotals.itemsTotal.toFixed(2)}`;
+    }
+    
+    if (couponDiscountElement && updatedTotals.couponDiscount > 0) {
+      couponDiscountElement.textContent = `-₹${updatedTotals.couponDiscount.toFixed(2)}`;
+    } else if (couponDiscountElement && updatedTotals.couponDiscount === 0) {
+      // Hide coupon row if no discount
+      couponDiscountElement.closest('.price-row').style.display = 'none';
+    }
+    
+    if (currentTotalElement) {
+      currentTotalElement.textContent = `₹${updatedTotals.finalTotal.toFixed(2)}`;
+    }
+    
+    // Show refund method info
+    const paymentMethod = '<%= order.paymentMethod %>';
+    if (paymentMethod !== 'cod') {
+      const priceSummaryContent = document.getElementById('price-summary-content');
+      let refundMethodInfo = document.getElementById('refund-method-info');
+      
+      if (!refundMethodInfo) {
+        refundMethodInfo = document.createElement('div');
+        refundMethodInfo.id = 'refund-method-info';
+        refundMethodInfo.className = 'price-row';
+        refundMethodInfo.style.color = '#28a745';
+        refundMethodInfo.innerHTML = `
+          <span>Refund Method</span>
+          <span><i class="fas fa-wallet me-1"></i>Wallet</span>
+        `;
+        priceSummaryContent.appendChild(refundMethodInfo);
+      }
     }
   }
 

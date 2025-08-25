@@ -1,0 +1,158 @@
+<%- include('../partials/admin/header') %>
+
+<!-- Main Content -->
+<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4 mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+    <h1 class="mb-3 mb-md-0">Order Details</h1>
+    <a href="/admin/orders" class="btn btn-secondary">
+      <i class="bi bi-arrow-left"></i> Back to Orders
+    </a>
+  </div>
+
+  <!-- Order Info -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Order Information</h5>
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong>Order ID:</strong> #<%= order._id.toString().slice(-8).toUpperCase() %></p>
+          <p><strong>Date:</strong> <%= new Date(order.createdAt).toLocaleString('en-IN') %></p>
+          <p><strong>Status:</strong> 
+            <span class="badge <%= order.statusBadgeClass %>"><%= order.orderStatus %></span>
+          </p>
+        </div>
+        <div class="col-md-6">
+          <p><strong>Customer:</strong> <%= order.user ? order.user.email : 'N/A' %></p>
+          <p><strong>Payment Method:</strong> <%= order.paymentMethod %></p>
+          <p><strong>Total Amount:</strong> ₹<%= (order.totalAmount || 0).toFixed(2) %></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shipping Address -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Shipping Address</h5>
+      <% if(order.shippingAddress) { %>
+        <p><strong><%= order.shippingAddress.fullName %></strong></p>
+        <p><%= order.shippingAddress.addressLine1 %></p>
+        <% if(order.shippingAddress.addressLine2) { %>
+          <p><%= order.shippingAddress.addressLine2 %></p>
+        <% } %>
+        <p><%= order.shippingAddress.city %>, <%= order.shippingAddress.state %> - <%= order.shippingAddress.pincode %></p>
+        <p>📞 <%= order.shippingAddress.phone %></p>
+      <% } else { %>
+        <p class="text-muted">No shipping address found</p>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Ordered Items -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Items</h5>
+      <div class="table-responsive">
+        <table class="table table-hover table-bordered">
+          <thead class="table-dark">
+            <tr>
+              <th>Product</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Subtotal</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% order.items.forEach(item => { %>
+              <tr>
+                <td>
+                  <% if (item.product) { %>
+                    <div class="d-flex align-items-center">
+                      <img src="<%= item.imageUrl %>" alt="<%= item.product.name %>" width="50" class="me-2 rounded">
+                      <span><%= item.product.name %></span>
+                    </div>
+                  <% } else { %>
+                    Deleted Product
+                  <% } %>
+                </td>
+                <td><%= item.quantity %></td>
+                <td>₹<%= (item.price || 0).toFixed(2) %></td>
+                <td>₹<%= (item.price * item.quantity).toFixed(2) %></td>
+                <td>
+                  <% if (item.returnStatus && item.returnStatus !== 'None') { %>
+                    <span class="badge bg-warning text-dark"><%= item.returnStatus %></span>
+                  <% } else { %>
+                    <span class="badge bg-info"><%= item.status %></span>
+                  <% } %>
+                </td>
+                <td>
+                  <% if (item.returnStatus === 'Pending') { %>
+                    <button class="btn btn-success btn-sm" onclick="handleReturn('<%= order._id %>', '<%= item._id %>', 'approve')">Approve</button>
+                    <button class="btn btn-danger btn-sm" onclick="handleReturn('<%= order._id %>', '<%= item._id %>', 'reject')">Reject</button>
+                  <% } else { %>
+                    -
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  async function handleReturn(orderId, itemId, action) {
+    const url = `/admin/orders/${orderId}/items/${itemId}/${action}`;
+
+    const result = await Swal.fire({
+      title: `Are you sure you want to ${action} this return?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: `Yes, ${action} it!`
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          Swal.fire(
+            'Success!',
+            `Return has been ${action}ed.`,
+            'success'
+          ).then(() => {
+            location.reload();
+          });
+        } else {
+          Swal.fire(
+            'Error!',
+            data.message || 'Something went wrong.',
+            'error'
+          );
+        }
+      } catch (error) {
+        Swal.fire(
+          'Error!',
+          'An unexpected error occurred.',
+          'error'
+        );
+      }
+    }
+  }
+</script>
+
+<%- include('../partials/admin/footer') %>

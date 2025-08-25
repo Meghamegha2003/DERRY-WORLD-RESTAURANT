@@ -80,9 +80,19 @@ const orderItemSchema = new Schema({
   },
   refundStatus: {
     type: String,
-    enum: ['Pending', 'Completed'],
+    enum: ['Pending', 'Completed', 'Failed'],
+    default: 'Pending'
   },
-  refundDate: Date
+  refundDate: Date,
+  // Coupon calculation fields for refunds
+  couponRatio: {
+    type: Number,
+    default: 0
+  },
+  itemCouponDiscount: {
+    type: Number,
+    default: 0
+  }
 });
 
 const addressSchema = new Schema({
@@ -185,21 +195,63 @@ const OrderSchema = new Schema({
     default: 'Pending'
   },
   razorpay: {
-  orderId: String,
-  paymentId: String,
-  signature: String,
-  status: {
-    type: String,
-    enum: ['created', 'attempted', 'failed', 'captured', 'refunded'],
-    default: 'created'
+    orderId: String,
+    paymentId: String,
+    signature: String,
+    status: {
+      type: String,
+      enum: ['created', 'attempted', 'failed', 'captured', 'refunded'],
+      default: 'created'
+    },
+    failureReason: String,
+    attemptCount: {
+      type: Number,
+      default: 0
+    },
+    lastAttemptedAt: Date
   },
-  failureReason: String,
-  attemptCount: {
+  // Order-level refund tracking
+  orderLevelRefund: {
     type: Number,
     default: 0
   },
-  lastAttemptedAt: Date
-},
+  walletRefund: {
+    type: Number,
+    default: 0
+  },
+  // Refund transaction tracking
+  refundTransactions: [{
+    type: {
+      type: String,
+      enum: ['Wallet', 'Razorpay'],
+      required: true
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    date: {
+      type: Date,
+      default: Date.now
+    },
+    reason: {
+      type: String,
+      enum: ['Cancellation', 'Return'],
+      required: true
+    },
+    itemReference: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: false
+    },
+    razorpayRefundId: String,
+    walletTransactionId: String,
+    status: {
+      type: String,
+      enum: ['Pending', 'Completed', 'Failed'],
+      default: 'Pending'
+    }
+  }],
 
 }, {
   timestamps: true

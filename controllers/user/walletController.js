@@ -240,6 +240,11 @@ exports.getWallet = async function(req, res) {
                 date: txDate,
                 type: tx.type || 'credit',
                 amount: tx.amount || 0,
+                originalAmount: tx.originalAmount || tx.amount || 0, // Fallback to amount if originalAmount not set
+                couponDiscount: tx.couponDiscount || 0,
+                couponRatio: tx.couponRatio || 0,
+                offerDiscount: tx.offerDiscount || 0, // Add offerDiscount for completeness
+                finalAmount: tx.finalAmount || tx.amount || 0, // Add finalAmount
                 description: description,
                 status: tx.status || 'completed',
                 orderId: tx.orderId,
