@@ -243,7 +243,22 @@ exports.updateOrderStatus = async (req, res) => {
             });
         }
 
-        if (order.paymentMethod === 'online' && order.paymentStatus !== PAYMENT_STATUS.PAID) {
+        // Only block status updates for online orders that are still pending payment AND have no item-level actions
+        // This allows status changes for orders with partial cancellations/returns
+        const hasItemActions = order.items && order.items.some(item => 
+            item.status === 'Cancelled' || 
+            item.status === 'Returned' || 
+            item.status === 'Return Requested' || 
+            item.status === 'Return Approved'
+        );
+        const isRetryPaymentScenario = (
+            order.paymentMethod === 'online' && 
+            order.paymentStatus !== PAYMENT_STATUS.PAID && 
+            order.orderStatus === 'Pending' &&
+            !hasItemActions
+        );
+
+        if (isRetryPaymentScenario) {
             return res.status(400).json({
                 success: false,
                 message: 'Cannot update status: payment not completed'

@@ -89,9 +89,25 @@
               </td>
               <td><%= order.paymentMethod %></td>
               <td>
-                <select class="form-select status-select" data-order-id="<%= order._id %>" <%= (order.paymentMethod === 'online' && order.paymentStatus !== 'Paid') ? 'disabled' : '' %>>
+                <%
+                  // Only disable dropdown for online orders that are still pending payment AND have no item-level actions
+                  // This allows status changes for orders with partial cancellations/returns
+                  const hasItemActions = order.items && order.items.some(item => 
+                    item.status === 'Cancelled' || 
+                    item.status === 'Returned' || 
+                    item.status === 'Return Requested' || 
+                    item.status === 'Return Approved'
+                  );
+                  const isRetryPaymentScenario = (
+                    order.paymentMethod === 'online' && 
+                    order.paymentStatus !== 'Paid' && 
+                    order.orderStatus === 'Pending' &&
+                    !hasItemActions
+                  );
+                %>
+                <select class="form-select status-select" data-order-id="<%= order._id %>" <%= isRetryPaymentScenario ? 'disabled' : '' %>>
                   <option value="<%= order.orderStatus %>" selected><%= order.orderStatus %></option>
-                  <% if (!(order.paymentMethod === 'online' && order.paymentStatus !== 'Paid')) { %>
+                  <% if (!isRetryPaymentScenario) { %>
                   <% const nextStatuses = getNextStatuses(order.orderStatus); %>
                   <% nextStatuses.forEach(status => { %>
                       <option value="<%= status %>"><%= status %></option>

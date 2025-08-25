@@ -536,7 +536,12 @@ exports.cancelOrderItem = async (req, res) => {
     // Calculate updated order totals for frontend
     const activeItems = order.items.filter(item => item.status !== 'Cancelled' && item.status !== 'Returned');
     const newItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const newCouponDiscount = order.couponDiscount || 0;
+    
+    // Recalculate coupon discount for remaining items
+    const { newCouponDiscount } = await recalculateOrderCoupon(order);
+    order.couponDiscount = newCouponDiscount;
+    await order.save();
+    
     const newTotal = newItemsTotal - newCouponDiscount + (order.deliveryCharge || 0);
     
     res.json({
@@ -619,7 +624,12 @@ exports.requestItemReturn = async (req, res) => {
     // Calculate updated order totals for frontend
     const activeItems = order.items.filter(item => item.status !== 'Cancelled' && item.status !== 'Returned');
     const newItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const newCouponDiscount = order.couponDiscount || 0;
+    
+    // Recalculate coupon discount for remaining items
+    const { newCouponDiscount } = await recalculateOrderCoupon(order);
+    order.couponDiscount = newCouponDiscount;
+    await order.save();
+    
     const newTotal = newItemsTotal - newCouponDiscount + (order.deliveryCharge || 0);
     
     res.json({
@@ -701,6 +711,10 @@ exports.approveReturn = async (req, res) => {
         await Product.findByIdAndUpdate(item.product._id, { $inc: { quantity: item.quantity } });
     }
 
+    // Recalculate coupon discount for remaining items after return approval
+    const { newCouponDiscount } = await recalculateOrderCoupon(order);
+    order.couponDiscount = newCouponDiscount;
+    
     await order.save();
     console.log('[APPROVE_RETURN] Return processed successfully');
 
@@ -731,6 +745,10 @@ exports.rejectReturn = async (req, res) => {
 
     item.status = "Delivered"; // Revert status
     item.returnStatus = "Rejected";
+
+    // Recalculate coupon discount for remaining items after return rejection
+    const { newCouponDiscount } = await recalculateOrderCoupon(order);
+    order.couponDiscount = newCouponDiscount;
 
     await order.save();
 
@@ -1154,15 +1172,18 @@ exports.downloadInvoice = async (req, res) => {
     // Summary - Calculate totals based on active items only
     const preTotal = activeItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
     
-    // Calculate proportional coupon discount for active items
-    const originalTotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
-    const activeItemsRatio = originalTotal > 0 ? preTotal / originalTotal : 0;
-    const proportionalDiscount = (order.couponDiscount || 0) * activeItemsRatio;
+    // Use the current coupon discount (already properly calculated for remaining items)
+    const currentCouponDiscount = order.couponDiscount || 0;
     
-    const finalAmount = preTotal - proportionalDiscount;
+    const finalAmount = preTotal - currentCouponDiscount + (order.deliveryCharge || 0);
     
     doc.font('Helvetica').fontSize(10).text(`Total Amount: ₹${preTotal.toFixed(2)}`, tableLeft, y + 10, { width: widthSum, align: 'right' });
-    doc.text(`Discount: ₹${proportionalDiscount.toFixed(2)}`, { width: widthSum, align: 'right' });
+    if (currentCouponDiscount > 0) {
+      doc.text(`Coupon Discount: ₹${currentCouponDiscount.toFixed(2)}`, { width: widthSum, align: 'right' });
+    }
+    if (order.deliveryCharge > 0) {
+      doc.text(`Delivery Charge: ₹${order.deliveryCharge.toFixed(2)}`, { width: widthSum, align: 'right' });
+    }
     doc.font('Helvetica-Bold').fillColor('red').text(`Final Amount: ₹${finalAmount.toFixed(2)}`, { width: widthSum, align: 'right' });
     doc.fillColor('black');
     doc.moveDown(2);
