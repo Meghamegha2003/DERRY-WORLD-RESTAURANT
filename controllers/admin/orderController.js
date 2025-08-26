@@ -150,7 +150,6 @@ exports.getOrders = async (req, res) => {
                 if (users.length > 0) {
                   filter.user = { $in: users.map(u => u._id) };
                 } else {
-                  // No users found, force empty result
                   filter.user = null;
                 }
             } else if (searchType === 'payment') {
@@ -243,8 +242,7 @@ exports.updateOrderStatus = async (req, res) => {
             });
         }
 
-        // Only block status updates for online orders that are still pending payment AND have no item-level actions
-        // This allows status changes for orders with partial cancellations/returns
+       
         const hasItemActions = order.items && order.items.some(item => 
             item.status === 'Cancelled' || 
             item.status === 'Returned' || 
@@ -360,7 +358,6 @@ exports.getOrderDetails = async (req, res) => {
             });
         }
 
-        // Format the order items to include image URLs
         const itemsWithImages = order.items.map(item => ({
             ...item,
             imageUrl: item.product?.productImage?.[0] || '/images/placeholder.jpg'
@@ -459,7 +456,6 @@ exports.handleRefund = async (order, item) => {
 exports.handleReturnAction = async (req, res) => {
     const { orderId, itemId, action } = req.params;
 
-    // To reuse the logic from user controller, we need to simulate req object
     const simulatedReq = { params: { orderId, itemId } };
 
     if (action === 'approve') {
@@ -503,7 +499,6 @@ exports.handleOrderCancellation = async (order, reason = 'Cancelled by admin') =
             await wallet.save();
             await User.findByIdAndUpdate(order.user, { wallet: wallet._id });
 
-            // Real-time updates removed
         }
 
         await order.save();

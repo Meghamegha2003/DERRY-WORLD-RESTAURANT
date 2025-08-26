@@ -216,7 +216,7 @@ exports.getDashboardData = async (req, res) => {
         groupFormat = "%Y-%m-%d";
     }
 
-    // Basic stats
+    
     const totalOrders = await Order.countDocuments();
     const totalCustomers = await User.countDocuments({
       roles: { $in: ["user", "customer"] },
@@ -224,28 +224,73 @@ exports.getDashboardData = async (req, res) => {
     const totalProducts = await Product.countDocuments();
     const totalCategories = await Category.countDocuments();
 
-    // Orders by status (filtered by selected period)
     const ordersByStatus = await Order.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: { _id: "$orderStatus", count: { $sum: 1 } } },
     ]);
 
-    // Total income
     const totalIncomeResult = await Order.aggregate([
-      { $match: { orderStatus: "Delivered" } },
-      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+      { $match: { orderStatus: { $in: ["Delivered", "Return Requested", "Return Rejected"] } } },
+      { $unwind: "$items" },
+      {
+        $match: {
+          "items.status": { $nin: ["Cancelled", "Returned", "Return Approved"] }
+        }
+      },
+      {
+        $group: {
+          _id: "$_id",
+          itemsTotal: { $sum: { $multiply: ["$items.price", "$items.quantity"] } },
+          couponDiscount: { $first: "$couponDiscount" },
+          deliveryCharge: { $first: "$deliveryCharge" }
+        }
+      },
+      {
+        $project: {
+          currentBalance: {
+            $add: [
+              { $subtract: ["$itemsTotal", { $ifNull: ["$couponDiscount", 0] }] },
+              { $ifNull: ["$deliveryCharge", 0] }
+            ]
+          }
+        }
+      },
+      { $group: { _id: null, total: { $sum: "$currentBalance" } } }
     ]);
     const totalIncome = totalIncomeResult[0]?.total || 0;
 
-    // Income for selected period
     const incomeResult = await Order.aggregate([
       {
         $match: {
-          orderStatus: "Delivered",
+          orderStatus: { $in: ["Delivered", "Return Requested", "Return Rejected"] },
           createdAt: { $gte: startDate, $lte: endDate },
         },
       },
-      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+      { $unwind: "$items" },
+      {
+        $match: {
+          "items.status": { $nin: ["Cancelled", "Returned", "Return Approved"] }
+        }
+      },
+      {
+        $group: {
+          _id: "$_id",
+          itemsTotal: { $sum: { $multiply: ["$items.price", "$items.quantity"] } },
+          couponDiscount: { $first: "$couponDiscount" },
+          deliveryCharge: { $first: "$deliveryCharge" }
+        }
+      },
+      {
+        $project: {
+          currentBalance: {
+            $add: [
+              { $subtract: ["$itemsTotal", { $ifNull: ["$couponDiscount", 0] }] },
+              { $ifNull: ["$deliveryCharge", 0] }
+            ]
+          }
+        }
+      },
+      { $group: { _id: null, total: { $sum: "$currentBalance" } } }
     ]);
     const income = incomeResult[0]?.total || 0;
 
@@ -261,18 +306,46 @@ exports.getDashboardData = async (req, res) => {
     ]);
     const expense = expenseResult[0]?.total || 0;
 
-    // Revenue chart
+    // Revenue chart 
     const revenueData = await Order.aggregate([
       {
         $match: {
-          orderStatus: "Delivered",
+          orderStatus: { $in: ["Delivered", "Return Requested", "Return Rejected"] },
           createdAt: { $gte: startDate, $lte: endDate },
         },
       },
+      { $unwind: "$items" },
+      {
+        $match: {
+          "items.status": { $nin: ["Cancelled", "Returned", "Return Approved"] }
+        }
+      },
       {
         $group: {
-          _id: { $dateToString: { format: groupFormat, date: "$createdAt" } },
-          revenue: { $sum: "$totalAmount" },
+          _id: {
+            orderId: "$_id",
+            date: { $dateToString: { format: groupFormat, date: "$createdAt" } }
+          },
+          itemsTotal: { $sum: { $multiply: ["$items.price", "$items.quantity"] } },
+          couponDiscount: { $first: "$couponDiscount" },
+          deliveryCharge: { $first: "$deliveryCharge" }
+        }
+      },
+      {
+        $project: {
+          date: "$_id.date",
+          currentBalance: {
+            $add: [
+              { $subtract: ["$itemsTotal", { $ifNull: ["$couponDiscount", 0] }] },
+              { $ifNull: ["$deliveryCharge", 0] }
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: "$date",
+          revenue: { $sum: "$currentBalance" },
         },
       },
       { $sort: { _id: 1 } },
@@ -306,7 +379,6 @@ exports.getDashboardData = async (req, res) => {
       quantity: p.totalQuantity,
     }));
 
-    // Orders per day
     const ordersPerDay = await Order.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       {
@@ -319,7 +391,6 @@ exports.getDashboardData = async (req, res) => {
     ]);
 
     
-   // Top categories (with name)
 const topCategories = await Order.aggregate([
   { $unwind: "$items" },
   {
@@ -342,7 +413,7 @@ const topCategories = await Order.aggregate([
   { $unwind: "$categoryInfo" },
   {
     $group: {
-      _id: "$categoryInfo.name", // ✅ category name, not ID
+      _id: "$categoryInfo.name", 
       totalSold: { $sum: "$items.quantity" },
     },
   },
@@ -351,7 +422,6 @@ const topCategories = await Order.aggregate([
 ]);
 
 
-    // ✅ FINAL SINGLE RESPONSE (ONLY ONCE!)
     return res.json({
       success: true,
       data: {

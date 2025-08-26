@@ -1,10 +1,6 @@
 const Coupon = require('../models/couponSchema');
 
-/**
- * Validates and updates the cart's applied coupon
- * @param {Object} cart - The cart object
- * @returns {Promise<Object>} - The updated cart with validated coupon
- */
+
 async function validateAndUpdateCartCoupon(cart) {
   try {
     if (!cart.appliedCoupon || !cart.appliedCoupon.code) {
@@ -17,13 +13,11 @@ async function validateAndUpdateCartCoupon(cart) {
       isBlocked: { $ne: true }
     });
 
-    // If coupon is not found, invalid, or cart total is less than minimum purchase, remove it from cart
     if (!coupon || !coupon.isValid() || cart.total < (coupon.minPurchase || 0)) {
       cart.appliedCoupon = undefined;
       cart.couponDiscount = 0;
       await cart.save();
     } else {
-      // Update cart with current coupon data
       cart.appliedCoupon = {
         code: coupon.code,
         discountType: coupon.discountType,
@@ -36,7 +30,6 @@ async function validateAndUpdateCartCoupon(cart) {
     }
   } catch (error) {
     console.error('Error validating cart coupon:', error);
-    // In case of error, remove the coupon to be safe
     if (cart.appliedCoupon) {
       cart.appliedCoupon = undefined;
       cart.couponDiscount = 0;
@@ -92,12 +85,7 @@ async function recalculateOrderCoupon(order) {
   return { newCouponDiscount, discountAdjustment };
 }
 
-/**
- * Calculate proportional coupon discount for a specific item being cancelled/returned
- * @param {Object} order - The order object
- * @param {Object} item - The item being cancelled/returned
- * @returns {Promise<Object>} - Contains itemCouponDiscount and remainingCouponDiscount
- */
+
 async function calculateItemCouponRefund(order, item) {
   console.log('[COUPON_REFUND_START]', {
     hasCouponCode: !!order.couponCode,
@@ -145,10 +133,8 @@ async function calculateItemCouponRefund(order, item) {
     return { itemCouponDiscount: 0, remainingCouponDiscount: 0 };
   }
 
-  // If order.couponDiscount is 0 but there's evidence of coupon usage, reconstruct it
   let effectiveCouponDiscount = order.couponDiscount;
   if (effectiveCouponDiscount <= 0 && order.couponCode) {
-    // Try to reconstruct coupon discount from refund breakdowns
     let totalCouponFromBreakdowns = 0;
     order.items.forEach(orderItem => {
       if (orderItem.refundBreakdown) {
@@ -160,7 +146,6 @@ async function calculateItemCouponRefund(order, item) {
     });
     
     if (totalCouponFromBreakdowns > 0) {
-      // Calculate what the original coupon would have been
       const totalItemsValue = order.items.reduce((sum, orderItem) => sum + (orderItem.price * orderItem.quantity), 0);
       const activeItemsValue = order.items.filter(orderItem => 
         orderItem.status !== 'Cancelled' && orderItem.status !== 'Returned' && orderItem.status !== 'Return Approved'
@@ -177,7 +162,6 @@ async function calculateItemCouponRefund(order, item) {
     return { itemCouponDiscount: 0, remainingCouponDiscount: 0 };
   }
 
-  // Calculate total order value using actual sales/offer prices
   const totalOrderValue = order.items.reduce((sum, orderItem) => sum + (orderItem.price * orderItem.quantity), 0);
 
   console.log('[COUPON_REFUND_ORDER_VALUE]', {
@@ -196,10 +180,8 @@ async function calculateItemCouponRefund(order, item) {
     return { itemCouponDiscount: 0, remainingCouponDiscount: effectiveCouponDiscount };
   }
 
-  // Use totalCoupon if available, otherwise reconstruct from existing item coupon deductions
   let totalCouponAmount = order.totalCoupon || effectiveCouponDiscount;
   
-  // If no totalCoupon found, reconstruct from already cancelled items
   if (totalCouponAmount <= 0) {
     const cancelledItemsCouponTotal = order.items
       .filter(orderItem => orderItem.itemCouponDiscount && orderItem.itemCouponDiscount > 0)
@@ -219,7 +201,6 @@ async function calculateItemCouponRefund(order, item) {
     });
     
     if (cancelledItemsCouponTotal > 0) {
-      // Estimate original total coupon based on cancelled items
       const cancelledItemsValue = order.items
         .filter(orderItem => orderItem.itemCouponDiscount && orderItem.itemCouponDiscount > 0)
         .reduce((sum, orderItem) => sum + (orderItem.price * orderItem.quantity), 0);
@@ -238,28 +219,15 @@ async function calculateItemCouponRefund(order, item) {
     }
   }
 
-  // Calculate proportional coupon discount using the formula:
-  // (item_price / total_order_value) * total_coupon
+  
   const itemSubtotal = item.price * item.quantity;
   const itemPriceRatio = itemSubtotal / totalOrderValue;
   const itemCouponDiscount = Math.min(itemSubtotal, itemPriceRatio * totalCouponAmount);
 
-  // Calculate remaining coupon discount after this item is removed
+
   const remainingCouponDiscount = Math.max(0, order.couponDiscount - itemCouponDiscount);
 
-  console.log('[COUPON_REFUND_CALCULATION]', {
-    totalOrderValue,
-    itemSubtotal,
-    itemPriceRatio: (itemPriceRatio * 100).toFixed(2) + '%',
-    totalCouponAmount,
-    itemCouponDiscount,
-    remainingCouponDiscount,
-    orderCouponDiscount: order.couponDiscount,
-    calculationCheck: `min(${itemSubtotal}, ${itemPriceRatio.toFixed(4)} * ${totalCouponAmount}) = ${itemCouponDiscount}`,
-    reconstructedFromCancelled: totalCouponAmount > (order.totalCoupon || effectiveCouponDiscount),
-    itemId: item._id,
-    itemStatus: item.status
-  });
+
 
   return { 
     itemCouponDiscount, 

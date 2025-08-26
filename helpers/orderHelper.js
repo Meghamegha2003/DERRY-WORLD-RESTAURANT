@@ -1,12 +1,4 @@
-/**
- * Helper functions for order calculations
- */
 
-/**
- * Calculate order totals including subtotal, delivery charges, and discounts
- * @param {Object} cart - The cart object with items and pricing
- * @returns {Promise<Object>} Object containing calculated totals
- */
 const { getBestOffer } = require('./offerHelper');
 
 const calculateOrderTotals = async (cart) => {
@@ -15,29 +7,23 @@ const calculateOrderTotals = async (cart) => {
             throw new Error('Cart is empty or invalid');
         }
 
-        // Calculate subtotal from cart items with best offers applied
         let subtotal = 0;
         let totalOfferDiscount = 0;
         
-        // Process each item to apply the best offer
         for (const item of cart.items) {
             const { finalPrice, regularPrice } = await getBestOffer(item.product);
             const itemPrice = finalPrice || regularPrice || 0;
             subtotal += itemPrice * item.quantity;
             
-            // Calculate total offer discount for this item
             if (finalPrice < regularPrice) {
                 totalOfferDiscount += (regularPrice - finalPrice) * item.quantity;
             }
         }
 
-        // Calculate delivery charge (free for orders above 500, else 50)
         const deliveryCharge = subtotal > 500 ? 0 : 50;
         
-        // Get coupon discount if applied
         const couponDiscount = cart.couponDiscount || 0;
         
-        // Calculate total after all discounts
         const total = Math.max(0, subtotal + deliveryCharge - couponDiscount);
 
         return {
@@ -53,11 +39,7 @@ const calculateOrderTotals = async (cart) => {
     }
 };
 
-/**
- * Get the next available order status based on current status
- * @param {string} currentStatus - Current order status
- * @returns {string[]} Array of next available statuses
- */
+
 const getNextStatuses = (currentStatus) => {
     const statusFlow = {
         'Pending': ['Processing', 'Cancelled'],
@@ -71,11 +53,7 @@ const getNextStatuses = (currentStatus) => {
     return statusFlow[currentStatus] || [];
 };
 
-/**
- * Get CSS class for order status badge
- * @param {string} status - Order status
- * @returns {string} CSS class for the status badge
- */
+
 const getStatusBadgeClass = (status) => {
     const statusClasses = {
         'Pending': 'badge-warning',

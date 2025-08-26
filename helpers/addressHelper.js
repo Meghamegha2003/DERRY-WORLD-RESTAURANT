@@ -1,18 +1,9 @@
-/**
- * Helper functions for address-related operations
- */
 
-/**
- * Extracts address fields from address object
- * @param {Object} address - The address object from user.addresses
- * @returns {Object} - Extracted address fields
- */
 function extractAddress(address) {
     if (!address) {
         throw new Error('Address is required');
     }
 
-    // Handle both direct address object and subdocument
     const addressObj = address._doc ? address._doc : address;
     
     const { 
@@ -56,11 +47,7 @@ function extractAddress(address) {
     };
 }
 
-/**
- * Formats address for display
- * @param {Object} address - The address object
- * @returns {String} - Formatted address string
- */
+
 function formatAddress(address) {
     if (!address) return '';
     
@@ -68,11 +55,7 @@ function formatAddress(address) {
     return `${name}\n${addressLine}\n${locality}\n${city}, ${state} - ${pincode}`;
 }
 
-/**
- * Validates address fields
- * @param {Object} address - The address object to validate
- * @returns {Object} - Validation result { isValid: boolean, error?: string }
- */
+
 function validateAddress(address) {
     if (!address) {
         return { isValid: false, error: 'Address is required' };
@@ -88,7 +71,6 @@ function validateAddress(address) {
         };
     }
 
-    // Basic phone number validation (10 digits)
     const phoneRegex = /^\d{10}$/;
     if (!phoneRegex.test(address.phone)) {
         return { 
@@ -97,7 +79,6 @@ function validateAddress(address) {
         };
     }
 
-    // Basic pincode validation (6 digits)
     const pincodeRegex = /^\d{6}$/;
     if (!pincodeRegex.test(address.pincode)) {
         return { 

@@ -444,7 +444,18 @@
                     <% } %>
                 </div>
 
-                <div class="fw-bold text-primary">₹<%= order.total ? order.total.toFixed(2) : '0.00' %></div>
+                <% 
+                    // Calculate current balance after cancellations/returns
+                    const activeItems = order.items.filter(item => 
+                        item.status !== 'Cancelled' && 
+                        item.status !== 'Returned' && 
+                        item.status !== 'Return Approved'
+                    );
+                    const currentItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                    const currentCouponDiscount = order.couponDiscount || 0;
+                    const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
+                %>
+                <div class="fw-bold text-primary">₹<%= currentBalance.toFixed(2) %></div>
             </div>
 
             <!-- Actions -->

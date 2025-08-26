@@ -125,7 +125,7 @@ exports.createOffer = async (req, res) => {
             targetId
         } = req.body;
 
-        // Basic validation
+        
         if (!name || !discountType || !discountValue || !startDate || !endDate || !targetType || !targetId) {
             return res.status(400).json({
                 success: false,
@@ -133,11 +133,10 @@ exports.createOffer = async (req, res) => {
             });
         }
 
-        // Validate discount value based on type
-        if (discountType === 'percentage' && (discountValue <= 0 || discountValue > 100)) {
+        if (discountType === 'percentage' && (discountValue <= 0 || discountValue > 90)) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid discount percentage. Must be between 1 and 100.'
+                message: 'Invalid discount percentage. Must be between 1 and 90.'
             });
         } else if (discountType === 'amount' && discountValue <= 0) {
             return res.status(400).json({
@@ -146,7 +145,6 @@ exports.createOffer = async (req, res) => {
             });
         }
 
-        // Validate dates
         const start = new Date(startDate);
         const end = new Date(endDate);
         const now = new Date();
@@ -162,6 +160,15 @@ exports.createOffer = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: 'End date must be in the future'
+            });
+        }
+
+        // Check for duplicate offer names
+        const existingOffer = await Offer.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+        if (existingOffer) {
+            return res.status(400).json({
+                success: false,
+                message: `An offer with the name "${name}" already exists`
             });
         }
 
@@ -181,9 +188,7 @@ exports.createOffer = async (req, res) => {
             offerData.maxDiscount = Number(maxDiscount);
         }
 
-        // Set target based on type
         if (targetType === 'product') {
-            // Verify product exists
             const product = await Product.findById(targetId);
             if (!product) {
                 return res.status(404).json({
@@ -193,7 +198,6 @@ exports.createOffer = async (req, res) => {
             }
             offerData.targetProducts = [targetId];
         } else if (targetType === 'category') {
-            // Verify category exists
             const category = await Category.findById(targetId);
             if (!category) {
                 return res.status(404).json({
@@ -209,7 +213,6 @@ exports.createOffer = async (req, res) => {
             });
         }
 
-        // Create the offer
         const offer = new Offer(offerData);
         await offer.save();
 
@@ -262,15 +265,26 @@ exports.updateOffer = async (req, res) => {
         }
 
         // Validate discount value based on type
-        if (discountType === 'percentage' && (discountValue <= 0 || discountValue > 100)) {
+        if (discountType === 'percentage' && (discountValue <= 0 || discountValue > 90)) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid discount percentage. Must be between 1 and 100.'
+                message: 'Invalid discount percentage. Must be between 1 and 90.'
             });
         } else if (discountType === 'amount' && discountValue <= 0) {
             return res.status(400).json({
                 success: false,
                 message: 'Invalid discount amount. Must be greater than 0.'
+            });
+        }
+
+        const existingOffer = await Offer.findOne({ 
+            name: { $regex: new RegExp(`^${name}$`, 'i') },
+            _id: { $ne: offerId }
+        });
+        if (existingOffer) {
+            return res.status(400).json({
+                success: false,
+                message: `An offer with the name "${name}" already exists`
             });
         }
 
@@ -294,14 +308,12 @@ exports.updateOffer = async (req, res) => {
         offer.validFrom = start;
         offer.validUntil = end;
 
-        // Update max discount for percentage type
         if (discountType === 'percentage' && maxDiscount) {
             offer.maxDiscount = Number(maxDiscount);
         } else {
             offer.maxDiscount = undefined;
         }
 
-        // Update target based on type
         if (targetType === 'product') {
             const product = await Product.findById(targetId);
             if (!product) {

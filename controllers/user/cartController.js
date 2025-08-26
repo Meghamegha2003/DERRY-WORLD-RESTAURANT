@@ -66,7 +66,6 @@ exports.renderProductDetails = async (req, res) => {
       });
     }
 
-    // Get related products
     const relatedProducts = await Product.find({
       category: product.category,
       _id: { $ne: product._id },
@@ -132,13 +131,11 @@ exports.submitRating = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Check if user has already rated this product
     const existingRatingIndex = product.ratings.findIndex(
       (r) => r.user.toString() === req.user._id.toString()
     );
 
     if (existingRatingIndex !== -1) {
-      // Update existing rating
       product.ratings[existingRatingIndex] = {
         user: req.user._id,
         rating: rating,
@@ -146,7 +143,6 @@ exports.submitRating = async (req, res) => {
         createdAt: new Date(),
       };
     } else {
-      // Add new rating
       product.ratings.push({
         user: req.user._id,
         rating: rating,
@@ -155,7 +151,6 @@ exports.submitRating = async (req, res) => {
       });
     }
 
-    // Let the pre-save middleware handle the average calculation
     await product.save();
 
     res.status(200).json({
@@ -177,7 +172,7 @@ exports.submitRating = async (req, res) => {
 
 exports.calculateCartTotal = async (cart) => {
   let subtotal = 0;
-  let deliveryCharge = 0; // Delivery always free
+  let deliveryCharge = 0; 
   let couponDiscount = 0;
   let validCoupon = null;
 
@@ -191,7 +186,6 @@ exports.calculateCartTotal = async (cart) => {
     };
   }
 
-  // Validate the applied coupon if exists
   if (cart.appliedCoupon && cart.appliedCoupon.code) {
     try {
       const coupon = await Coupon.findOne({
@@ -199,7 +193,6 @@ exports.calculateCartTotal = async (cart) => {
         isActive: true
       });
 
-      // If coupon is valid and not expired
       if (coupon && coupon.isValid()) {
         validCoupon = {
           code: coupon.code,
@@ -210,25 +203,21 @@ exports.calculateCartTotal = async (cart) => {
           couponId: coupon._id
         };
       } else {
-        // Clear invalid coupon from cart
         cart.appliedCoupon = undefined;
         cart.couponDiscount = 0;
         await cart.save();
       }
     } catch (error) {
       console.error('Error validating coupon:', error);
-      // In case of error, remove the coupon
       cart.appliedCoupon = undefined;
       cart.couponDiscount = 0;
       await cart.save();
     }
   }
 
-  // Calculate subtotal
   for (const item of cart.items) {
     if (!item || !item.product) continue;
 
-    // Handle both populated and unpopulated product references
     const productId =
       typeof item.product === "object" ? item.product._id : item.product;
     if (!productId) continue;
@@ -237,20 +226,17 @@ exports.calculateCartTotal = async (cart) => {
     if (product) {
       let itemPrice;
 
-      // Get the best offer (either product or category offer)
       const bestOffer = await OfferService.getBestOffer(product);
 
       if (bestOffer && bestOffer.hasOffer) {
         itemPrice = bestOffer.finalPrice;
       }
-      // Then check for sales price
       else if (
         product.salesPrice &&
         product.salesPrice !== product.regularPrice
       ) {
         itemPrice = product.salesPrice;
       }
-      // Finally use regular price
       else {
         itemPrice = product.regularPrice;
       }
@@ -259,7 +245,6 @@ exports.calculateCartTotal = async (cart) => {
     }
   }
 
-  // Calculate coupon discount if valid coupon exists
   if (validCoupon) {
     const discount = validCoupon.discountType === 'percentage'
       ? Math.min(
@@ -271,10 +256,8 @@ exports.calculateCartTotal = async (cart) => {
     couponDiscount = Math.max(0, discount);
   }
 
-  // Calculate total after all discounts
   const total = Math.max(0, subtotal - couponDiscount + deliveryCharge);
 
-  // Apply free delivery for orders above ₹500
   if (subtotal >= 500) {
     deliveryCharge = 0;
   }
@@ -382,12 +365,10 @@ exports.addToCart = async (req, res) => {
 
 exports.updateCart = async (req, res) => {
   try {
-    const userId = req.user._id; // Convert ObjectId to string
-    // Get productId from URL params and quantity from request body
+    const userId = req.user._id; 
     const productId = req.params.productId;
     const { quantity } = req.body;
 
-    // Validate inputs
     if (!quantity) {
       return res.status(400).json({
         success: false,
@@ -395,7 +376,6 @@ exports.updateCart = async (req, res) => {
       });
     }
 
-    // Convert quantity to number
     const quantityNum = parseInt(quantity);
     if (isNaN(quantityNum) || quantityNum < 1 || quantityNum > 5) {
       return res.status(400).json({
@@ -404,7 +384,6 @@ exports.updateCart = async (req, res) => {
       });
     }
 
-    // Find product
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({
@@ -413,13 +392,11 @@ exports.updateCart = async (req, res) => {
       });
     }
 
-    // Ensure cart exists before availability checks
     let cart = await Cart.findOne({ user: userId });
     if (!cart) {
       cart = new Cart({ user: userId, items: [] });
     }
 
-    // Remove and notify if product unavailable
     if (product.isBlocked || !product.isListed) {
       cart.items = cart.items.filter(
         (item) =>
@@ -434,7 +411,6 @@ exports.updateCart = async (req, res) => {
       });
     }
 
-    // Check if requested quantity is available
     if (quantityNum > product.quantity) {
       return res.status(400).json({
         success: false,
@@ -442,29 +418,25 @@ exports.updateCart = async (req, res) => {
       });
     }
 
-    // Cart is already loaded above
-    // Calculate price and discount based on product
+    
     const currentPrice = product.salesPrice || product.regularPrice;
     const originalPrice = product.regularPrice;
     const discountPercentage = product.salesPrice
       ? Math.round((1 - product.salesPrice / product.regularPrice) * 100)
       : 0;
 
-    // Find item in cart using ObjectId comparison
     const cartItemIndex = cart.items.findIndex(
       (item) => item.product.toString() === productId.toString()
     );
 
     if (cartItemIndex > -1) {
-      // Update existing item
       cart.items[cartItemIndex].quantity = quantityNum;
       cart.items[cartItemIndex].price = currentPrice;
       cart.items[cartItemIndex].originalPrice = originalPrice;
       cart.items[cartItemIndex].discountPercentage = discountPercentage;
     } else {
-      // Add new item
       cart.items.push({
-        product: productId.toString(), // Store product ID as string
+        product: productId.toString(), 
         quantity: quantityNum,
         price: currentPrice,
         originalPrice: originalPrice,
@@ -472,14 +444,11 @@ exports.updateCart = async (req, res) => {
       });
     }
 
-    // Save the updated cart
     await cart.save();
 
-    // Calculate new cart count and totals
     const cartCount = exports.getUniqueProductCount(cart);
     const totals = cart.calculateTotals();
 
-    // Update res.locals and req.user
     res.locals.cartCount = cartCount;
     req.user.cartCount = cartCount;
 
@@ -504,7 +473,6 @@ exports.removeFromCart = async (req, res) => {
     const { productId } = req.params;
     const userId = req.user._id;
 
-    // Find the cart
     const cart = await Cart.findOne({ user: userId });
 
     if (!cart) {
@@ -514,7 +482,6 @@ exports.removeFromCart = async (req, res) => {
       });
     }
 
-    // Find the item index
     const itemIndex = cart.items.findIndex(
       (item) => item.product.toString() === productId
     );
@@ -526,15 +493,12 @@ exports.removeFromCart = async (req, res) => {
       });
     }
 
-    // Remove the item
     cart.items.splice(itemIndex, 1);
 
-    // If no items left in cart, clear any applied coupon
     if (cart.items.length === 0 && cart.appliedCoupon) {
         cart.appliedCoupon = undefined;
         cart.couponDiscount = 0;
     } else if (cart.appliedCoupon) {
-        // If there are still items, revalidate the coupon
         const couponValidation = await validateAndUpdateCartCoupon(cart);
         if (!couponValidation.valid) {
             cart.appliedCoupon = undefined;
@@ -542,10 +506,8 @@ exports.removeFromCart = async (req, res) => {
         }
     }
 
-    // Save cart
     await cart.save();
 
-    // Calculate new totals
     const totals = cart.calculateTotals();
 
     // Return updated cart info with coupon details

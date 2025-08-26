@@ -1,11 +1,9 @@
 // Client-side JS for foodDetails.ejs
-(function () {
-  const PRODUCT_ID = document
-    .querySelector("[data-product-id]")
-    .getAttribute("data-product-id");
 
-  // Add to Cart function
-window.addToCart = async function(productId, event) {
+// Ensure addToCart is available immediately
+if (typeof window.addToCart === 'undefined') {
+    // Add to Cart function - Define globally first
+    window.addToCart = async function(productId, event) {
     const addButton = event ? event.currentTarget : document.querySelector('.btn-add-cart');
     addButton.disabled = true;
     addButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding...';
@@ -42,7 +40,14 @@ window.addToCart = async function(productId, event) {
             confirmButtonColor: '#ffbe33'
         });
     }
-};
+    };
+}
+
+// Initialize page functionality
+(function () {
+  const PRODUCT_ID = document
+    .querySelector("[data-product-id]")
+    .getAttribute("data-product-id");
 
 
   // Polling for updates

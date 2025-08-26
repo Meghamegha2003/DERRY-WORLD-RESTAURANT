@@ -167,6 +167,7 @@
                 id="addDiscountValue"
                 required
                 min="1"
+                max="90"
               />
             </div>
             <div class="col-md-6">
@@ -320,6 +321,7 @@
                 id="editDiscountValue"
                 required
                 min="1"
+                max="90"
               />
             </div>
             <div class="col-md-6">
@@ -377,6 +379,7 @@
                 name="targetProduct"
                 id="editProduct"
               >
+                <option value="">Select Product</option>
                 <% if (typeof products !== 'undefined') { %> <%
                 products.forEach(function(product) { %>
                 <option value="<%= product._id %>"><%= product.name %></option>
@@ -394,6 +397,7 @@
                 name="targetCategory"
                 id="editCategory"
               >
+                <option value="">Select Category</option>
                 <% if (typeof categories !== 'undefined') { %> <%
                 categories.forEach(function(category) { %>
                 <option value="<%= category._id %>"><%= category.name %></option>
@@ -706,6 +710,17 @@
       // Add this line to ensure targetType is explicitly set
       data.targetType = document.getElementById("offerTargetType").value;
 
+      // Map targetProduct/targetCategory to targetId based on targetType
+      if (data.targetType === 'product' && data.targetProduct) {
+        data.targetId = data.targetProduct;
+        delete data.targetProduct;
+        delete data.targetCategory;
+      } else if (data.targetType === 'category' && data.targetCategory) {
+        data.targetId = data.targetCategory;
+        delete data.targetProduct;
+        delete data.targetCategory;
+      }
+
 
       const response = await fetch("/admin/offers", {
         method: "POST",
@@ -750,6 +765,20 @@
     const offerId = formData.get("offerId");
     formData.delete("offerId");
     const data = Object.fromEntries(formData.entries());
+
+    // Ensure targetType is explicitly set from the dropdown
+    data.targetType = document.getElementById("editType").value;
+
+    // Map targetProduct/targetCategory to targetId based on targetType
+    if (data.targetType === 'product' && data.targetProduct) {
+      data.targetId = data.targetProduct;
+      delete data.targetProduct;
+      delete data.targetCategory;
+    } else if (data.targetType === 'category' && data.targetCategory) {
+      data.targetId = data.targetCategory;
+      delete data.targetProduct;
+      delete data.targetCategory;
+    }
 
     // Validate form
     if (!validateOfferForm(data)) return;
@@ -916,7 +945,7 @@
     }
 
     // Check if product or category is selected based on target type
-    if (data.targetType === "product" && !data.targetProduct) {
+    if (data.targetType === "product" && !data.targetProduct && !data.targetId) {
       Swal.fire({
         icon: "warning",
         title: "Validation Error",
@@ -925,7 +954,7 @@
       return false;
     }
 
-    if (data.targetType === "category" && !data.targetCategory) {
+    if (data.targetType === "category" && !data.targetCategory && !data.targetId) {
       Swal.fire({
         icon: "warning",
         title: "Validation Error",

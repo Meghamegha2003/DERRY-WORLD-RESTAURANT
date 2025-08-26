@@ -72,7 +72,20 @@
                   <i class="bi bi-eye"></i> View Details
                 </a>
               </td>
-              <td>₹<%= (order.totalAmount || order.total || 0).toFixed(2) %></td>
+              <td>
+                <% 
+                    // Calculate current balance after cancellations/returns
+                    const activeItems = order.items ? order.items.filter(item => 
+                        item.status !== 'Cancelled' && 
+                        item.status !== 'Returned' && 
+                        item.status !== 'Return Approved'
+                    ) : [];
+                    const currentItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                    const currentCouponDiscount = order.couponDiscount || 0;
+                    const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
+                %>
+                ₹<%= currentBalance.toFixed(2) %>
+              </td>
               <td><%= new Date(order.createdAt).toLocaleDateString('en-IN') %></td>
               <td>
                 <span class="badge <%= getStatusBadgeClass(order.orderStatus) %> status-badge" 
@@ -252,7 +265,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     <i class="bi bi-eye"></i> View Details
                   </a>
                 </td>
-                <td>₹${(order.totalAmount || order.total || 0).toFixed(2)}</td>
+                <td>₹${(() => {
+                    const activeItems = order.items ? order.items.filter(item => 
+                        item.status !== 'Cancelled' && 
+                        item.status !== 'Returned' && 
+                        item.status !== 'Return Approved'
+                    ) : [];
+                    const currentItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                    const currentCouponDiscount = order.couponDiscount || 0;
+                    const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
+                    return currentBalance.toFixed(2);
+                })()}</td>
                 <td>${new Date(order.createdAt).toLocaleDateString('en-IN')}</td>
                 <td>
                     <span class="badge ${getStatusBadgeClass(order.orderStatus)} status-badge"

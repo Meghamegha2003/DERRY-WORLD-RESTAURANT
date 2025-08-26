@@ -75,6 +75,7 @@
           <option value="all">All Status</option>
           <option value="Delivered" <%= filters.orderStatus === 'Delivered' ? 'selected' : '' %>>Delivered</option>
           <option value="Return Rejected" <%= filters.orderStatus === 'Return Rejected' ? 'selected' : '' %>>Return Rejected</option>
+          <option value="Return Requested" <%= filters.orderStatus === 'Return Requested' ? 'selected' : '' %>>Return Requested</option>
         </select>
       </div>
       <!-- Apply and Reset Filters -->
@@ -214,10 +215,23 @@
                 <% order.items.forEach(item => { %>
                   <div class="mb-1">
                     <%= item.product && item.product.name ? item.product.name : 'Unknown Product' %> x <%= item.quantity %>
-                    <% if (item.returnReason) { %>
-                      <span class="badge bg-warning" title="<%= item.returnReason %>">
-                        <i class="fas fa-undo"></i>
+                    
+                    <% if (item.status === 'Cancelled') { %>
+                      <span class="badge bg-danger ms-1" title="Item cancelled">
+                        <i class="fas fa-times"></i> Cancelled
                       </span>
+                    <% } else if (item.status === 'Returned' || item.status === 'Return Approved') { %>
+                      <span class="badge bg-secondary ms-1" title="Item returned">
+                        <i class="fas fa-undo"></i> Returned
+                      </span>
+                    <% } else if (item.status === 'Return Requested' || item.returnStatus === 'Pending') { %>
+                      <span class="badge bg-warning ms-1" title="Return requested">
+                        <i class="fas fa-clock"></i> Return Requested
+                      </span>
+                    <% } %>
+                    
+                    <% if (item.returnReason) { %>
+                      <small class="text-muted d-block">Reason: <%= item.returnReason %></small>
                     <% } %>
                   </div>
                 <% }); %>
@@ -232,7 +246,20 @@
                   <%= order.orderStatus %>
                 </span>
               </td>
-              <td class="text-end">₹<%= order.totalAmount.toFixed(2) %></td>
+              <td class="text-end">
+                <% 
+                    // Calculate current balance after cancellations/returns
+                    const activeItems = order.items ? order.items.filter(item => 
+                        item.status !== 'Cancelled' && 
+                        item.status !== 'Returned' && 
+                        item.status !== 'Return Approved'
+                    ) : [];
+                    const currentItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                    const currentCouponDiscount = order.couponDiscount || 0;
+                    const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
+                %>
+                ₹<%= currentBalance.toFixed(2) %>
+              </td>
             </tr>
           <% }); %>
         <% } else { %>
@@ -302,7 +329,7 @@ function getStatusBadgeClass(status) {
         case 'Cancelled':
             return 'bg-danger';
         case 'Return Requested':
-            return 'bg-secondary';
+            return 'bg-warning';
         case 'Return Approved':
             return 'bg-secondary';
         case 'Return Rejected':

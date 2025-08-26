@@ -68,15 +68,14 @@ exports.addProduct = async (req, res) => {
       dietaryType 
     } = req.body;
     
-    // Validate input fields
-    if (!productName || !category || !regularPrice || !quantity || !description || !dietaryType) {
+   if (!productName || !category || !regularPrice || !quantity || !description || !dietaryType) {
       return res.status(400).json({ 
         success: false,
         message: 'All fields are required' 
       });
     }
 
-    // Check for unique product name (case insensitive)
+    // Check for unique product name 
     const existingProduct = await Product.findOne({
       name: { $regex: new RegExp(`^${productName}$`, 'i') }
     });
@@ -128,7 +127,6 @@ exports.addProduct = async (req, res) => {
       }
     }
 
-    // Create new product
     const newProduct = new Product({
       name: productName.trim(),
       category,
@@ -227,7 +225,6 @@ exports.updateProduct = async (req, res) => {
     // Handle images
     let productImages = [];
     
-    // Add existing images
     if (req.body.existingImages) {
       if (Array.isArray(req.body.existingImages)) {
         productImages = [...req.body.existingImages];
@@ -240,7 +237,6 @@ exports.updateProduct = async (req, res) => {
     if (req.files && req.files.length > 0) {
       const uploadDir = 'public/uploads/reImage';
       
-      // Ensure upload directory exists
       if (!fs.existsSync(uploadDir)) {
         fs.mkdirSync(uploadDir, { recursive: true });
       }
@@ -277,7 +273,6 @@ exports.updateProduct = async (req, res) => {
       }
     }
 
-    // Validate that we have at least one image
     if (productImages.length === 0) {
       return res.status(400).json({
         success: false,
@@ -285,14 +280,12 @@ exports.updateProduct = async (req, res) => {
       });
     }
 
-    // Always keep 4 slots, pad with nulls if needed
     while (productImages.length < 4) {
       productImages.push(null);
     }
     productImages = productImages.slice(0, 4);
 
-    // Update product (do not filter out nulls)
-    const updatedProduct = await Product.findByIdAndUpdate(
+  const updatedProduct = await Product.findByIdAndUpdate(
       productId,
       {
         name: productName,
@@ -363,13 +356,11 @@ exports.deleteProductImage = async (req, res) => {
 
     const index = parseInt(imageIndex);
     if (index >= 0 && index < product.productImage.length) {
-      // Delete the image file
       const imagePath = path.join('public', product.productImage[index]);
       if (fs.existsSync(imagePath)) {
         fs.unlinkSync(imagePath);
       }
 
-      // Remove the image path from the array
       product.productImage[index] = null;
       product.productImage = product.productImage.filter(path => path !== null);
       await product.save();
@@ -400,8 +391,7 @@ exports.toggleProductBlock = async (req, res) => {
     product.isBlocked = !product.isBlocked;
     await product.save();
 
-    // If product is now blocked, remove it from all carts
-    if (product.isBlocked) {
+   if (product.isBlocked) {
       await Cart.updateMany(
         { 'items.product': productId },
         { $pull: { items: { product: productId } } }

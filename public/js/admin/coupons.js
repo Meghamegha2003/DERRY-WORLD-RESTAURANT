@@ -2,10 +2,14 @@
 console.log('admin coupons.js loaded');
 
 // Stub for coupon code uniqueness check
-async function checkCouponCodeExists(code) {
+async function checkCouponCodeExists(code, excludeId = null) {
     if (!code) return false;
     try {
-        const res = await fetch(`/admin/coupons/check-code?code=${encodeURIComponent(code)}`);
+        let url = `/admin/coupons/check-code?code=${encodeURIComponent(code)}`;
+        if (excludeId) {
+            url += `&excludeId=${excludeId}`;
+        }
+        const res = await fetch(url);
         const data = await res.json();
         return !!data.exists;
     } catch (err) {
@@ -13,14 +17,26 @@ async function checkCouponCodeExists(code) {
     }
 }
 
-// Add live validation to coupon code field (create/edit forms)
+// Add simple validation to coupon code field
 document.addEventListener('DOMContentLoaded', () => {
     const codeInputs = document.querySelectorAll('input[name="code"]');
     codeInputs.forEach(input => {
+        input.addEventListener('input', function() {
+            // Remove special characters except letters, numbers, and spaces
+            this.value = this.value.replace(/[^A-Za-z0-9\s]/g, '');
+        });
+        
         input.addEventListener('blur', async function() {
             const code = this.value.trim();
             if (!code) return;
-            const exists = await checkCouponCodeExists(code);
+            
+            // Check for duplicates
+            const form = this.closest('form');
+            const couponIdField = form.querySelector('input[name="couponId"]');
+            const isEditForm = couponIdField && couponIdField.value;
+            const excludeId = isEditForm ? couponIdField.value : null;
+            
+            const exists = await checkCouponCodeExists(code, excludeId);
             if (exists) {
                 Swal.fire({
                     icon: 'error',
@@ -76,6 +92,10 @@ async function editCoupon(couponId) {
                 const element = form.querySelector(`[name="${id}"]`);
                 if (element) {
                     element.value = value;
+                    // Store original code for duplicate validation
+                    if (id === 'code') {
+                        element.setAttribute('data-original-code', value);
+                    }
                 } else {
                     console.warn(`Field not found: ${id}`);
                 }

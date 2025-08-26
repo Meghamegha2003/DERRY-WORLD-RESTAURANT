@@ -39,7 +39,7 @@ exports.viewSalesReport = async (req, res) => {
 
     const query = {
       createdAt: { $gte: start, $lte: end },
-      orderStatus: { $in: ["Delivered", "Return Rejected"] },
+      orderStatus: { $in: ["Delivered", "Return Rejected", "Return Requested"] },
     };
     if (orderStatus !== "all") query.orderStatus = orderStatus;
     if (paymentMethod !== "all") query.paymentMethod = paymentMethod;
@@ -57,10 +57,22 @@ exports.viewSalesReport = async (req, res) => {
       .lean();
 
     const allOrders = await Order.find(query).lean();
-    const totalSales = allOrders.reduce(
-      (sum, order) => sum + (order.totalAmount || 0),
-      0
-    );
+    // Calculate total sales using current balance after cancellations/returns
+    const totalSales = allOrders.reduce((sum, order) => {
+      // Filter active items (non-cancelled/returned)
+      const activeItems = order.items ? order.items.filter(item => 
+        item.status !== 'Cancelled' && 
+        item.status !== 'Returned' && 
+        item.status !== 'Return Approved'
+      ) : [];
+      
+      // Calculate current balance
+      const currentItemsTotal = activeItems.reduce((itemSum, item) => itemSum + (item.price * item.quantity), 0);
+      const currentCouponDiscount = order.couponDiscount || 0;
+      const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
+      
+      return sum + currentBalance;
+    }, 0);
     const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
     const allOrdersInDateRange = await Order.find({
       createdAt: { $gte: start, $lte: end },
@@ -146,7 +158,7 @@ exports.getSalesReportData = async (req, res) => {
     const { startDate, endDate, paymentMethod } = req.query;
 
     let query = {
-      orderStatus: { $in: ["Delivered", "Return Rejected"] },
+      orderStatus: { $in: ["Delivered", "Return Rejected", "Return Requested"] },
     };
 
     if (startDate && endDate) {
@@ -171,10 +183,22 @@ exports.getSalesReportData = async (req, res) => {
 
     const total = await Order.countDocuments(query);
 
-    const totalRevenue = orders.reduce(
-      (sum, order) => sum + order.totalAmount,
-      0
-    );
+    // Calculate total revenue using current balance after cancellations/returns
+    const totalRevenue = orders.reduce((sum, order) => {
+      // Filter active items (non-cancelled/returned)
+      const activeItems = order.items ? order.items.filter(item => 
+        item.status !== 'Cancelled' && 
+        item.status !== 'Returned' && 
+        item.status !== 'Return Approved'
+      ) : [];
+      
+      // Calculate current balance
+      const currentItemsTotal = activeItems.reduce((itemSum, item) => itemSum + (item.price * item.quantity), 0);
+      const currentCouponDiscount = order.couponDiscount || 0;
+      const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
+      
+      return sum + currentBalance;
+    }, 0);
     const totalOrders = orders.length;
     const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
@@ -207,7 +231,7 @@ exports.exportSalesReportPDF = async (req, res) => {
     const { startDate, endDate, paymentMethod, orderStatus } = req.query;
 
     let query = {
-      orderStatus: { $in: ["Delivered", "Return Rejected"] },
+      orderStatus: { $in: ["Delivered", "Return Rejected", "Return Requested"] },
     };
 
     if (startDate && endDate) {
@@ -293,10 +317,22 @@ exports.exportSalesReportPDF = async (req, res) => {
 
     // Order Summary
     const totalOrdersCount = orders.length;
-    const totalRevenueAmount = orders.reduce(
-      (sum, order) => sum + order.totalAmount,
-      0
-    );
+    // Calculate total revenue using current balance after cancellations/returns
+    const totalRevenueAmount = orders.reduce((sum, order) => {
+      // Filter active items (non-cancelled/returned)
+      const activeItems = order.items ? order.items.filter(item => 
+        item.status !== 'Cancelled' && 
+        item.status !== 'Returned' && 
+        item.status !== 'Return Approved'
+      ) : [];
+      
+      // Calculate current balance
+      const currentItemsTotal = activeItems.reduce((itemSum, item) => itemSum + (item.price * item.quantity), 0);
+      const currentCouponDiscount = order.couponDiscount || 0;
+      const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
+      
+      return sum + currentBalance;
+    }, 0);
     const totalDiscountAmount = orders.reduce(
       (sum, order) => sum + (order.couponDiscount || 0),
       0
@@ -450,10 +486,14 @@ exports.exportSalesReportPDF = async (req, res) => {
         doc.font("Helvetica").fontSize(12);
         rowY = tableTop + 20;
       }
-      const itemsTotal = order.items.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
-      );
+      // Calculate current balance after cancellations/returns
+      const activeItems = order.items ? order.items.filter(item => 
+        item.status !== 'Cancelled' && 
+        item.status !== 'Returned' && 
+        item.status !== 'Return Approved'
+      ) : [];
+      
+      const itemsTotal = activeItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const discountValue = order.couponDiscount || 0;
       const deliveryCharge = order.deliveryCharge || 0;
       const amountValue = itemsTotal;
@@ -584,7 +624,7 @@ exports.exportSalesReportPDF = async (req, res) => {
 exports.exportSalesReportExcel = async (req, res) => {
   try {
     const { startDate, endDate, paymentMethod, orderStatus } = req.query;
-    let query = { orderStatus: { $in: ["Delivered", "Return Rejected"] } };
+    let query = { orderStatus: { $in: ["Delivered", "Return Rejected", "Return Requested"] } };
 
     if (startDate && endDate) {
       const dateRange = exports.getDateRange(startDate, endDate);
@@ -637,12 +677,16 @@ exports.exportSalesReportExcel = async (req, res) => {
               )
               .join(", ")
           : "";
+      // Calculate current balance after cancellations/returns
+      const activeItems = order.items ? order.items.filter(item => 
+        item.status !== 'Cancelled' && 
+        item.status !== 'Returned' && 
+        item.status !== 'Return Approved'
+      ) : [];
+      
+      const itemsTotal = activeItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const discountValue = order.couponDiscount || 0;
       const deliveryCharge = order.deliveryCharge || 0;
-      const itemsTotal = order.items.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
-      );
       const finalValue = itemsTotal - discountValue + deliveryCharge;
 
       worksheet.addRow({

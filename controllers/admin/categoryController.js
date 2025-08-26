@@ -17,7 +17,6 @@ const Product = require('../../models/productSchema')
             const totalCategories = await Category.countDocuments();
             const totalPages = Math.ceil(totalCategories / limit);
 
-//  returns a JSON error response instead of rendering a page. 
             if (req.xhr || req.headers.accept?.includes('application/json')) {
                 return res.json({
                     success: true,

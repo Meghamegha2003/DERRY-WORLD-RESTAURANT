@@ -106,11 +106,13 @@
                         <div class="col-md-6">
                             <label for="code" class="form-label">Coupon Code *</label>
                             <input type="text" class="form-control" id="code" name="code" required 
-                                   pattern="^[A-Za-z0-9]{3,}$" 
-                                   title="Coupon code must be at least 3 characters long and contain only letters and numbers">
+                                   maxlength="20"
+                                   style="text-transform: uppercase;"
+                                   title="Enter coupon code">
                             <div class="invalid-feedback">
-                                Please enter a valid coupon code (minimum 3 characters, letters and numbers only)
+                                Please enter a coupon code
                             </div>
+                            <small class="text-muted">Code will be automatically converted to uppercase</small>
                         </div>
                         <div class="col-md-6">
                             <label for="discountType" class="form-label">Discount Type *</label>
@@ -124,20 +126,23 @@
                         <div class="col-md-6">
                             <label for="discountValue" class="form-label">Discount Value *</label>
                             <input type="number" class="form-control" id="discountValue" name="discountValue" 
-                                   required min="1">
-                            <div class="invalid-feedback">Please enter a valid discount value</div>
+                                   required min="1" step="0.01">
+                            <div class="invalid-feedback">Please enter a valid discount value (minimum 1)</div>
+                            <small class="text-muted" id="discountValueHint">Enter percentage (1-99) or fixed amount (₹1+)</small>
                         </div>
                         <div class="col-md-6">
                             <label for="minPurchase" class="form-label">Minimum Purchase Amount *</label>
                             <input type="number" class="form-control" id="minPurchase" name="minPurchase" 
-                                   required min="0">
-                            <div class="invalid-feedback">Please enter a valid minimum purchase amount</div>
+                                   required min="1" step="0.01">
+                            <div class="invalid-feedback">Please enter a valid minimum purchase amount (minimum ₹1)</div>
+                            <small class="text-muted">Minimum order value required to use this coupon</small>
                         </div>
                         <div class="col-md-6">
                             <label for="usageLimit" class="form-label">Usage Limit *</label>
                             <input type="number" class="form-control" id="usageLimit" name="usageLimit" 
-                                   required min="1">
-                            <div class="invalid-feedback">Please enter a valid usage limit</div>
+                                   required min="1" max="10000">
+                            <div class="invalid-feedback">Please enter a valid usage limit (1-10,000)</div>
+                            <small class="text-muted">Maximum number of times this coupon can be used</small>
                         </div>
                         <div class="col-md-6">
                             <label for="validFrom" class="form-label">Valid From *</label>
@@ -147,7 +152,8 @@
                         <div class="col-md-6">
                             <label for="validUntil" class="form-label">Valid Until *</label>
                             <input type="date" class="form-control" id="validUntil" name="validUntil" required>
-                            <div class="invalid-feedback">Please select an expiry date</div>
+                            <div class="invalid-feedback">Please select an expiry date (must be after start date)</div>
+                            <small class="text-muted">Coupon will expire at end of this date</small>
                         </div>
 
                     </div>
@@ -177,8 +183,12 @@
                         <input type="hidden" name="couponId" required>
                         <div class="col-md-6">
                             <label for="code" class="form-label">Coupon Code *</label>
-                            <input type="text" class="form-control" name="code" required minlength="3" maxlength="10">
-                            <div class="invalid-feedback">Please enter a valid coupon code (3-10 characters)</div>
+                            <input type="text" class="form-control" name="code" required 
+                                   maxlength="20"
+                                   style="text-transform: uppercase;"
+                                   title="Enter coupon code">
+                            <div class="invalid-feedback">Please enter a coupon code</div>
+                            <small class="text-muted">Code will be automatically converted to uppercase</small>
                         </div>
                         <div class="col-md-6">
                             <label for="discountType" class="form-label">Discount Type *</label>
@@ -191,18 +201,21 @@
                         </div>
                         <div class="col-md-6">
                             <label for="discountValue" class="form-label">Discount Value *</label>
-                            <input type="number" class="form-control" name="discountValue" required min="1">
-                            <div class="invalid-feedback">Please enter a valid discount value</div>
+                            <input type="number" class="form-control" name="discountValue" required min="1" step="0.01">
+                            <div class="invalid-feedback">Please enter a valid discount value (minimum 1)</div>
+                            <small class="text-muted" id="editDiscountValueHint">Enter percentage (1-99) or fixed amount (₹1+)</small>
                         </div>
                         <div class="col-md-6">
                             <label for="minPurchase" class="form-label">Minimum Purchase Amount *</label>
-                            <input type="number" class="form-control" name="minPurchase" required min="0">
-                            <div class="invalid-feedback">Please enter a valid minimum purchase amount</div>
+                            <input type="number" class="form-control" name="minPurchase" required min="1" step="0.01">
+                            <div class="invalid-feedback">Please enter a valid minimum purchase amount (minimum ₹1)</div>
+                            <small class="text-muted">Minimum order value required to use this coupon</small>
                         </div>
                         <div class="col-md-6">
                             <label for="usageLimit" class="form-label">Usage Limit *</label>
-                            <input type="number" class="form-control" name="usageLimit" required min="1">
-                            <div class="invalid-feedback">Please enter a valid usage limit</div>
+                            <input type="number" class="form-control" name="usageLimit" required min="1" max="10000">
+                            <div class="invalid-feedback">Please enter a valid usage limit (1-10,000)</div>
+                            <small class="text-muted">Maximum number of times this coupon can be used</small>
                         </div>
                         <div class="col-md-6">
                             <label for="validFrom" class="form-label">Valid From *</label>
@@ -212,7 +225,8 @@
                         <div class="col-md-6">
                             <label for="validUntil" class="form-label">Valid Until *</label>
                             <input type="date" class="form-control" name="validUntil" required>
-                            <div class="invalid-feedback">Please select an expiry date</div>
+                            <div class="invalid-feedback">Please select an expiry date (must be after start date)</div>
+                            <small class="text-muted">Coupon will expire at end of this date</small>
                         </div>
 
                     </div>
@@ -266,6 +280,13 @@
 
             form.querySelector('input[name="validFrom"]').value = formatDate(coupon.validFrom);
             form.querySelector('input[name="validUntil"]').value = formatDate(coupon.validUntil);
+            
+            
+            // Trigger discount type change to show/hide maxDiscount field
+            const discountTypeSelect = form.querySelector('select[name="discountType"]');
+            if (discountTypeSelect) {
+                discountTypeSelect.dispatchEvent(new Event('change'));
+            }
 
             // Show edit modal
             const editModal = new bootstrap.Modal(document.getElementById('editCouponModal'));
@@ -352,14 +373,14 @@
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            code: data.code.trim(),
+                            code: data.code.trim().toUpperCase(),
                             description: data.description || '',
                             discountType: data.discountType,
                             discountValue: Number(data.discountValue),
                             minPurchase: Number(data.minPurchase),
                             usageLimit: Number(data.usageLimit),
                             validFrom: data.validFrom,
-                            validUntil: data.validUntil
+                            validUntil: data.validUntil,
                         })
                     });
 
@@ -492,25 +513,236 @@
         }
     }
 
-    // Initialize date inputs
+    // Enhanced validation functions
+    function validateDiscountValue(discountType, discountValue) {
+        if (discountType === 'percentage') {
+            return discountValue >= 1 && discountValue <= 99;
+        } else if (discountType === 'fixed') {
+            return discountValue >= 1;
+        }
+        return false;
+    }
+
+    function validateDateRange(validFrom, validUntil) {
+        const fromDate = new Date(validFrom);
+        const untilDate = new Date(validUntil);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        return fromDate >= today && untilDate > fromDate;
+    }
+
+    function validateMinPurchaseVsDiscount(discountType, discountValue, minPurchase) {
+        if (discountType === 'fixed') {
+            // Fixed discount must be less than minimum purchase (not equal)
+            return discountValue < minPurchase;
+        } else if (discountType === 'percentage') {
+            // For percentage, calculate potential discount and ensure it's less than minimum purchase
+            const potentialDiscount = (discountValue / 100) * minPurchase;
+            return potentialDiscount < minPurchase;
+        }
+        return true;
+    }
+
+    // Enhanced validation for real-time checking
+    function validateDiscountVsMinPurchase(form) {
+        const discountType = form.querySelector('select[name="discountType"]').value;
+        const discountValue = parseFloat(form.querySelector('input[name="discountValue"]').value) || 0;
+        const minPurchase = parseFloat(form.querySelector('input[name="minPurchase"]').value) || 0;
+
+        if (!discountType || !discountValue || !minPurchase) return true;
+
+        return validateMinPurchaseVsDiscount(discountType, discountValue, minPurchase);
+    }
+
+    // Set custom validation messages
+    function setDiscountValidationMessage(form, message) {
+        const discountInput = form.querySelector('input[name="discountValue"]');
+        const minPurchaseInput = form.querySelector('input[name="minPurchase"]');
+        
+        discountInput.setCustomValidity(message);
+        minPurchaseInput.setCustomValidity(message);
+    }
+
+    function clearDiscountValidationMessage(form) {
+        const discountInput = form.querySelector('input[name="discountValue"]');
+        const minPurchaseInput = form.querySelector('input[name="minPurchase"]');
+        
+        discountInput.setCustomValidity('');
+        minPurchaseInput.setCustomValidity('');
+    }
+
+    // Initialize date inputs and validation
     document.addEventListener('DOMContentLoaded', function() {
         const today = new Date().toISOString().split('T')[0];
         
         // Initialize date inputs for both add and edit forms
         ['validFrom', 'validUntil'].forEach(id => {
-            const input = document.querySelector(`input[name="${id}"]`);
-            if (input) {
-                input.min = today;
-            }
+            const addInput = document.querySelector(`#addCouponForm input[name="${id}"]`);
+            const editInput = document.querySelector(`#editCouponForm input[name="${id}"]`);
+            if (addInput) addInput.min = today;
+            if (editInput) editInput.min = today;
         });
 
-        // Add event listener to validFrom to update validUntil min date
-        const validFromInput = document.querySelector('input[name="validFrom"]');
-        const validUntilInput = document.querySelector('input[name="validUntil"]');
-        if (validFromInput && validUntilInput) {
-            validFromInput.addEventListener('change', function() {
-                validUntilInput.min = this.value;
+        // Add dynamic validation for discount type changes
+        function setupDiscountTypeValidation(form) {
+            const discountTypeSelect = form.querySelector('select[name="discountType"]');
+            const discountValueInput = form.querySelector('input[name="discountValue"]');
+            const hintElement = form.querySelector('[id$="DiscountValueHint"]');
+            
+            if (discountTypeSelect && discountValueInput) {
+                discountTypeSelect.addEventListener('change', function() {
+                    const type = this.value;
+                    if (type === 'percentage') {
+                        discountValueInput.max = '99';
+                        discountValueInput.setAttribute('title', 'Enter percentage between 1-99');
+                        if (hintElement) hintElement.textContent = 'Enter percentage (1-99)';
+                    } else if (type === 'fixed') {
+                        discountValueInput.removeAttribute('max');
+                        discountValueInput.setAttribute('title', 'Enter fixed amount in rupees');
+                        if (hintElement) hintElement.textContent = 'Enter fixed amount (₹1+)';
+                    } else {
+                        // Reset state when no type selected
+                        discountValueInput.removeAttribute('max');
+                    }
+                });
+            }
+        }
+
+        // Add date range validation
+        function setupDateValidation(form) {
+            const validFromInput = form.querySelector('input[name="validFrom"]');
+            const validUntilInput = form.querySelector('input[name="validUntil"]');
+            
+            if (validFromInput && validUntilInput) {
+                validFromInput.addEventListener('change', function() {
+                    validUntilInput.min = this.value;
+                    if (validUntilInput.value && validUntilInput.value <= this.value) {
+                        validUntilInput.setCustomValidity('End date must be after start date');
+                    } else {
+                        validUntilInput.setCustomValidity('');
+                    }
+                });
+                
+                validUntilInput.addEventListener('change', function() {
+                    if (validFromInput.value && this.value <= validFromInput.value) {
+                        this.setCustomValidity('End date must be after start date');
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                });
+            }
+        }
+
+        // Add real-time discount vs minimum purchase validation
+        function setupRealTimeDiscountValidation(form) {
+            const discountTypeSelect = form.querySelector('select[name="discountType"]');
+            const discountValueInput = form.querySelector('input[name="discountValue"]');
+            const minPurchaseInput = form.querySelector('input[name="minPurchase"]');
+
+            function validateAndShowMessage() {
+                const discountType = discountTypeSelect.value;
+                const discountValue = parseFloat(discountValueInput.value) || 0;
+                const minPurchase = parseFloat(minPurchaseInput.value) || 0;
+
+                if (!discountType || !discountValue || !minPurchase) {
+                    clearDiscountValidationMessage(form);
+                    return;
+                }
+
+                if (discountType === 'fixed') {
+                    if (discountValue >= minPurchase) {
+                        setDiscountValidationMessage(form, 'Fixed discount must be less than minimum purchase amount');
+                        return false;
+                    }
+                } else if (discountType === 'percentage') {
+                    const potentialDiscount = (discountValue / 100) * minPurchase;
+                    
+                    if (potentialDiscount >= minPurchase) {
+                        setDiscountValidationMessage(form, 'Calculated discount must be less than minimum purchase amount');
+                        return false;
+                    }
+                }
+
+                clearDiscountValidationMessage(form);
+                return true;
+            }
+
+            // Add event listeners for real-time validation
+            if (discountTypeSelect) {
+                discountTypeSelect.addEventListener('change', validateAndShowMessage);
+            }
+            if (discountValueInput) {
+                discountValueInput.addEventListener('input', validateAndShowMessage);
+                discountValueInput.addEventListener('blur', validateAndShowMessage);
+            }
+            if (minPurchaseInput) {
+                minPurchaseInput.addEventListener('input', validateAndShowMessage);
+                minPurchaseInput.addEventListener('blur', validateAndShowMessage);
+            }
+        }
+
+        // Add comprehensive form validation
+        function setupComprehensiveValidation(form) {
+            form.addEventListener('submit', function(e) {
+                const formData = new FormData(this);
+                const data = Object.fromEntries(formData.entries());
+                
+                // Validate discount value based on type
+                if (!validateDiscountValue(data.discountType, Number(data.discountValue))) {
+                    e.preventDefault();
+                    const discountInput = this.querySelector('input[name="discountValue"]');
+                    if (data.discountType === 'percentage') {
+                        discountInput.setCustomValidity('Percentage must be between 1-99');
+                    } else {
+                        discountInput.setCustomValidity('Fixed amount must be at least ₹1');
+                    }
+                    this.classList.add('was-validated');
+                    return;
+                }
+                
+                // Validate date range
+                if (!validateDateRange(data.validFrom, data.validUntil)) {
+                    e.preventDefault();
+                    const untilInput = this.querySelector('input[name="validUntil"]');
+                    untilInput.setCustomValidity('End date must be after start date and not in the past');
+                    this.classList.add('was-validated');
+                    return;
+                }
+                
+                // Validate minimum purchase vs discount (enhanced validation)
+                if (!validateMinPurchaseVsDiscount(data.discountType, Number(data.discountValue), Number(data.minPurchase))) {
+                    e.preventDefault();
+                    if (data.discountType === 'fixed') {
+                        setDiscountValidationMessage(this, 'Fixed discount must be less than minimum purchase amount');
+                    } else if (data.discountType === 'percentage') {
+                        setDiscountValidationMessage(this, 'Calculated discount must be less than minimum purchase amount');
+                    }
+                    this.classList.add('was-validated');
+                    return;
+                }
+                
+                // Clear any validation messages if all validations pass
+                clearDiscountValidationMessage(this);
             });
+        }
+
+        // Setup validation for both forms
+        const addForm = document.getElementById('addCouponForm');
+        const editForm = document.getElementById('editCouponForm');
+        
+        if (addForm) {
+            setupDiscountTypeValidation(addForm);
+            setupDateValidation(addForm);
+            setupRealTimeDiscountValidation(addForm);
+            setupComprehensiveValidation(addForm);
+        }
+        
+        if (editForm) {
+            setupDiscountTypeValidation(editForm);
+            setupDateValidation(editForm);
+            setupRealTimeDiscountValidation(editForm);
+            setupComprehensiveValidation(editForm);
         }
 
         // Function to check if coupon code exists
@@ -590,14 +822,14 @@
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            code: data.code.trim(),
+                            code: data.code.trim().toUpperCase(),
                             description: data.description || '',
                             discountType: data.discountType,
                             discountValue: Number(data.discountValue),
                             minPurchase: Number(data.minPurchase),
                             usageLimit: Number(data.usageLimit),
                             validFrom: data.validFrom,
-                            validUntil: data.validUntil
+                            validUntil: data.validUntil,
                         })
                     });
 

@@ -542,6 +542,47 @@
                 </div>
             <% } %>
 
+            <!-- Inline addToCart function to ensure immediate availability -->
+            <script>
+                // Define addToCart function immediately to prevent ReferenceError
+                window.addToCart = async function(productId, event) {
+                    const addButton = event ? event.currentTarget : document.querySelector('.btn-add-cart');
+                    addButton.disabled = true;
+                    addButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding...';
+
+                    try {
+                        const res = await fetch(`/cart/add/${productId}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ quantity: 1 }),
+                            credentials: 'include'
+                        });
+
+                        if (!res.ok) throw new Error('Failed to add to cart');
+                        const data = await res.json();
+
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Added to Cart!',
+                            showConfirmButton: false,
+                            timer: 1000
+                        }).then(() => {
+                            window.location.reload();
+                        });
+
+                    } catch (err) {
+                        console.error(err);
+                        addButton.disabled = false;
+                        addButton.innerHTML = '<i class="fas fa-shopping-cart me-2"></i>Add to Cart';
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Oops...',
+                            text: 'Failed to add item to cart.',
+                            confirmButtonColor: '#ffbe33'
+                        });
+                    }
+                };
+            </script>
             <!-- Externalizing all client JS to avoid EJS parsing issues -->
             <script src="/js/foodDetails.js"></script>
         </div>
