@@ -192,35 +192,38 @@
                                                     const showOriginalAmount = (transaction.offerDiscount > 0 || transaction.couponDiscount > 0) && isDebit;
                                                 %>
                                                 <td class="<%= isCredit ? 'text-success' : 'text-danger' %>">
-                                                    <% if (isRefundTransaction && transaction.originalAmount && transaction.originalAmount > 0) { %>
-                                                        <!-- Refund transaction with breakdown -->
+                                                    <% if (isRefundTransaction) { %>
+                                                        <!-- Refund transaction with breakdown - data from refundCalculationService -->
                                                         <div class="refund-breakdown">
+                                                            <% 
+                                                                // Use data calculated by refundCalculationService and stored in transaction
+                                                                const itemAmount = transaction.originalAmount || 0;
+                                                                const couponDeduction = transaction.couponDiscount || 0;
+                                                                const couponPercentage = transaction.couponRatio || 0;
+                                                                const actualRefundAmount = transaction.finalAmount || transaction.amount || 0;
+                                                            %>
                                                             <div class="fw-bold">
-                                                                <%= isCredit ? '+' : '' %>₹<%= Math.abs(finalAmount).toFixed(2) %>
+                                                                <%= isCredit ? '+' : '' %>₹<%= Math.abs(actualRefundAmount).toFixed(2) %>
                                                             </div>
-                                                            <div class="small text-muted mt-1">
-                                                                <div class="d-flex justify-content-between">
-                                                                    <span>Item Amount:</span>
-                                                                    <span>₹<%= transaction.originalAmount.toFixed(2) %></span>
-                                                                </div>
-                                                                <% if (transaction.couponDiscount > 0) { %>
-                                                                    <div class="d-flex justify-content-between text-primary">
-                                                                        <span>Coupon Deduction (<%= transaction.couponRatio ? transaction.couponRatio.toFixed(1) + '%' : '' %>):</span>
-                                                                        <span>-₹<%= transaction.couponDiscount.toFixed(2) %></span>
+                                                            <% if (itemAmount > 0) { %>
+                                                                <div class="small text-muted mt-1">
+                                                                    <div class="d-flex justify-content-between">
+                                                                        <span>Item Amount:</span>
+                                                                        <span>₹<%= itemAmount.toFixed(2) %></span>
                                                                     </div>
-                                                                <% } %>
-                                                                <% if (transaction.offerDiscount > 0) { %>
-                                                                    <div class="d-flex justify-content-between text-success">
-                                                                        <span>Offer Discount:</span>
-                                                                        <span>-₹<%= transaction.offerDiscount.toFixed(2) %></span>
+                                                                    <% if (couponDeduction > 0) { %>
+                                                                        <div class="d-flex justify-content-between text-primary">
+                                                                            <span>Coupon Deduction (<%= couponPercentage.toFixed(1) %>%):</span>
+                                                                            <span>-₹<%= couponDeduction.toFixed(2) %></span>
+                                                                        </div>
+                                                                    <% } %>
+                                                                    <hr class="my-1">
+                                                                    <div class="d-flex justify-content-between fw-bold">
+                                                                        <span>Total Refunded:</span>
+                                                                        <span>₹<%= Math.abs(actualRefundAmount).toFixed(2) %></span>
                                                                     </div>
-                                                                <% } %>
-                                                                <hr class="my-1">
-                                                                <div class="d-flex justify-content-between fw-bold">
-                                                                    <span>Total Refunded:</span>
-                                                                    <span>₹<%= Math.abs(finalAmount).toFixed(2) %></span>
                                                                 </div>
-                                                            </div>
+                                                            <% } %>
                                                         </div>
                                                     <% } else { %>
                                                         <!-- Regular transaction display -->
@@ -237,7 +240,7 @@
                                                             </div>
                                                         <% } %>
                                                         
-                                                        <% if (transaction.couponDiscount > 0) { %>
+                                                        <% if (transaction.couponDiscount > 0 && !isRefundTransaction) { %>
                                                             <div class="text-primary small">
                                                                 <i class="fas fa-ticket-alt me-1"></i>Coupon: -₹<%= transaction.couponDiscount.toFixed(2) %>
                                                             </div>

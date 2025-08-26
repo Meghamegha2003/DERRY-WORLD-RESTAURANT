@@ -8,7 +8,7 @@ const User = require("../../models/userSchema");
 const Product = require("../../models/productSchema");
 const Wallet = require("../../models/walletSchema");
 const { getBestOffer } = require("../../helpers/offerHelper");
-const { recalculateOrderCoupon } = require("../../helpers/couponHelper");
+// Removed recalculateOrderCoupon - now handled by refundCalculationService
 const { processOrderRefund, processItemRefund } = require("../../services/refundService");
 const PDFDocument = require("pdfkit");
 
@@ -479,14 +479,9 @@ exports.cancelOrderItem = async (req, res) => {
       }
     }
 
-    // Mark item as cancelled
-    item.status = "Cancelled";
-    item.cancelReason = reason;
-    item.cancelledAt = new Date();
-
     const itemTotal = item.price * item.quantity;
 
-    // Process refund for non-COD orders
+    // Process refund for non-COD orders BEFORE marking as cancelled
     if (
       order.paymentMethod &&
       order.paymentMethod.toLowerCase() !== "cod" &&
@@ -507,6 +502,11 @@ exports.cancelOrderItem = async (req, res) => {
         // Continue with cancellation even if refund fails
       }
     }
+
+    // Mark item as cancelled AFTER refund processing
+    item.status = "Cancelled";
+    item.cancelReason = reason;
+    item.cancelledAt = new Date();
 
     // Ensure the order total doesn't go below zero
     order.total = Math.max(0, order.total - itemTotal);
@@ -537,12 +537,8 @@ exports.cancelOrderItem = async (req, res) => {
     const activeItems = order.items.filter(item => item.status !== 'Cancelled' && item.status !== 'Returned');
     const newItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     
-    // Recalculate coupon discount for remaining items
-    const { newCouponDiscount } = await recalculateOrderCoupon(order);
-    order.couponDiscount = newCouponDiscount;
-    await order.save();
-    
-    const newTotal = newItemsTotal - newCouponDiscount + (order.deliveryCharge || 0);
+    // Coupon discount is already updated by the refund service
+    const newTotal = newItemsTotal - order.couponDiscount + (order.deliveryCharge || 0);
     
     res.json({
       success: true,
@@ -552,7 +548,7 @@ exports.cancelOrderItem = async (req, res) => {
           : "Item cancelled successfully.",
       updatedTotals: {
         itemsTotal: newItemsTotal,
-        couponDiscount: newCouponDiscount,
+        couponDiscount: order.couponDiscount,
         deliveryCharge: order.deliveryCharge || 0,
         finalTotal: newTotal
       }
@@ -610,36 +606,52 @@ exports.requestItemReturn = async (req, res) => {
       });
     }
 
-    const refundAmount = item.price * item.quantity;
-
-    item.status = "Returned";
+    // Only set return request status - NO refund processing yet
+    item.status = "Active"; // Keep item as active until admin approves
     item.returnStatus = "Pending";
     item.returnReason = reason;
     item.returnRequestDate = new Date();
-    item.refundAmount = refundAmount;
-    item.refundStatus = "Pending";
+    // Do NOT set refundAmount or refundStatus yet - only when approved
+
+    // Check if this is a single product order or last remaining product
+    const activeItems = order.items.filter(orderItem => 
+      orderItem.status === 'Active' && 
+      orderItem.returnStatus !== 'Pending' &&
+      orderItem._id.toString() !== item._id.toString()
+    );
+    
+    // If no other active items remain, update order status to Return Requested
+    if (activeItems.length === 0) {
+      order.orderStatus = 'Return Requested';
+      order.returnRequestedDate = new Date();
+    }
 
     await order.save();
 
-    // Calculate updated order totals for frontend
-    const activeItems = order.items.filter(item => item.status !== 'Cancelled' && item.status !== 'Returned');
-    const newItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    // Calculate updated totals for frontend (excluding items with pending returns)
+    const activeItemsForTotal = order.items.filter(item => 
+      item.status !== 'Cancelled' && 
+      item.status !== 'Returned' && 
+      item.status !== 'Return Approved' &&
+      item.returnStatus !== 'Pending'
+    );
+    const currentItemsTotal = activeItemsForTotal.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const currentCouponDiscount = order.couponDiscount || 0;
+    const currentTotal = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
     
-    // Recalculate coupon discount for remaining items
-    const { newCouponDiscount } = await recalculateOrderCoupon(order);
-    order.couponDiscount = newCouponDiscount;
-    await order.save();
-    
-    const newTotal = newItemsTotal - newCouponDiscount + (order.deliveryCharge || 0);
+    // Calculate pending return amount
+    const pendingReturnItems = order.items.filter(item => item.returnStatus === 'Pending');
+    const pendingReturnAmount = pendingReturnItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     
     res.json({
       success: true,
       message: "Return request submitted successfully",
       updatedTotals: {
-        itemsTotal: newItemsTotal,
-        couponDiscount: newCouponDiscount,
+        itemsTotal: currentItemsTotal,
+        couponDiscount: currentCouponDiscount,
         deliveryCharge: order.deliveryCharge || 0,
-        finalTotal: newTotal
+        finalTotal: currentTotal,
+        pendingReturnAmount: pendingReturnAmount
       }
     });
   } catch (error) {
@@ -673,6 +685,19 @@ exports.approveReturn = async (req, res) => {
     item.status = "Return Approved";
     item.returnStatus = "Approved";
     item.returnApprovedDate = new Date();
+    
+    // Check if this approval affects order-level status
+    const remainingActiveItems = order.items.filter(orderItem => 
+      orderItem.status === 'Active' && 
+      orderItem.returnStatus !== 'Pending' &&
+      orderItem._id.toString() !== item._id.toString()
+    );
+    
+    // If no other active items remain, update order status to Return Approved
+    if (remainingActiveItems.length === 0) {
+      order.orderStatus = 'Return Approved';
+      order.returnApprovedDate = new Date();
+    }
 
     // Process refund for non-COD orders
     if (
@@ -711,9 +736,8 @@ exports.approveReturn = async (req, res) => {
         await Product.findByIdAndUpdate(item.product._id, { $inc: { quantity: item.quantity } });
     }
 
-    // Recalculate coupon discount for remaining items after return approval
-    const { newCouponDiscount } = await recalculateOrderCoupon(order);
-    order.couponDiscount = newCouponDiscount;
+    // The coupon discount is already updated in the refund service
+    // No need to recalculate here as it's handled in processItemRefund
     
     await order.save();
     console.log('[APPROVE_RETURN] Return processed successfully');
@@ -745,11 +769,29 @@ exports.rejectReturn = async (req, res) => {
 
     item.status = "Delivered"; // Revert status
     item.returnStatus = "Rejected";
+    item.returnRejectedDate = new Date();
+    
+    // Check if this rejection affects order-level status
+    const pendingReturnItems = order.items.filter(orderItem => 
+      orderItem.returnStatus === 'Pending'
+    );
+    
+    // If no pending returns remain and order was in Return Requested status, revert to Delivered
+    if (pendingReturnItems.length === 0 && order.orderStatus === 'Return Requested') {
+      order.orderStatus = 'Delivered';
+      order.returnRejectedDate = new Date();
+    } else if (pendingReturnItems.length === 0) {
+      // If there were multiple items and this was the last pending return
+      const hasActiveItems = order.items.some(orderItem => 
+        orderItem.status === 'Active' || orderItem.status === 'Delivered'
+      );
+      if (hasActiveItems) {
+        order.orderStatus = 'Return Rejected';
+        order.returnRejectedDate = new Date();
+      }
+    }
 
-    // Recalculate coupon discount for remaining items after return rejection
-    const { newCouponDiscount } = await recalculateOrderCoupon(order);
-    order.couponDiscount = newCouponDiscount;
-
+    // Coupon discount recalculation is handled by refund service when needed
     await order.save();
 
     res.json({ success: true, message: "Return rejected." });
@@ -1172,15 +1214,65 @@ exports.downloadInvoice = async (req, res) => {
     // Summary - Calculate totals based on active items only
     const preTotal = activeItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
     
-    // Use the current coupon discount (already properly calculated for remaining items)
-    const currentCouponDiscount = order.couponDiscount || 0;
+    // Calculate proportional coupon discount for active items only
+    let proportionalCouponDiscount = 0;
+    const originalTotalCoupon = order.totalCoupon || 0;
     
-    const finalAmount = preTotal - currentCouponDiscount + (order.deliveryCharge || 0);
+    if (originalTotalCoupon > 0) {
+      // Calculate total order value (all items including cancelled/returned)
+      const totalOrderValue = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      
+      // Calculate active items ratio
+      const activeItemsRatio = totalOrderValue > 0 ? preTotal / totalOrderValue : 0;
+      
+      // Apply proportional coupon discount
+      proportionalCouponDiscount = originalTotalCoupon * activeItemsRatio;
+    }
+    
+    // Debug logging for coupon information
+    console.log('Invoice Debug - Proportional Coupon Calculation:', {
+      orderId: order._id,
+      originalTotalCoupon,
+      preTotal,
+      totalOrderValue: order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+      activeItemsRatio: order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0) > 0 ? preTotal / order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0) : 0,
+      proportionalCouponDiscount,
+      appliedCoupon: order.appliedCoupon
+    });
+    
+    const finalAmount = preTotal - proportionalCouponDiscount + (order.deliveryCharge || 0);
     
     doc.font('Helvetica').fontSize(10).text(`Total Amount: ₹${preTotal.toFixed(2)}`, tableLeft, y + 10, { width: widthSum, align: 'right' });
-    if (currentCouponDiscount > 0) {
-      doc.text(`Coupon Discount: ₹${currentCouponDiscount.toFixed(2)}`, { width: widthSum, align: 'right' });
+    
+    // Show detailed coupon information if applied
+    
+    if (proportionalCouponDiscount > 0 || (order.appliedCoupon && order.appliedCoupon.code)) {
+      if (order.appliedCoupon && order.appliedCoupon.code) {
+        // Show coupon code and discount details
+        doc.text(`Coupon Applied (${order.appliedCoupon.code}): -₹${proportionalCouponDiscount.toFixed(2)}`, { width: widthSum, align: 'right' });
+        
+        // Add coupon details in smaller text
+        let couponDetails = '';
+        if (order.appliedCoupon.discountType === 'percentage') {
+          couponDetails = `${order.appliedCoupon.discountValue}% discount`;
+          if (order.appliedCoupon.maxDiscount) {
+            couponDetails += ` (max ₹${order.appliedCoupon.maxDiscount})`;
+          }
+        } else if (order.appliedCoupon.discountType === 'fixed') {
+          couponDetails = `₹${order.appliedCoupon.discountValue} off`;
+        }
+        
+        if (couponDetails) {
+          doc.font('Helvetica').fontSize(8).fillColor('#666')
+             .text(`  ${couponDetails}`, { width: widthSum, align: 'right' });
+          doc.fillColor('black').fontSize(10);
+        }
+      } else if (proportionalCouponDiscount > 0) {
+        // Fallback to simple coupon discount display
+        doc.text(`Coupon Discount: -₹${proportionalCouponDiscount.toFixed(2)}`, { width: widthSum, align: 'right' });
+      }
     }
+    
     if (order.deliveryCharge > 0) {
       doc.text(`Delivery Charge: ₹${order.deliveryCharge.toFixed(2)}`, { width: widthSum, align: 'right' });
     }

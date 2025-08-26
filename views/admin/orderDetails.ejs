@@ -1,4 +1,5 @@
 <%- include('../partials/admin/header') %>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
 
 <!-- Main Content -->
 <main class="col-md-10 ms-sm-auto col-lg-10 px-md-4 mt-4">
@@ -19,6 +20,13 @@
           <p><strong>Date:</strong> <%= new Date(order.createdAt).toLocaleString('en-IN') %></p>
           <p><strong>Status:</strong> 
             <span class="badge <%= order.statusBadgeClass %>"><%= order.orderStatus %></span>
+            <% if (order.orderStatus === 'Return Requested') { %>
+              <br><small class="text-muted mt-1">Order-level return requested</small>
+            <% } else if (order.orderStatus === 'Return Approved') { %>
+              <br><small class="text-success mt-1">Order-level return approved</small>
+            <% } else if (order.orderStatus === 'Return Rejected') { %>
+              <br><small class="text-danger mt-1">Order-level return rejected</small>
+            <% } %>
           </p>
         </div>
         <div class="col-md-6">
@@ -82,15 +90,60 @@
                 <td>₹<%= (item.price * item.quantity).toFixed(2) %></td>
                 <td>
                   <% if (item.returnStatus && item.returnStatus !== 'None') { %>
-                    <span class="badge bg-warning text-dark"><%= item.returnStatus %></span>
+                    <% if (item.returnStatus === 'Pending') { %>
+                      <span class="badge bg-warning text-dark">Return Requested</span>
+                    <% } else if (item.returnStatus === 'Approved') { %>
+                      <span class="badge bg-success">Return Approved</span>
+                    <% } else if (item.returnStatus === 'Rejected') { %>
+                      <span class="badge bg-danger">Return Rejected</span>
+                    <% } else { %>
+                      <span class="badge bg-warning text-dark"><%= item.returnStatus %></span>
+                    <% } %>
+                  <% } else if (item.status === 'Cancelled') { %>
+                    <span class="badge bg-danger">Cancelled</span>
+                  <% } else if (item.status === 'Return Approved') { %>
+                    <span class="badge bg-success">Return Approved</span>
+                  <% } else if (item.status === 'Returned') { %>
+                    <span class="badge bg-info">Returned</span>
                   <% } else { %>
                     <span class="badge bg-info"><%= item.status %></span>
                   <% } %>
                 </td>
                 <td>
                   <% if (item.returnStatus === 'Pending') { %>
-                    <button class="btn btn-success btn-sm" onclick="handleReturn('<%= order._id %>', '<%= item._id %>', 'approve')">Approve</button>
-                    <button class="btn btn-danger btn-sm" onclick="handleReturn('<%= order._id %>', '<%= item._id %>', 'reject')">Reject</button>
+                    <div class="btn-group" role="group">
+                      <button class="btn btn-success btn-sm me-1" onclick="handleReturn('<%= order._id %>', '<%= item._id %>', 'approve')">
+                        <i class="bi bi-check-circle"></i> Approve
+                      </button>
+                      <button class="btn btn-danger btn-sm" onclick="handleReturn('<%= order._id %>', '<%= item._id %>', 'reject')">
+                        <i class="bi bi-x-circle"></i> Reject
+                      </button>
+                    </div>
+                    <% if (item.returnReason) { %>
+                      <div class="mt-1">
+                        <small class="text-muted">Reason: <%= item.returnReason %></small>
+                      </div>
+                    <% } %>
+                    <% 
+                      // Check if this is the last active item
+                      const otherActiveItems = order.items.filter(orderItem => 
+                        orderItem.status === 'Active' && 
+                        orderItem.returnStatus !== 'Pending' &&
+                        orderItem._id.toString() !== item._id.toString()
+                      );
+                    %>
+                    <% if (otherActiveItems.length === 0) { %>
+                      <div class="mt-1">
+                        <small class="text-warning"><i class="bi bi-exclamation-triangle"></i> Last item - will update order status</small>
+                      </div>
+                    <% } %>
+                  <% } else if (item.returnStatus === 'Approved' || item.returnStatus === 'Rejected') { %>
+                    <span class="badge bg-secondary">Processed</span>
+                    <% if (item.returnReason) { %>
+                      <div class="mt-1">
+                        <small class="text-muted">Reason: <%= item.returnReason %></small>
+                      </div>
+                    <% } %>
                   <% } else { %>
                     -
                   <% } %>

@@ -1103,6 +1103,7 @@ exports.processCheckout = async (req, res) => {
       shippingAddress: formattedAddress,
       subtotal: subtotal,
       couponDiscount: cart.couponDiscount || 0,
+      totalCoupon: cart.couponDiscount || 0, // Store original coupon amount
       couponCode: cart.appliedCoupon,
       deliveryCharge: deliveryCharge,
       total: total,

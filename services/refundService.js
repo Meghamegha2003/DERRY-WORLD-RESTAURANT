@@ -1,6 +1,6 @@
 const Razorpay = require('razorpay');
 const Wallet = require('../models/walletSchema');
-const { calculateItemCouponRefund } = require('../helpers/couponHelper');
+const { calculateItemRefund, calculateOrderRefund, validateRefundInputs } = require('./refundCalculationService');
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -17,16 +17,30 @@ async function processOrderRefund(order, reason = 'Cancellation') {
   try {
     console.log(`[REFUND_SERVICE] Processing ${reason.toLowerCase()} refund for order ${order._id}`);
     
-    // Calculate total refund amount
-    const orderSubtotal = order.items
-      .filter(item => item.status === 'Active' || reason === 'Cancellation')
-      .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    // Validate inputs
+    const validation = validateRefundInputs(order);
+    if (!validation.isValid) {
+      console.error('[REFUND_SERVICE] Validation failed:', validation.errors);
+      return {
+        success: false,
+        message: `Validation failed: ${validation.errors.join(', ')}`,
+        refundAmount: 0
+      };
+    }
+
+    // Use centralized calculation service
+    const refundCalculation = calculateOrderRefund(order, reason);
     
-    const couponDiscount = order.couponDiscount || 0;
-    const offerDiscount = order.offerDiscount || 0;
-    
-    // Net refund amount (what customer actually paid)
-    const totalRefundAmount = orderSubtotal - offerDiscount - couponDiscount;
+    if (refundCalculation.error) {
+      console.error('[REFUND_SERVICE] Calculation error:', refundCalculation.error);
+      return {
+        success: false,
+        message: `Calculation failed: ${refundCalculation.error}`,
+        refundAmount: 0
+      };
+    }
+
+    const { totalRefundAmount, orderSubtotal, couponDiscount, offerDiscount } = refundCalculation;
     
     console.log(`[REFUND_SERVICE] Refund calculation:`, {
       orderSubtotal,
@@ -114,16 +128,43 @@ async function processItemRefund(order, item, reason = 'Cancellation') {
   try {
     console.log(`[REFUND_SERVICE] Processing item ${reason.toLowerCase()} refund for item ${item._id}`);
     
-    // Calculate proportional coupon refund
-    const couponRefund = await calculateItemCouponRefund(order, item);
-    const itemTotal = item.price * item.quantity;
-    const itemRefundAmount = itemTotal - couponRefund.itemCouponDiscount;
+    // Validate inputs
+    const validation = validateRefundInputs(order, item);
+    if (!validation.isValid) {
+      console.error('[REFUND_SERVICE] Validation failed:', validation.errors);
+      return {
+        success: false,
+        message: `Validation failed: ${validation.errors.join(', ')}`,
+        refundAmount: 0
+      };
+    }
+
+    // Use centralized calculation service
+    const refundCalculation = calculateItemRefund(order, item);
+    
+    if (refundCalculation.error) {
+      console.error('[REFUND_SERVICE] Calculation error:', refundCalculation.error);
+      return {
+        success: false,
+        message: `Calculation failed: ${refundCalculation.error}`,
+        refundAmount: 0
+      };
+    }
+
+    const { 
+      itemTotal, 
+      itemCouponDiscount, 
+      refundAmount: itemRefundAmount, 
+      couponRatio, 
+      remainingCouponDiscount 
+    } = refundCalculation;
     
     console.log(`[REFUND_SERVICE] Item refund calculation:`, {
       itemTotal,
-      itemCouponDiscount: couponRefund.itemCouponDiscount,
+      itemCouponDiscount,
       itemRefundAmount,
-      couponRatio: couponRefund.itemCouponRatio
+      couponRatio,
+      calculationCheck: `${itemTotal} - ${itemCouponDiscount} = ${itemRefundAmount}`
     });
 
     if (itemRefundAmount <= 0) {
@@ -155,10 +196,10 @@ async function processItemRefund(order, item, reason = 'Cancellation') {
 
     // Update item and order refund tracking
     if (refundResult.success) {
-      // Update item refund details
+      // Store the actual refunded amount (after coupon deduction) in the item
       item.refundAmount = itemRefundAmount;
-      item.itemCouponDiscount = couponRefund.itemCouponDiscount;
-      item.couponRatio = couponRefund.itemCouponRatio;
+      item.itemCouponDiscount = itemCouponDiscount;
+      item.couponRatio = couponRatio;
       item.refundStatus = 'Completed';
       item.refundDate = new Date();
 
@@ -170,7 +211,7 @@ async function processItemRefund(order, item, reason = 'Cancellation') {
       }
 
       // Update remaining coupon discount
-      order.couponDiscount = couponRefund.remainingCouponDiscount;
+      order.couponDiscount = remainingCouponDiscount;
 
       // Add refund transaction
       order.refundTransactions.push({
@@ -272,7 +313,8 @@ async function processWalletRefund(userId, amount, order, reason, item = null) {
       finalAmount: Number(amount.toFixed(2)),
       originalAmount: item ? Number((item.price * item.quantity).toFixed(2)) : Number(amount.toFixed(2)),
       couponDiscount: item ? Number((item.itemCouponDiscount || 0).toFixed(2)) : Number((order.couponDiscount || 0).toFixed(2)),
-      couponRatio: item ? Number((item.couponRatio || 0).toFixed(2)) : 0,
+      couponRatio: item ? Number(((item.couponRatio || 0) * 100).toFixed(2)) : 0, // Convert to percentage
+      refundAmount: item ? Number((item.refundAmount || amount).toFixed(2)) : Number(amount.toFixed(2)), // Store actual refunded amount
       description: item 
         ? `${reason} refund for item in order #${order._id.toString().slice(-8).toUpperCase()}`
         : `${reason} refund for order #${order._id.toString().slice(-8).toUpperCase()}`,
@@ -281,6 +323,16 @@ async function processWalletRefund(userId, amount, order, reason, item = null) {
       status: 'completed',
       date: new Date()
     };
+
+    console.log('[WALLET_TRANSACTION_CREATE]', {
+      itemId: item ? item._id : 'N/A',
+      originalAmount: transaction.originalAmount,
+      couponDiscount: transaction.couponDiscount,
+      couponRatio: transaction.couponRatio,
+      refundAmount: transaction.amount,
+      itemCouponDiscount: item ? item.itemCouponDiscount : 'N/A',
+      itemCouponRatio: item ? item.couponRatio : 'N/A'
+    });
 
     wallet.transactions.push(transaction);
     await wallet.save();

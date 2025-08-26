@@ -143,6 +143,10 @@ const OrderSchema = new Schema({
     type: Number,
     default: 0
   },
+  totalCoupon: {
+    type: Number,
+    default: 0
+  },
   appliedCoupon: {
     code: String,
     discountType: String,
@@ -182,7 +186,16 @@ const OrderSchema = new Schema({
     default: Date.now
   },
   deliveryDate: Date,
+  deliveredDate: Date,
+  processingDate: Date,
+  shippedDate: Date,
   returnReason: { type: String }, // Reason for return at order level
+  returnRequestedDate: Date,
+  returnApprovedDate: Date,
+  returnRejectedDate: Date,
+  returnedDate: Date,
+  cancelledDate: Date,
+  cancellationReason: String,
 
   paymentMethod: {
     type: String,

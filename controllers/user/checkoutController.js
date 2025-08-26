@@ -202,6 +202,7 @@ exports.createOrder = async (user, cart, address, paymentMethod, total) => {
       paymentMethod,
       subtotal,
       couponDiscount: cart.couponDiscount || 0, // Always save couponDiscount from cart
+      totalCoupon: cart.couponDiscount || 0, // Store original coupon amount
       deliveryCharge,
       total: orderTotal,
       orderStatus: ORDER_STATUS.PENDING,

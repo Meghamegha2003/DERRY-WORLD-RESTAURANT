@@ -271,6 +271,7 @@ exports.createRazorpayOrder = async (req, res) => {
                     orderStatus: 'Pending',
                     subtotal: subtotal,
                     couponDiscount: couponDiscount,
+                    totalCoupon: couponDiscount, // Store original coupon amount
                     couponCode: cart.couponCode || cart.appliedCoupon?.code,
                     offerDiscount: offerDiscount,
                     deliveryCharge: deliveryCharge,
@@ -893,6 +894,7 @@ exports.processWalletPayment = async (req, res) => {
                 orderStatus: 'Pending', // Changed from 'Processing' to 'Pending' to match online payment flow
                 subtotal,
                 couponDiscount: couponDiscount || 0,
+                totalCoupon: couponDiscount || 0, // Store original coupon amount
                 offerDiscount: offerDiscount || 0,
                 deliveryCharge: deliveryCharge || 0,
                 total,
