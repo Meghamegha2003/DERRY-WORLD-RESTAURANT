@@ -7,7 +7,12 @@ exports.getCartCount = async (userId) => {
     try {
         const cart = await Cart.findOne({ user: userId });
         if (!cart || !cart.items) return 0;
-        return cart.items.length;
+        // Count unique products, not total quantities
+        return new Set(
+            cart.items
+                .filter(item => item && item.product)
+                .map(item => item.product.toString())
+        ).size;
     } catch (error) {
         console.error('Error getting cart count:', error);
         return 0;

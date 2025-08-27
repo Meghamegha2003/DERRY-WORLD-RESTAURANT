@@ -65,7 +65,12 @@ const handleLoginError = (req, res, message, redirectUrl = '/login', errorType =
 const getCartCount = async (userId) => {
   try {
     const cart = await Cart.findOne({ user: userId });
-    return cart?.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+    // Count unique products, not total quantities
+    return cart?.items ? new Set(
+      cart.items
+        .filter(item => item && item.product)
+        .map(item => item.product.toString())
+    ).size : 0;
   } catch (error) {
     console.error("Error in getCartCount:", error);
     return 0;
@@ -1762,7 +1767,12 @@ exports.getCartCount = async (userId) => {
   try {
     const cart = await Cart.findOne({ user: userId });
     if (!cart || !cart.items) return 0;
-    return cart.items.length;
+    // Count unique products, not total quantities
+    return new Set(
+      cart.items
+        .filter(item => item && item.product)
+        .map(item => item.product.toString())
+    ).size;
   } catch (error) {
     console.error('Error getting cart count:', error);
     return 0;

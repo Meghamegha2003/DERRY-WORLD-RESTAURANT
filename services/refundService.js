@@ -164,7 +164,11 @@ async function processItemRefund(order, item, reason = 'Cancellation') {
       itemCouponDiscount,
       itemRefundAmount,
       couponRatio,
-      calculationCheck: `${itemTotal} - ${itemCouponDiscount} = ${itemRefundAmount}`
+      calculationCheck: `${itemTotal} - ${itemCouponDiscount} = ${itemRefundAmount}`,
+      orderHasCoupon: !!(order.totalCoupon || order.couponDiscount || order.appliedCoupon),
+      orderTotalCoupon: order.totalCoupon,
+      orderCouponDiscount: order.couponDiscount,
+      appliedCoupon: order.appliedCoupon
     });
 
     if (itemRefundAmount <= 0) {
@@ -306,15 +310,32 @@ async function processWalletRefund(userId, amount, order, reason, item = null) {
     const previousBalance = wallet.balance;
     wallet.balance += amount;
 
-    // Create transaction record
+    // Create transaction record with coupon breakdown
+    let originalAmount = item ? Number((item.price * item.quantity).toFixed(2)) : Number(amount.toFixed(2));
+    let couponDiscount = 0;
+    let couponRatio = 0;
+    
+    if (item) {
+      // Use stored coupon data from refund calculation
+      couponDiscount = Number((item.itemCouponDiscount || 0).toFixed(2));
+      couponRatio = Number(((item.couponRatio || 0) * 100).toFixed(2));
+      
+      // If no stored coupon data but we have a difference, calculate it
+      if (couponDiscount === 0 && originalAmount > amount) {
+        couponDiscount = Number((originalAmount - amount).toFixed(2));
+        couponRatio = Number(((couponDiscount / originalAmount) * 100).toFixed(2));
+        console.log('[WALLET_REFUND] Calculated coupon data:', { couponDiscount, couponRatio });
+      }
+    }
+    
     const transaction = {
       type: 'refund',
       amount: Number(amount.toFixed(2)),
       finalAmount: Number(amount.toFixed(2)),
-      originalAmount: item ? Number((item.price * item.quantity).toFixed(2)) : Number(amount.toFixed(2)),
-      couponDiscount: item ? Number((item.itemCouponDiscount || 0).toFixed(2)) : Number((order.couponDiscount || 0).toFixed(2)),
-      couponRatio: item ? Number(((item.couponRatio || 0) * 100).toFixed(2)) : 0, // Convert to percentage
-      refundAmount: item ? Number((item.refundAmount || amount).toFixed(2)) : Number(amount.toFixed(2)), // Store actual refunded amount
+      originalAmount: originalAmount,
+      couponDiscount: couponDiscount,
+      couponRatio: couponRatio,
+      refundAmount: Number(amount.toFixed(2)),
       description: item 
         ? `${reason} refund for item in order #${order._id.toString().slice(-8).toUpperCase()}`
         : `${reason} refund for order #${order._id.toString().slice(-8).toUpperCase()}`,

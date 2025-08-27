@@ -89,7 +89,12 @@ const auth = async (req, res, next) => {
 
         try {
             const cart = await Cart.findOne({ user: result.user._id });
-            req.cartCount = cart?.items?.reduce((total, item) => total + (item.quantity || 0), 0) || 0;
+            // Count unique products, not total quantities
+            req.cartCount = cart?.items ? new Set(
+                cart.items
+                    .filter(item => item && item.product)
+                    .map(item => item.product.toString())
+            ).size : 0;
         } catch (error) {
             req.cartCount = 0;
         }
@@ -193,7 +198,12 @@ const optionalAuth = async (req, res, next) => {
                 
                 try {
                     const cart = await Cart.findOne({ user: result.user._id });
-                    req.cartCount = cart?.items?.reduce((total, item) => total + (item.quantity || 0), 0) || 0;
+                    // Count unique products, not total quantities
+                    req.cartCount = cart?.items ? new Set(
+                        cart.items
+                            .filter(item => item && item.product)
+                            .map(item => item.product.toString())
+                    ).size : 0;
                 } catch (error) {
                     req.cartCount = 0;
                 }

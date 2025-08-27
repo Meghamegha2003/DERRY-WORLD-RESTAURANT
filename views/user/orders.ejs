@@ -452,8 +452,52 @@
                         item.status !== 'Return Approved'
                     );
                     const currentItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                    const currentCouponDiscount = order.couponDiscount || 0;
-                    const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
+                    
+                    // Calculate coupon discount using same logic as orderDetails.ejs
+                    let displayCouponDiscount = 0;
+                    const safeCurrentItemsTotal = isNaN(currentItemsTotal) ? 0 : currentItemsTotal;
+                    const totalOrderValue = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                    const totalCouponFromItems = order.items.reduce((sum, item) => sum + (item.itemCouponDiscount || 0), 0);
+                    
+                    // Priority 1: Show original total coupon if available (for orders with no cancellations/returns)
+                    if (order.totalCoupon && !isNaN(order.totalCoupon) && order.totalCoupon > 0) {
+                        const hasCancelledOrReturned = order.items.some(item => 
+                            item.status === 'Cancelled' || item.status === 'Returned' || item.status === 'Return Approved'
+                        );
+                        
+                        if (!hasCancelledOrReturned) {
+                            displayCouponDiscount = order.totalCoupon;
+                        } else {
+                            displayCouponDiscount = (safeCurrentItemsTotal / totalOrderValue) * order.totalCoupon;
+                        }
+                    }
+                    // Priority 2: Use current coupon discount (for orders after recalculation)
+                    else if (order.couponDiscount && !isNaN(order.couponDiscount) && order.couponDiscount > 0) {
+                        displayCouponDiscount = order.couponDiscount;
+                    }
+                    // Priority 3: Calculate from appliedCoupon data
+                    else if (order.appliedCoupon && order.appliedCoupon.code && safeCurrentItemsTotal > 0) {
+                        const discountValue = parseFloat(order.appliedCoupon.discountValue) || 0;
+                        if (discountValue > 0) {
+                            if (order.appliedCoupon.discountType === 'percentage') {
+                                const percentageDiscount = (safeCurrentItemsTotal * discountValue) / 100;
+                                const maxDiscount = parseFloat(order.appliedCoupon.maxDiscount) || Infinity;
+                                displayCouponDiscount = Math.min(percentageDiscount, maxDiscount, safeCurrentItemsTotal);
+                            } else {
+                                displayCouponDiscount = Math.min(discountValue, safeCurrentItemsTotal);
+                            }
+                        }
+                    }
+                    // Priority 4: Reconstruct from cancelled items coupon data
+                    else if (totalCouponFromItems > 0 && totalOrderValue > 0 && safeCurrentItemsTotal > 0) {
+                        const originalCouponRate = totalCouponFromItems / (totalOrderValue - safeCurrentItemsTotal);
+                        displayCouponDiscount = originalCouponRate * safeCurrentItemsTotal;
+                    }
+                    
+                    // Ensure displayCouponDiscount is valid and doesn't exceed current items total
+                    displayCouponDiscount = isNaN(displayCouponDiscount) ? 0 : Math.max(0, Math.min(displayCouponDiscount, safeCurrentItemsTotal));
+                    
+                    const currentBalance = currentItemsTotal - displayCouponDiscount + (order.deliveryCharge || 0);
                 %>
                 <div class="fw-bold text-primary">₹<%= currentBalance.toFixed(2) %></div>
             </div>

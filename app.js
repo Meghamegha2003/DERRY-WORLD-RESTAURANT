@@ -45,6 +45,7 @@ app.use((req, res, next) => {
 });
 
 // Static files with cache control
+app.use(express.static(path.join(__dirname, 'public')));
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 

@@ -89,6 +89,17 @@ function calculateItemRefund(order, item) {
     console.log('[REFUND_CALC] Final coupon calculation', {
       totalCouponAmount,
       totalOrderValue,
+      itemTotal,
+      orderTotalCoupon: order.totalCoupon,
+      orderCouponDiscount: order.couponDiscount,
+      appliedCouponCode: order.appliedCoupon?.code,
+      appliedCouponType: order.appliedCoupon?.discountType,
+      appliedCouponValue: order.appliedCoupon?.discountValue
+    });
+    
+    console.log('[REFUND_CALC] Detailed coupon source check', {
+      totalCouponAmount,
+      totalOrderValue,
       itemTotal
     });
 

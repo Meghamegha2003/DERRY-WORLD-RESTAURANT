@@ -346,34 +346,27 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  // Make product images clickable
   document.querySelectorAll(".food-item-image").forEach((img) => {
     img.addEventListener("click", function () {
       const productId = this.dataset.productId;
       
-      // Check if user is authenticated before navigating
       <% if (user) { %>
-        // User is authenticated, navigate to food details
         window.location.href = `/food/${productId}`;
       <% } else { %>
-        // User is not authenticated, redirect to login
         window.location.href = '/login';
       <% } %>
     });
     img.style.cursor = "pointer";
   });
 
-  // Show SweetAlert on successful login
   document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const loginStatus = urlParams.get('login');
     
     if (loginStatus === 'success') {
-      // Remove the login parameter from URL without page reload
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
       
-      // Show success message
       Swal.fire({
         title: 'Login Successful!',
         text: 'Welcome back to Derry World!',

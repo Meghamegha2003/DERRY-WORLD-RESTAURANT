@@ -3,6 +3,7 @@ const Wallet = require('../../models/walletSchema');
 const Cart = require('../../models/cartSchema');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
+const { getBestOffer } = require('../../helpers/offerHelper');
 
 // Initialize Razorpay
 let razorpay;
@@ -137,6 +138,7 @@ exports.verifyAndAddMoney = async function(req, res) {
         wallet.transactions.push({
             type: 'credit',
             amount: amountValue,
+            originalAmount: amountValue,
             finalAmount: amountValue,
             description: 'Wallet top-up',
             status: 'completed',
@@ -188,14 +190,18 @@ exports.getWallet = async function(req, res) {
             });
         }
         
-        // Get user's cart count for the header
+        // Get user's cart count for the header (count unique products, not quantities)
         const cart = await Cart.findOne({ user: userId });
-        const cartCount = cart ? cart.items.length : 0;
+        const cartCount = cart?.items ? new Set(
+            cart.items
+                .filter(item => item && item.product)
+                .map(item => item.product.toString())
+        ).size : 0;
         
         // Add referral information
         const referral = {
-            referrerBonus: 100,  // ₹100 for referrer
-            referredBonus: 50,   // ₹50 for referred friend
+            referrerBonus: 100, 
+            referredBonus: 50,  
             count: wallet.referralCount || 0,
             code: req.user.referralCode || '',
             earnings: wallet ? wallet.referralEarnings || 0 : 0
@@ -307,6 +313,8 @@ exports.processReferralReward = async function(referrerId, referredId) {
                 transactions: [{
                     type: 'credit',
                     amount: referrerBonus,
+                    originalAmount: referrerBonus,
+                    finalAmount: referrerBonus,
                     description: 'Referral bonus - Thank you for referring a friend!',
                     status: 'completed',
                     offerDiscount: 0,
@@ -317,7 +325,7 @@ exports.processReferralReward = async function(referrerId, referredId) {
             referrerWallet.balance += referrerBonus;
             // Add transaction to wallet with order details
             referrerWallet.transactions.push({
-                type: 'debit',
+                type: 'credit',
                 amount: referrerBonus, // Original order total before discounts
                 finalAmount: referrerBonus, // Final amount after all discounts
                 originalAmount: referrerBonus, // Keep original amount for reference
@@ -345,6 +353,8 @@ exports.processReferralReward = async function(referrerId, referredId) {
                 transactions: [{
                     type: 'credit',
                     amount: referredBonus,
+                    originalAmount: referredBonus,
+                    finalAmount: referredBonus,
                     description: 'Welcome bonus for joining via referral!',
                     status: 'completed',
                     offerDiscount: 0,
@@ -355,7 +365,7 @@ exports.processReferralReward = async function(referrerId, referredId) {
             referredWallet.balance += referredBonus;
             // Add transaction to wallet with order details
             referredWallet.transactions.push({
-                type: 'debit',
+                type: 'credit',
                 amount: referredBonus, // Original order total before discounts
                 finalAmount: referredBonus, // Final amount after all discounts
                 originalAmount: referredBonus, // Keep original amount for reference

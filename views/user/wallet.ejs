@@ -161,7 +161,7 @@
                                                                     transaction.description.toLowerCase().includes('bonus')
                                                                   ));
                                                     
-                                                    const isDebit = !isCredit && transaction.type !== 'refund';
+                                                    const isDebit = transaction.type === 'debit' || (!isCredit && transaction.type !== 'refund');
                                                     
                                                     // Check if this is a refund transaction
                                                     const isRefundTransaction = transaction.type === 'refund' || (isCredit && (
@@ -174,7 +174,7 @@
                                                     
                                                     
                                                     // Get the original amount (before any discounts)
-                                                    const originalAmount = transaction.originalAmount || transaction.amount || 0;
+                                                    let originalAmount = transaction.originalAmount || transaction.amount || 0;
                                                     
                                                     // Calculate final amount - for refunds, amount is already final
                                                     let finalAmount;
@@ -182,25 +182,50 @@
                                                         // For refunds, transaction.amount is already the net refunded amount
                                                         finalAmount = transaction.amount || 0;
                                                     } else {
-                                                        // For regular transactions, apply discounts
-                                                        finalAmount = transaction.finalAmount || 
-                                                                    (transaction.amount || 0) - 
-                                                                    (transaction.offerDiscount || 0) - 
-                                                                    (transaction.couponDiscount || 0);
+                                                        // For regular transactions, use finalAmount if available, otherwise use amount
+                                                        finalAmount = transaction.finalAmount || transaction.amount || 0;
+                                                        
+                                                        // For older transactions where originalAmount is 0, use amount as both
+                                                        if (originalAmount === 0 && transaction.amount > 0) {
+                                                            originalAmount = transaction.amount;
+                                                            finalAmount = transaction.amount;
+                                                        }
                                                     }
                                                     
                                                     const showOriginalAmount = (transaction.offerDiscount > 0 || transaction.couponDiscount > 0) && isDebit;
+                                                    
+                                                    // Debug: Log transaction data to see what's available
+                                                    console.log('[WALLET_DEBUG] Transaction data:', {
+                                                        type: transaction.type,
+                                                        isDebit: isDebit,
+                                                        isRefundTransaction: isRefundTransaction,
+                                                        originalAmount: transaction.originalAmount,
+                                                        amount: transaction.amount,
+                                                        finalAmount: transaction.finalAmount,
+                                                        offerDiscount: transaction.offerDiscount,
+                                                        couponDiscount: transaction.couponDiscount,
+                                                        description: transaction.description
+                                                    });
                                                 %>
                                                 <td class="<%= isCredit ? 'text-success' : 'text-danger' %>">
                                                     <% if (isRefundTransaction) { %>
                                                         <!-- Refund transaction with breakdown - data from refundCalculationService -->
                                                         <div class="refund-breakdown">
                                                             <% 
-                                                                // Use data calculated by refundCalculationService and stored in transaction
+                                                                // Use refundService.js data structure - matches processWalletRefund transaction creation
                                                                 const itemAmount = transaction.originalAmount || 0;
                                                                 const couponDeduction = transaction.couponDiscount || 0;
-                                                                const couponPercentage = transaction.couponRatio || 0;
+                                                                const couponPercentage = transaction.couponRatio || 0; // Stored as percentage by refundService
                                                                 const actualRefundAmount = transaction.finalAmount || transaction.amount || 0;
+                                                                
+                                                                // Debug: Log refundService data structure
+                                                                console.log('[WALLET_DISPLAY] RefundService data:', {
+                                                                    originalAmount: itemAmount,
+                                                                    couponDiscount: couponDeduction,
+                                                                    couponRatio: couponPercentage,
+                                                                    finalAmount: actualRefundAmount,
+                                                                    calculationCheck: `${itemAmount} - ${couponDeduction} = ${itemAmount - couponDeduction}`
+                                                                });
                                                             %>
                                                             <div class="fw-bold">
                                                                 <%= isCredit ? '+' : '' %>₹<%= Math.abs(actualRefundAmount).toFixed(2) %>
@@ -243,6 +268,13 @@
                                                         <% if (transaction.couponDiscount > 0 && !isRefundTransaction) { %>
                                                             <div class="text-primary small">
                                                                 <i class="fas fa-ticket-alt me-1"></i>Coupon: -₹<%= transaction.couponDiscount.toFixed(2) %>
+                                                            </div>
+                                                        <% } %>
+                                                        
+                                                        <% // For older transactions without proper discount data, try to reconstruct from order %>
+                                                        <% if (!isRefundTransaction && isDebit && transaction.orderId && !transaction.couponDiscount && !transaction.offerDiscount) { %>
+                                                            <div class="text-muted small mt-1">
+                                                                <i class="fas fa-info-circle me-1"></i>Legacy transaction - discount details not available
                                                             </div>
                                                         <% } %>
                                                     <% } %>

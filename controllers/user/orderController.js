@@ -8,8 +8,9 @@ const User = require("../../models/userSchema");
 const Product = require("../../models/productSchema");
 const Wallet = require("../../models/walletSchema");
 const { getBestOffer } = require("../../helpers/offerHelper");
-// Removed recalculateOrderCoupon - now handled by refundCalculationService
 const { processOrderRefund, processItemRefund } = require("../../services/refundService");
+const { calculateItemCouponRefund } = require("../../helpers/couponHelper");
+const Coupon = require("../../models/couponSchema");
 const PDFDocument = require("pdfkit");
 
 const Razorpay = require("razorpay");
@@ -107,7 +108,40 @@ exports.getUserOrders = async (req, res) => {
               : 0;
           return sum + itemDiscount;
         }, 0);
-        const couponDiscount = orderObj.couponDiscount || 0;
+        // Calculate coupon discount with same logic as orderDetails
+        let couponDiscount = 0;
+        if (orderObj.appliedCoupon && orderObj.appliedCoupon.code) {
+          const subtotalAfterOffers = items.reduce(
+            (sum, item) => sum + item.price * item.quantity,
+            0
+          );
+          
+          // If discountValue is missing, look up the coupon from database
+          if (!orderObj.appliedCoupon.discountValue && orderObj.appliedCoupon.couponId) {
+            try {
+              const couponFromDB = await Coupon.findById(orderObj.appliedCoupon.couponId);
+              if (couponFromDB) {
+                orderObj.appliedCoupon.discountValue = couponFromDB.discountValue;
+                orderObj.appliedCoupon.maxDiscount = couponFromDB.maxDiscount;
+                orderObj.appliedCoupon.minPurchase = couponFromDB.minPurchase;
+              }
+            } catch (error) {
+              console.error('Error fetching coupon details for orders list:', error);
+            }
+          }
+          
+          if (orderObj.appliedCoupon.discountValue) {
+            if (orderObj.appliedCoupon.discountType === 'percentage') {
+              const percentageDiscount = (subtotalAfterOffers * orderObj.appliedCoupon.discountValue) / 100;
+              const maxDiscount = orderObj.appliedCoupon.maxDiscount || Infinity;
+              couponDiscount = Math.min(percentageDiscount, maxDiscount);
+            } else {
+              couponDiscount = Math.min(orderObj.appliedCoupon.discountValue, subtotalAfterOffers);
+            }
+          }
+        } else {
+          couponDiscount = orderObj.couponDiscount || 0;
+        }
         const deliveryCharge = orderObj.deliveryCharge || 0;
         const totalSavings = productDiscount + couponDiscount;
         const total = Math.max(0, subtotal - couponDiscount + deliveryCharge);
@@ -257,7 +291,40 @@ exports.getOrderDetails = async (req, res) => {
           : 0;
       return sum + itemDiscount;
     }, 0);
-    const couponDiscount = processedOrder.couponDiscount || 0;
+    // Calculate coupon discount using helper function for consistency
+    let couponDiscount = 0;
+    if (processedOrder.appliedCoupon && processedOrder.appliedCoupon.code) {
+      const subtotalAfterOffers = processedOrder.items.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
+      
+      // If discountValue is missing, look up the coupon from database
+      if (!processedOrder.appliedCoupon.discountValue && processedOrder.appliedCoupon.couponId) {
+        try {
+          const couponFromDB = await Coupon.findById(processedOrder.appliedCoupon.couponId);
+          if (couponFromDB) {
+            processedOrder.appliedCoupon.discountValue = couponFromDB.discountValue;
+            processedOrder.appliedCoupon.maxDiscount = couponFromDB.maxDiscount;
+            processedOrder.appliedCoupon.minPurchase = couponFromDB.minPurchase;
+          }
+        } catch (error) {
+          console.error('Error fetching coupon details:', error);
+        }
+      }
+      
+      if (processedOrder.appliedCoupon.discountValue) {
+        if (processedOrder.appliedCoupon.discountType === 'percentage') {
+          const percentageDiscount = (subtotalAfterOffers * processedOrder.appliedCoupon.discountValue) / 100;
+          const maxDiscount = processedOrder.appliedCoupon.maxDiscount || Infinity;
+          couponDiscount = Math.min(percentageDiscount, maxDiscount);
+        } else {
+          couponDiscount = Math.min(processedOrder.appliedCoupon.discountValue, subtotalAfterOffers);
+        }
+      }
+    } else {
+      couponDiscount = processedOrder.couponDiscount || 0;
+    }
     const deliveryCharge = processedOrder.deliveryCharge || 0;
     const totalSavings = productDiscount + couponDiscount;
     const total = Math.max(
@@ -958,7 +1025,6 @@ exports.requestReturn = async (req, res) => {
       });
     }
 
-    // Check if return period is valid \
     const deliveryDate = order.deliveryDate;
     const returnPeriod = 7 * 24 * 60 * 60 * 1000; 
 
@@ -995,7 +1061,6 @@ exports.requestReturn = async (req, res) => {
       item.returnReason = reason;
     });
 
-    // Add order rating if provided
     if (rating && rating >= 1 && rating <= 5) {
       order.orderRating = {
         value: rating,
@@ -1004,7 +1069,6 @@ exports.requestReturn = async (req, res) => {
       };
     }
 
-    // Add status history
     if (!order.statusHistory) {
       order.statusHistory = [];
     }
@@ -1025,7 +1089,6 @@ exports.requestReturn = async (req, res) => {
   } catch (error) {
     console.error("Error requesting return:", error);
 
-    // Send more specific error message for validation errors
     if (error.name === "ValidationError") {
       return res.status(400).json({
         success: false,
@@ -1091,7 +1154,7 @@ exports.initiateRetryPayment = async (req, res) => {
       (order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
       - (order.couponDiscount || 0)
       + (order.deliveryCharge || 0)) * 100
-    ); // in paise
+    ); 
 
     const razorpayOrder = await razorpay.orders.create({
       amount,
@@ -1132,17 +1195,13 @@ exports.downloadInvoice = async (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename=invoice_${orderId}.pdf`);
     doc.pipe(res);
 
-    // Draw page border
     const { width, height } = doc.page;
-    // Draw border inside margins
     const { top, bottom, left, right } = doc.page.margins;
     doc.strokeColor('black').lineWidth(2)
        .rect(left, top, width - left - right, height - top - bottom)
        .stroke();
-    // Move header down inside border
     doc.y = top + 20;
 
-    // Header
     const headerWidth = width - left - right - 20;
     doc.fillColor('#ffc107').font('Helvetica-Bold').fontSize(20)
        .text(sellerName, { align: 'center' });
@@ -1190,7 +1249,6 @@ exports.downloadInvoice = async (req, res) => {
     // Filter only active items for invoice
     const activeItems = order.items.filter(item => item.status === 'Active');
 
-    // Grid lines
     for (let i = 0; i < activeItems.length + 1; i++) {
       doc.strokeColor('#ccc').lineWidth(0.5).moveTo(tableLeft, tableTop + (i + 1) * rowHeight).lineTo(tableLeft + widthSum, tableTop + (i + 1) * rowHeight).stroke();
     }
@@ -1214,52 +1272,55 @@ exports.downloadInvoice = async (req, res) => {
     // Summary - Calculate totals based on active items only
     const preTotal = activeItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
     
-    // Calculate proportional coupon discount for active items only
-    let proportionalCouponDiscount = 0;
-    const originalTotalCoupon = order.totalCoupon || 0;
-    
-    if (originalTotalCoupon > 0) {
-      // Calculate total order value (all items including cancelled/returned)
-      const totalOrderValue = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    // Calculate coupon discount with same logic as orderDetails
+    let currentCouponDiscount = 0;
+    if (order.appliedCoupon && order.appliedCoupon.code) {
+      // If discountValue is missing, look up the coupon from database
+      if (!order.appliedCoupon.discountValue && order.appliedCoupon.couponId) {
+        try {
+          const couponFromDB = await Coupon.findById(order.appliedCoupon.couponId);
+          if (couponFromDB) {
+            order.appliedCoupon.discountValue = couponFromDB.discountValue;
+            order.appliedCoupon.maxDiscount = couponFromDB.maxDiscount;
+            order.appliedCoupon.minPurchase = couponFromDB.minPurchase;
+          }
+        } catch (error) {
+          console.error('Error fetching coupon details for invoice:', error);
+        }
+      }
       
-      // Calculate active items ratio
-      const activeItemsRatio = totalOrderValue > 0 ? preTotal / totalOrderValue : 0;
-      
-      // Apply proportional coupon discount
-      proportionalCouponDiscount = originalTotalCoupon * activeItemsRatio;
+      if (order.appliedCoupon.discountValue) {
+        if (order.appliedCoupon.discountType === 'percentage') {
+          const percentageDiscount = (preTotal * order.appliedCoupon.discountValue) / 100;
+          const maxDiscount = order.appliedCoupon.maxDiscount || Infinity;
+          currentCouponDiscount = Math.min(percentageDiscount, maxDiscount);
+        } else {
+          currentCouponDiscount = Math.min(order.appliedCoupon.discountValue, preTotal);
+        }
+      }
+    } else {
+      currentCouponDiscount = order.couponDiscount || 0;
     }
     
-    // Debug logging for coupon information
-    console.log('Invoice Debug - Proportional Coupon Calculation:', {
-      orderId: order._id,
-      originalTotalCoupon,
-      preTotal,
-      totalOrderValue: order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-      activeItemsRatio: order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0) > 0 ? preTotal / order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0) : 0,
-      proportionalCouponDiscount,
-      appliedCoupon: order.appliedCoupon
-    });
     
-    const finalAmount = preTotal - proportionalCouponDiscount + (order.deliveryCharge || 0);
+    const finalAmount = preTotal - currentCouponDiscount + (order.deliveryCharge || 0);
     
     doc.font('Helvetica').fontSize(10).text(`Total Amount: ₹${preTotal.toFixed(2)}`, tableLeft, y + 10, { width: widthSum, align: 'right' });
     
     // Show detailed coupon information if applied
     
-    if (proportionalCouponDiscount > 0 || (order.appliedCoupon && order.appliedCoupon.code)) {
+    if (currentCouponDiscount > 0) {
       if (order.appliedCoupon && order.appliedCoupon.code) {
         // Show coupon code and discount details
-        doc.text(`Coupon Applied (${order.appliedCoupon.code}): -₹${proportionalCouponDiscount.toFixed(2)}`, { width: widthSum, align: 'right' });
+        doc.text(`Coupon Applied (${order.appliedCoupon.code}): -₹${currentCouponDiscount.toFixed(2)}`, { width: widthSum, align: 'right' });
         
-        // Add coupon details in smaller text
+        // Add coupon details in smaller text - only for percentage discounts
         let couponDetails = '';
-        if (order.appliedCoupon.discountType === 'percentage') {
+        if (order.appliedCoupon.discountType && order.appliedCoupon.discountValue && order.appliedCoupon.discountType === 'percentage') {
           couponDetails = `${order.appliedCoupon.discountValue}% discount`;
-          if (order.appliedCoupon.maxDiscount) {
+          if (order.appliedCoupon.maxDiscount && order.appliedCoupon.maxDiscount > 0) {
             couponDetails += ` (max ₹${order.appliedCoupon.maxDiscount})`;
           }
-        } else if (order.appliedCoupon.discountType === 'fixed') {
-          couponDetails = `₹${order.appliedCoupon.discountValue} off`;
         }
         
         if (couponDetails) {
@@ -1267,9 +1328,9 @@ exports.downloadInvoice = async (req, res) => {
              .text(`  ${couponDetails}`, { width: widthSum, align: 'right' });
           doc.fillColor('black').fontSize(10);
         }
-      } else if (proportionalCouponDiscount > 0) {
+      } else {
         // Fallback to simple coupon discount display
-        doc.text(`Coupon Discount: -₹${proportionalCouponDiscount.toFixed(2)}`, { width: widthSum, align: 'right' });
+        doc.text(`Coupon Discount: -₹${currentCouponDiscount.toFixed(2)}`, { width: widthSum, align: 'right' });
       }
     }
     

@@ -7,11 +7,11 @@
     <% if (locals.user) { %>
     <meta name="user-id" content="<%= user._id %>" />
     <% } %>
-    <link rel="shortcut icon" href="/images/favicon.png" type="" />
+    <link rel="shortcut icon" href="/public/images/favicon.png" type="" />
     
     <title>Derry World</title>
 
-    <link rel="stylesheet" type="text/css" href="/css/bootstrap.css" />
+    <link rel="stylesheet" type="text/css" href="/public/css/bootstrap.css" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css"
@@ -21,8 +21,8 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/jquery-nice-select/1.1.0/css/nice-select.min.css"
     />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link href="/css/style.css" rel="stylesheet" />
-    <link href="/css/responsive.css" rel="stylesheet" />
+    <link href="/public/css/style.css" rel="stylesheet" />
+    <link href="/public/css/responsive.css" rel="stylesheet" />
     
     <!-- jQuery first -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -184,7 +184,7 @@
   <body class="<%= locals.path === '/' ? '' : 'sub_page' %>">
     <div class="hero_area">
       <div class="bg-box">
-        <img src="images/hero-bg.jpg" alt="">
+        <img src="/public/images/hero-bg.jpg" alt="">
       </div>
       <header class="header_section">
         <div class="container">
