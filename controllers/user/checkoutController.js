@@ -212,8 +212,12 @@ exports.createOrder = async (user, cart, address, paymentMethod, total) => {
         maxDiscount: cart.appliedCoupon.maxDiscount,
         couponId: cart.appliedCoupon.couponId,
       };
+      
+      // Update coupon calculations using new system
+      const { updateOrderCouponCalculations } = require('../../helpers/couponHelper');
+      const coupon = await Coupon.findById(cart.appliedCoupon.couponId);
+      await updateOrderCouponCalculations(order, coupon);
     }
-    order.couponDiscount = cart.couponDiscount || 0;
 
     await order.save();
     for (const item of orderItems) {
@@ -394,31 +398,11 @@ exports.processCheckout = async (req, res) => {
               "Insufficient wallet balance. Please add money to your wallet to complete the purchase.",
           });
         }
-        // Calculate offer discounts for wallet transaction
-        let totalOfferDiscount = 0;
-        let originalAmount = 0;
-        
-        for (const item of cart.items) {
-          const product = item.product;
-          const bestOffer = await getBestOffer(product);
-          const regularPrice = product.regularPrice || 0;
-          const finalPrice = bestOffer.finalPrice || regularPrice;
-          const itemOfferDiscount = bestOffer.hasOffer ? (regularPrice - finalPrice) * item.quantity : 0;
-          
-          totalOfferDiscount += itemOfferDiscount;
-          originalAmount += regularPrice * item.quantity;
-        }
-        
         wallet.balance -= total;
         wallet.transactions.push({
           type: "debit",
           amount: total,
-          originalAmount: originalAmount,
-          finalAmount: total,
-          offerDiscount: totalOfferDiscount,
-          couponDiscount: cart.couponDiscount || 0,
-          description: `Order payment #${Date.now()}`,
-          orderId: null,
+          description: `Order payment #${wallet._id}`,
           date: new Date(),
           status: "completed",
         });
@@ -430,12 +414,6 @@ exports.processCheckout = async (req, res) => {
           "wallet",
           total
         );
-        
-        // Update the wallet transaction with the actual order ID
-        const lastTransaction = wallet.transactions[wallet.transactions.length - 1];
-        lastTransaction.orderId = walletOrder._id;
-        lastTransaction.description = `Order payment #${walletOrder._id.toString().slice(-8).toUpperCase()}`;
-        await wallet.save();
 
         return res.json({
           success: true,

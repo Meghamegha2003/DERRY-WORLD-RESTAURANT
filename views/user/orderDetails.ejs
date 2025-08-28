@@ -747,8 +747,8 @@
                   <% } %>
                   <div class="quantity">Quantity: <%= item.quantity %></div>
 
-                  <!-- Refund breakdown for cancelled/returned items -->
-                  <% if (item.status === 'Cancelled' || item.status === 'Returned' || item.status === 'Return Approved') { %>
+                  <!-- Refund breakdown for cancelled/returned items (only for non-COD orders) -->
+                  <% if ((item.status === 'Cancelled' || item.status === 'Returned' || item.status === 'Return Approved') && order.paymentMethod && order.paymentMethod.toLowerCase() !== 'cod') { %>
                     <div class="refund-breakdown mt-2 p-2 bg-light rounded">
                       <div class="small text-muted mb-1"><strong>Refund Breakdown:</strong></div>
                       <div class="d-flex justify-content-between small">
@@ -1030,8 +1030,12 @@
               // Check if order has coupon code or appliedCoupon data (indicates coupon was used)
               const hasCouponData = order.couponCode || (order.appliedCoupon && order.appliedCoupon.code);
               
-              // Priority 1: Show original total coupon if available (for orders with no cancellations/returns)
-              if (order.totalCoupon && !isNaN(order.totalCoupon) && order.totalCoupon > 0) {
+              // Priority 1: Use backend-calculated coupon discount (already properly adjusted)
+              if (order.couponDiscount && !isNaN(order.couponDiscount) && order.couponDiscount > 0) {
+                displayCouponDiscount = order.couponDiscount;
+              }
+              // Priority 2: Show original total coupon if available (for orders with no cancellations/returns)
+              else if (order.totalCoupon && !isNaN(order.totalCoupon) && order.totalCoupon > 0) {
                 // If no items cancelled/returned, show original total coupon
                 const hasCancelledOrReturned = order.items.some(item => 
                   item.status === 'Cancelled' || item.status === 'Returned' || item.status === 'Return Approved'
@@ -1043,10 +1047,6 @@
                   // For orders with cancellations/returns, calculate proportional discount for remaining items
                   displayCouponDiscount = (safeCurrentItemsTotal / totalOrderValue) * order.totalCoupon;
                 }
-              }
-              // Priority 2: Use current coupon discount (for orders after recalculation)
-              else if (order.couponDiscount && !isNaN(order.couponDiscount) && order.couponDiscount > 0) {
-                displayCouponDiscount = order.couponDiscount;
               }
               // Priority 3: Calculate from appliedCoupon data
               else if (order.appliedCoupon && order.appliedCoupon.code && safeCurrentItemsTotal > 0) {
@@ -1072,6 +1072,40 @@
                 displayCouponDiscount = originalCouponRate * safeCurrentItemsTotal;
               }
               
+              // Use new coupon calculation system with fallback for unmigrated orders
+              let totalCoupon = order.totalCoupon || 0;
+              let deductRefundCoupon = order.deductRefundCoupon || 0;
+              let balanceCoupon = order.balanceCoupon || 0;
+              
+              // Fallback calculation for orders not yet migrated
+              if (totalCoupon === 0 && order.appliedCoupon && displayCouponDiscount > 0) {
+                // Calculate what the original total coupon would have been
+                const activeItems = order.items.filter(item => item.status !== 'Cancelled' && item.status !== 'Returned' && item.status !== 'Return Approved');
+                const cancelledItems = order.items.filter(item => item.status === 'Cancelled' || item.status === 'Returned' || item.status === 'Return Approved');
+                
+                const activeItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                const cancelledItemsTotal = cancelledItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                const totalOrderValue = activeItemsTotal + cancelledItemsTotal;
+                
+                if (totalOrderValue > 0 && activeItemsTotal > 0) {
+                  // Reconstruct original coupon amount
+                  totalCoupon = displayCouponDiscount * (totalOrderValue / activeItemsTotal);
+                  
+                  // Calculate deducted coupon for cancelled items
+                  deductRefundCoupon = cancelledItems.reduce((sum, item) => {
+                    const itemTotal = item.price * item.quantity;
+                    const itemCouponDeduction = (itemTotal / totalOrderValue) * totalCoupon;
+                    return sum + itemCouponDeduction;
+                  }, 0);
+                  
+                  // Calculate remaining balance
+                  balanceCoupon = totalCoupon - deductRefundCoupon;
+                }
+              }
+              
+              // Use balance coupon for display if available, otherwise use calculated discount
+              displayCouponDiscount = balanceCoupon > 0 ? balanceCoupon : displayCouponDiscount;
+              
               // Ensure displayCouponDiscount is valid and doesn't exceed current items total
               displayCouponDiscount = isNaN(displayCouponDiscount) ? 0 : Math.max(0, Math.min(displayCouponDiscount, safeCurrentItemsTotal));
               
@@ -1080,6 +1114,10 @@
               
               // Calculate Current Total with coupon discount
               const currentTotal = safeCurrentItemsTotal - currentCouponDiscount + safeDeliveryCharge;
+              
+              // Calculate percentages based on calculated values
+              const usedCouponPercentage = totalCoupon > 0 ? (deductRefundCoupon / totalCoupon) * 100 : 0;
+              const remainingCouponPercentage = totalCoupon > 0 ? (balanceCoupon / totalCoupon) * 100 : 0;
             %>
             
             <% if (displayCouponDiscount > 0 || (order.appliedCoupon && order.appliedCoupon.code)) { %>
@@ -1089,14 +1127,16 @@
                 <% } else { %>
                   <span>Coupon Discount</span>
                 <% } %>
-                <span id="coupon-discount">-₹<%= displayCouponDiscount.toFixed(2) %></span>
+                <span id="coupon-discount">-₹<%= (balanceCoupon > 0 ? balanceCoupon : displayCouponDiscount).toFixed(2) %></span>
               </div>
-              <% if (order.appliedCoupon && order.appliedCoupon.code && order.appliedCoupon.discountType && order.appliedCoupon.discountValue && order.appliedCoupon.discountType === 'percentage') { %>
+              
+              <% if (totalCoupon > 0 && deductRefundCoupon > 0) { %>
                 <div class="price-row-details">
                   <span class="small text-muted">
-                    <%= order.appliedCoupon.discountValue %>% discount<% if (order.appliedCoupon.maxDiscount && order.appliedCoupon.maxDiscount > 0) { %> (max ₹<%= order.appliedCoupon.maxDiscount %>)<% } %>
+                    Total Coupon: ₹<%= totalCoupon.toFixed(2) %>
+                    | Used: ₹<%= deductRefundCoupon.toFixed(2) %> (<%= usedCouponPercentage.toFixed(1) %>%)
+                    | Remaining: ₹<%= balanceCoupon.toFixed(2) %> (<%= remainingCouponPercentage.toFixed(1) %>%)
                   </span>
-                  <span></span>
                 </div>
               <% } %>
             <% } %>
@@ -1133,7 +1173,7 @@
               <span id="current-total">₹<%= currentTotal.toFixed(2) %></span>
             </div>
             
-            <% if (totalRefundedAmount > 0) { %>
+            <% if (totalRefundedAmount > 0 && order.paymentMethod && order.paymentMethod.toLowerCase() !== 'cod') { %>
               <div class="price-row" style="color: #ff8c00;">
                 <span>Total Refunded</span>
                 <span id="total-refunded">₹<%= totalRefundedAmount.toFixed(2) %></span>

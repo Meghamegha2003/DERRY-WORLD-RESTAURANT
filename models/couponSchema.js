@@ -23,6 +23,11 @@ const couponSchema = new mongoose.Schema({
         required: true,
         min: [0, 'Discount value cannot be negative']
     },
+    maxDiscount: {
+        type: Number,
+        min: [0, 'Maximum discount cannot be negative'],
+        default: null // Only for percentage coupons
+    },
     minPurchase: {
         type: Number,
         required: true,
@@ -58,6 +63,7 @@ const couponSchema = new mongoose.Schema({
 
 couponSchema.index({ isActive: 1, validFrom: 1, validUntil: 1 });
 
+// Validation method
 couponSchema.methods.isValid = function() {
     const now = new Date();
     return (
@@ -68,26 +74,35 @@ couponSchema.methods.isValid = function() {
     );
 };
 
-couponSchema.methods.calculateDiscount = function(subtotal) {
+// Method to calculate total discount for an order
+couponSchema.methods.calculateTotalDiscount = function(orderSubtotal) {
     if (!this.isValid()) {
         throw new Error('Coupon is not valid');
     }
 
-    if (subtotal < this.minPurchase) {
-        throw new Error(`Minimum purchase amount of ${this.minPurchase} required`);
+    if (orderSubtotal < this.minPurchase) {
+        throw new Error(`Minimum purchase amount of ₹${this.minPurchase} required`);
     }
 
-    let discount = 0;
+    let totalDiscount = 0;
+    
     if (this.discountType === 'percentage') {
-        discount = (subtotal * this.discountValue) / 100;
-        if (this.maxDiscount) {
-            discount = Math.min(discount, this.maxDiscount);
+        totalDiscount = (orderSubtotal * this.discountValue) / 100;
+        // Apply max discount cap for percentage coupons
+        if (this.maxDiscount && this.maxDiscount > 0) {
+            totalDiscount = Math.min(totalDiscount, this.maxDiscount);
         }
-    } else {
-        discount = this.discountValue;
+    } else if (this.discountType === 'fixed') {
+        totalDiscount = this.discountValue;
     }
 
-    return Math.min(discount, subtotal);
+    // Ensure discount doesn't exceed order subtotal
+    return Math.min(totalDiscount, orderSubtotal);
+};
+
+// Alias method for backward compatibility
+couponSchema.methods.calculateDiscount = function(orderSubtotal) {
+    return this.calculateTotalDiscount(orderSubtotal);
 };
 
 module.exports = mongoose.model('Coupon', couponSchema);

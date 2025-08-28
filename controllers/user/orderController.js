@@ -548,7 +548,32 @@ exports.cancelOrderItem = async (req, res) => {
 
     const itemTotal = item.price * item.quantity;
 
-    // Process refund for non-COD orders BEFORE marking as cancelled
+    // Mark item as cancelled FIRST so coupon calculations see the correct status
+    item.status = "Cancelled";
+    item.cancelReason = reason;
+    item.cancelledAt = new Date();
+
+    // Update coupon calculations using new system AFTER marking as cancelled
+    const { updateOrderCouponCalculations } = require('../../helpers/couponHelper');
+    console.log('[CANCEL_ITEM] Before coupon calculation:', {
+      orderId: order._id,
+      totalCoupon: order.totalCoupon,
+      balanceCoupon: order.balanceCoupon,
+      deductRefundCoupon: order.deductRefundCoupon,
+      appliedCoupon: order.appliedCoupon?.code
+    });
+    
+    await updateOrderCouponCalculations(order);
+    
+    console.log('[CANCEL_ITEM] After coupon calculation:', {
+      orderId: order._id,
+      totalCoupon: order.totalCoupon,
+      balanceCoupon: order.balanceCoupon,
+      deductRefundCoupon: order.deductRefundCoupon,
+      appliedCoupon: order.appliedCoupon?.code
+    });
+
+    // Process refund for non-COD orders
     if (
       order.paymentMethod &&
       order.paymentMethod.toLowerCase() !== "cod" &&
@@ -569,11 +594,6 @@ exports.cancelOrderItem = async (req, res) => {
         // Continue with cancellation even if refund fails
       }
     }
-
-    // Mark item as cancelled AFTER refund processing
-    item.status = "Cancelled";
-    item.cancelReason = reason;
-    item.cancelledAt = new Date();
 
     // Ensure the order total doesn't go below zero
     order.total = Math.max(0, order.total - itemTotal);
@@ -753,6 +773,10 @@ exports.approveReturn = async (req, res) => {
     item.returnStatus = "Approved";
     item.returnApprovedDate = new Date();
     
+    // Update coupon calculations using new system
+    const { updateOrderCouponCalculations } = require('../../helpers/couponHelper');
+    await updateOrderCouponCalculations(order);
+    
     // Check if this approval affects order-level status
     const remainingActiveItems = order.items.filter(orderItem => 
       orderItem.status === 'Active' && 
@@ -837,6 +861,10 @@ exports.rejectReturn = async (req, res) => {
     item.status = "Delivered"; // Revert status
     item.returnStatus = "Rejected";
     item.returnRejectedDate = new Date();
+    
+    // Update coupon calculations using new system
+    const { updateOrderCouponCalculations } = require('../../helpers/couponHelper');
+    await updateOrderCouponCalculations(order);
     
     // Check if this rejection affects order-level status
     const pendingReturnItems = order.items.filter(orderItem => 
@@ -1272,34 +1300,24 @@ exports.downloadInvoice = async (req, res) => {
     // Summary - Calculate totals based on active items only
     const preTotal = activeItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
     
-    // Calculate coupon discount with same logic as orderDetails
+    // Use new coupon system for invoice
     let currentCouponDiscount = 0;
-    if (order.appliedCoupon && order.appliedCoupon.code) {
-      // If discountValue is missing, look up the coupon from database
-      if (!order.appliedCoupon.discountValue && order.appliedCoupon.couponId) {
-        try {
-          const couponFromDB = await Coupon.findById(order.appliedCoupon.couponId);
-          if (couponFromDB) {
-            order.appliedCoupon.discountValue = couponFromDB.discountValue;
-            order.appliedCoupon.maxDiscount = couponFromDB.maxDiscount;
-            order.appliedCoupon.minPurchase = couponFromDB.minPurchase;
-          }
-        } catch (error) {
-          console.error('Error fetching coupon details for invoice:', error);
-        }
-      }
-      
-      if (order.appliedCoupon.discountValue) {
-        if (order.appliedCoupon.discountType === 'percentage') {
-          const percentageDiscount = (preTotal * order.appliedCoupon.discountValue) / 100;
-          const maxDiscount = order.appliedCoupon.maxDiscount || Infinity;
-          currentCouponDiscount = Math.min(percentageDiscount, maxDiscount);
-        } else {
-          currentCouponDiscount = Math.min(order.appliedCoupon.discountValue, preTotal);
-        }
-      }
+    
+    if (order.balanceCoupon && order.balanceCoupon > 0) {
+      // Use balance coupon from new system
+      currentCouponDiscount = order.balanceCoupon;
+    } else if (order.totalCoupon && order.deductRefundCoupon !== undefined) {
+      // Calculate from new system fields
+      currentCouponDiscount = Math.max(0, order.totalCoupon - order.deductRefundCoupon);
     } else {
-      currentCouponDiscount = order.couponDiscount || 0;
+      // Fallback to old calculation for unmigrated orders
+      const originalTotalCoupon = order.totalCoupon || 0;
+      const usedCouponAmount = order.items
+        .filter(item => item.status === 'Cancelled' || item.status === 'Returned' || item.status === 'Return Approved')
+        .reduce((sum, item) => sum + (item.itemCouponDiscount || 0), 0);
+      
+      const remainingCouponAmount = originalTotalCoupon - usedCouponAmount;
+      currentCouponDiscount = remainingCouponAmount > 0 ? remainingCouponAmount : (order.couponDiscount || 0);
     }
     
     

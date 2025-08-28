@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
-// Define common status enum values
 const ORDER_STATUS = {
   PENDING: 'Pending',
   PROCESSING: 'Processing',
@@ -63,7 +62,6 @@ const orderItemSchema = new Schema({
   ratedAt: {
     type: Date
   },
-  // Return related fields
   returnReason: String,
   returnRequestDate: Date,
   returnStatus: {
@@ -71,7 +69,6 @@ const orderItemSchema = new Schema({
     enum: ['Pending', 'Approved', 'Rejected'],
   },
   returnProcessedDate: Date,
-  // Cancellation related fields
   cancelReason: String,
   cancelledAt: Date,
   refundAmount: {
@@ -84,14 +81,22 @@ const orderItemSchema = new Schema({
     default: 'Pending'
   },
   refundDate: Date,
-  // Coupon calculation fields for refunds
+  // Individual coupon tracking per item
+  individualCoupon: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  deductRefundCoupon: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   couponRatio: {
     type: Number,
-    default: 0
-  },
-  itemCouponDiscount: {
-    type: Number,
-    default: 0
+    default: 0,
+    min: 0,
+    max: 1
   }
 });
 
@@ -135,17 +140,25 @@ const OrderSchema = new Schema({
     required: true
   },
   items: [orderItemSchema],
-  // Cancellation reason for the whole order
   cancelReason: { type: String },
 
   shippingAddress: addressSchema,
-  couponDiscount: {
-    type: Number,
-    default: 0
-  },
+  
+  // Coupon tracking fields
   totalCoupon: {
     type: Number,
-    default: 0
+    default: 0,
+    min: 0
+  },
+  deductRefundCoupon: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  balanceCoupon: {
+    type: Number,
+    default: 0,
+    min: 0
   },
   appliedCoupon: {
     code: String,
@@ -189,7 +202,7 @@ const OrderSchema = new Schema({
   deliveredDate: Date,
   processingDate: Date,
   shippedDate: Date,
-  returnReason: { type: String }, // Reason for return at order level
+  returnReason: { type: String }, 
   returnRequestedDate: Date,
   returnApprovedDate: Date,
   returnRejectedDate: Date,
@@ -223,7 +236,6 @@ const OrderSchema = new Schema({
     },
     lastAttemptedAt: Date
   },
-  // Order-level refund tracking
   orderLevelRefund: {
     type: Number,
     default: 0
@@ -232,7 +244,6 @@ const OrderSchema = new Schema({
     type: Number,
     default: 0
   },
-  // Refund transaction tracking
   refundTransactions: [{
     type: {
       type: String,
@@ -270,10 +281,8 @@ const OrderSchema = new Schema({
   timestamps: true
 });
 
-// Create the model
 const Order = mongoose.model('Order', OrderSchema);
 
-// Export both the model and the status enums
 module.exports = {
   Order,
   ORDER_STATUS,

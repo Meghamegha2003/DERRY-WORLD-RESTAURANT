@@ -1,5 +1,194 @@
 const Coupon = require('../models/couponSchema');
 
+/**
+ * Calculate total coupon discount for an order
+ * @param {Object} order - Order object
+ * @param {Object} coupon - Coupon object
+ * @returns {Number} Total coupon discount amount
+ */
+function calculateTotalCoupon(order, coupon) {
+  try {
+    if (!order || !coupon) {
+      return 0;
+    }
+
+    // Calculate order subtotal (sum of all items)
+    const orderSubtotal = order.items.reduce((sum, item) => {
+      return sum + (item.price * item.quantity);
+    }, 0);
+
+    if (orderSubtotal <= 0) {
+      return 0;
+    }
+
+    // Use coupon's built-in calculation method
+    return coupon.calculateTotalDiscount(orderSubtotal);
+  } catch (error) {
+    console.error('[COUPON_HELPER] Error calculating total coupon:', error);
+    return 0;
+  }
+}
+
+/**
+ * Calculate individual coupon discount for each item
+ * @param {Object} order - Order object
+ * @param {Number} totalCouponAmount - Total coupon discount
+ * @returns {Array} Array of items with individual coupon amounts
+ */
+function calculateIndividualCoupon(order, totalCouponAmount) {
+  try {
+    if (!order || !order.items || totalCouponAmount <= 0) {
+      return order.items.map(item => ({
+        ...item,
+        individualCoupon: 0,
+        couponRatio: 0
+      }));
+    }
+
+    // Calculate total order value
+    const totalOrderValue = order.items.reduce((sum, item) => {
+      return sum + (item.price * item.quantity);
+    }, 0);
+
+    if (totalOrderValue <= 0) {
+      return order.items.map(item => ({
+        ...item,
+        individualCoupon: 0,
+        couponRatio: 0
+      }));
+    }
+
+    // Calculate proportional coupon for each item
+    return order.items.map(item => {
+      const itemTotal = item.price * item.quantity;
+      const itemRatio = itemTotal / totalOrderValue;
+      const itemCouponDiscount = itemRatio * totalCouponAmount;
+
+      return {
+        ...item,
+        individualCoupon: Math.min(itemCouponDiscount, itemTotal),
+        couponRatio: itemRatio
+      };
+    });
+  } catch (error) {
+    console.error('[COUPON_HELPER] Error calculating individual coupons:', error);
+    return order.items.map(item => ({
+      ...item,
+      individualCoupon: 0,
+      couponRatio: 0
+    }));
+  }
+}
+
+/**
+ * Calculate deduct refund coupon for cancelled/returned items
+ * @param {Object} order - Order object
+ * @returns {Number} Total coupon amount deducted for refunds
+ */
+function calculateDeductRefundCoupon(order) {
+  try {
+    if (!order || !order.items) {
+      return 0;
+    }
+
+    // Sum up coupon deductions for cancelled/returned items
+    return order.items
+      .filter(item => ['Cancelled', 'Returned', 'Return Approved'].includes(item.status))
+      .reduce((sum, item) => {
+        return sum + (item.deductRefundCoupon || 0);
+      }, 0);
+  } catch (error) {
+    console.error('[COUPON_HELPER] Error calculating deduct refund coupon:', error);
+    return 0;
+  }
+}
+
+/**
+ * Calculate balance coupon (remaining coupon after deductions)
+ * @param {Number} totalCoupon - Total coupon amount
+ * @param {Number} deductRefundCoupon - Deducted coupon amount
+ * @returns {Number} Remaining coupon balance
+ */
+function calculateBalanceCoupon(totalCoupon, deductRefundCoupon) {
+  try {
+    const balance = (totalCoupon || 0) - (deductRefundCoupon || 0);
+    return Math.max(0, balance);
+  } catch (error) {
+    console.error('[COUPON_HELPER] Error calculating balance coupon:', error);
+    return 0;
+  }
+}
+
+/**
+ * Update order with all coupon calculations
+ * @param {Object} order - Order object
+ * @param {Object} coupon - Coupon object (optional)
+ * @returns {Object} Updated order with coupon calculations
+ */
+async function updateOrderCouponCalculations(order, coupon = null) {
+  try {
+    // If no coupon provided, try to get it from order
+    if (!coupon && order.appliedCoupon && order.appliedCoupon.couponId) {
+      coupon = await Coupon.findById(order.appliedCoupon.couponId);
+    }
+
+    if (!coupon) {
+      // No coupon applied, reset all coupon fields
+      order.totalCoupon = 0;
+      order.deductRefundCoupon = 0;
+      order.balanceCoupon = 0;
+      
+      order.items.forEach(item => {
+        item.individualCoupon = 0;
+        item.deductRefundCoupon = 0;
+        item.couponRatio = 0;
+      });
+      
+      return order;
+    }
+
+    // 1. Calculate total coupon
+    const totalCoupon = calculateTotalCoupon(order, coupon);
+    order.totalCoupon = totalCoupon;
+
+    // 2. Calculate individual coupon for each item
+    const itemsWithCoupons = calculateIndividualCoupon(order, totalCoupon);
+    
+    // Update items with individual coupon calculations
+    order.items.forEach((item, index) => {
+      if (itemsWithCoupons[index]) {
+        item.individualCoupon = itemsWithCoupons[index].individualCoupon;
+        item.couponRatio = itemsWithCoupons[index].couponRatio;
+        
+        // If item is cancelled/returned, set deductRefundCoupon
+        if (['Cancelled', 'Returned', 'Return Approved'].includes(item.status)) {
+          item.deductRefundCoupon = item.individualCoupon;
+        }
+      }
+    });
+
+    // 3. Calculate total deduct refund coupon
+    const deductRefundCoupon = calculateDeductRefundCoupon(order);
+    order.deductRefundCoupon = deductRefundCoupon;
+
+    // 4. Calculate balance coupon
+    const balanceCoupon = calculateBalanceCoupon(totalCoupon, deductRefundCoupon);
+    order.balanceCoupon = balanceCoupon;
+
+    console.log('[COUPON_HELPER] Updated order coupon calculations:', {
+      orderId: order._id,
+      totalCoupon,
+      deductRefundCoupon,
+      balanceCoupon,
+      appliedCoupon: order.appliedCoupon?.code
+    });
+
+    return order;
+  } catch (error) {
+    console.error('[COUPON_HELPER] Error updating order coupon calculations:', error);
+    return order;
+  }
+}
 
 async function validateAndUpdateCartCoupon(cart) {
   try {
@@ -40,204 +229,11 @@ async function validateAndUpdateCartCoupon(cart) {
   return cart;
 }
 
-async function recalculateOrderCoupon(order) {
-  console.log('[RECALCULATE_COUPON_DEBUG]', {
-    hasCouponCode: !!order.couponCode,
-    couponCode: order.couponCode,
-    currentCouponDiscount: order.couponDiscount,
-    orderId: order._id
-  });
-
-  if (!order.couponCode) {
-    console.log('[RECALCULATE_COUPON_NO_CODE]', 'No coupon code found, returning 0');
-    return { newCouponDiscount: 0, discountAdjustment: 0 };
-  }
-
-  const coupon = await Coupon.findOne({ code: order.couponCode });
-
-  if (!coupon || !coupon.isActive || coupon.isBlocked) {
-    const discountAdjustment = order.couponDiscount || 0;
-    return { newCouponDiscount: 0, discountAdjustment };
-  }
-
-  const activeItems = order.items.filter(item => item.status !== 'Cancelled' && item.status !== 'Returned' && item.status !== 'Return Approved');
-  const newSubtotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-  if (newSubtotal < coupon.minPurchase) {
-    const discountAdjustment = order.couponDiscount || 0;
-    return { newCouponDiscount: 0, discountAdjustment };
-  }
-
-  let newDiscount = 0;
-  if (coupon.discountType === 'percentage') {
-    newDiscount = (newSubtotal * coupon.discountValue) / 100;
-    if (coupon.maxDiscount && newDiscount > coupon.maxDiscount) {
-      newDiscount = coupon.maxDiscount;
-    }
-  } else {
-    newDiscount = coupon.discountValue;
-  }
-
-  const oldDiscount = order.couponDiscount || 0;
-  const newCouponDiscount = Math.min(newDiscount, newSubtotal);
-  const discountAdjustment = oldDiscount - newCouponDiscount;
-
-  return { newCouponDiscount, discountAdjustment };
-}
-
-
-async function calculateItemCouponRefund(order, item) {
-  console.log('[COUPON_REFUND_START]', {
-    hasCouponCode: !!order.couponCode,
-    couponCode: order.couponCode,
-    couponDiscount: order.couponDiscount,
-    totalCoupon: order.totalCoupon,
-    appliedCoupon: order.appliedCoupon,
-    itemStatus: item.status,
-    orderId: order._id,
-    currentItemId: item._id,
-    existingItemCoupons: order.items.map(i => ({ 
-      id: i._id, 
-      status: i.status,
-      itemCouponDiscount: i.itemCouponDiscount,
-      hasItemCouponDiscount: !!(i.itemCouponDiscount && i.itemCouponDiscount > 0)
-    }))
-  });
-
-  // Check if there's any coupon applied to the order (either current or historical)
-  const hasCouponApplied = order.couponDiscount > 0 || order.couponCode || order.totalCoupon > 0 ||
-    order.appliedCoupon || 
-    order.items.some(orderItem => 
-      orderItem.refundBreakdown && 
-      orderItem.refundBreakdown.some(breakdown => breakdown.type === 'coupon')
-    ) ||
-    order.items.some(orderItem => orderItem.itemCouponDiscount && orderItem.itemCouponDiscount > 0);
-
-  console.log('[COUPON_REFUND_CHECK]', {
-    hasCouponApplied,
-    checks: {
-      couponDiscount: order.couponDiscount > 0,
-      couponCode: !!order.couponCode,
-      totalCoupon: order.totalCoupon > 0,
-      appliedCoupon: !!order.appliedCoupon,
-      hasRefundBreakdown: order.items.some(orderItem => 
-        orderItem.refundBreakdown && 
-        orderItem.refundBreakdown.some(breakdown => breakdown.type === 'coupon')
-      ),
-      hasItemCouponDiscount: order.items.some(orderItem => orderItem.itemCouponDiscount && orderItem.itemCouponDiscount > 0)
-    }
-  });
-
-  if (!hasCouponApplied) {
-    console.log('[COUPON_REFUND_NO_COUPON]', 'No coupon discount found');
-    return { itemCouponDiscount: 0, remainingCouponDiscount: 0 };
-  }
-
-  let effectiveCouponDiscount = order.couponDiscount;
-  if (effectiveCouponDiscount <= 0 && order.couponCode) {
-    let totalCouponFromBreakdowns = 0;
-    order.items.forEach(orderItem => {
-      if (orderItem.refundBreakdown) {
-        const couponBreakdown = orderItem.refundBreakdown.find(b => b.type === 'coupon');
-        if (couponBreakdown) {
-          totalCouponFromBreakdowns += Math.abs(couponBreakdown.amount);
-        }
-      }
-    });
-    
-    if (totalCouponFromBreakdowns > 0) {
-      const totalItemsValue = order.items.reduce((sum, orderItem) => sum + (orderItem.price * orderItem.quantity), 0);
-      const activeItemsValue = order.items.filter(orderItem => 
-        orderItem.status !== 'Cancelled' && orderItem.status !== 'Returned' && orderItem.status !== 'Return Approved'
-      ).reduce((sum, orderItem) => sum + (orderItem.price * orderItem.quantity), 0);
-      
-      if (totalItemsValue > 0) {
-        effectiveCouponDiscount = (totalCouponFromBreakdowns * totalItemsValue) / (totalItemsValue - activeItemsValue);
-      }
-    }
-  }
-
-  if (effectiveCouponDiscount <= 0) {
-    console.log('[COUPON_REFUND_NO_EFFECTIVE_COUPON]', 'No effective coupon discount calculated');
-    return { itemCouponDiscount: 0, remainingCouponDiscount: 0 };
-  }
-
-  const totalOrderValue = order.items.reduce((sum, orderItem) => sum + (orderItem.price * orderItem.quantity), 0);
-
-  console.log('[COUPON_REFUND_ORDER_VALUE]', {
-    totalOrderValue,
-    allItems: order.items.map(i => ({
-      id: i._id,
-      price: i.price,
-      quantity: i.quantity,
-      status: i.status,
-      subtotal: i.price * i.quantity
-    }))
-  });
-
-  if (totalOrderValue <= 0) {
-    console.log('[COUPON_REFUND_NO_TOTAL]', 'No valid total order value found');
-    return { itemCouponDiscount: 0, remainingCouponDiscount: effectiveCouponDiscount };
-  }
-
-  let totalCouponAmount = order.totalCoupon || effectiveCouponDiscount;
-  
-  if (totalCouponAmount <= 0) {
-    const cancelledItemsCouponTotal = order.items
-      .filter(orderItem => orderItem.itemCouponDiscount && orderItem.itemCouponDiscount > 0)
-      .reduce((sum, orderItem) => sum + orderItem.itemCouponDiscount, 0);
-    
-    console.log('[COUPON_RECONSTRUCTION]', {
-      cancelledItemsCouponTotal,
-      currentItemBeingCancelled: item._id,
-      cancelledItems: order.items.filter(orderItem => orderItem.itemCouponDiscount && orderItem.itemCouponDiscount > 0).map(i => ({
-        id: i._id,
-        price: i.price,
-        quantity: i.quantity,
-        status: i.status,
-        itemCouponDiscount: i.itemCouponDiscount,
-        isCurrentItem: i._id.toString() === item._id.toString()
-      }))
-    });
-    
-    if (cancelledItemsCouponTotal > 0) {
-      const cancelledItemsValue = order.items
-        .filter(orderItem => orderItem.itemCouponDiscount && orderItem.itemCouponDiscount > 0)
-        .reduce((sum, orderItem) => sum + (orderItem.price * orderItem.quantity), 0);
-      
-      if (cancelledItemsValue > 0) {
-        const couponRate = cancelledItemsCouponTotal / cancelledItemsValue;
-        totalCouponAmount = couponRate * totalOrderValue;
-        
-        console.log('[COUPON_RECONSTRUCTION_CALC]', {
-          cancelledItemsValue,
-          couponRate,
-          totalOrderValue,
-          reconstructedTotalCoupon: totalCouponAmount
-        });
-      }
-    }
-  }
-
-  
-  const itemSubtotal = item.price * item.quantity;
-  const itemPriceRatio = itemSubtotal / totalOrderValue;
-  const itemCouponDiscount = Math.min(itemSubtotal, itemPriceRatio * totalCouponAmount);
-
-
-  const remainingCouponDiscount = Math.max(0, order.couponDiscount - itemCouponDiscount);
-
-
-
-  return { 
-    itemCouponDiscount, 
-    remainingCouponDiscount,
-    itemCouponRatio: itemPriceRatio
-  };
-}
-
 module.exports = {
-  validateAndUpdateCartCoupon,
-  recalculateOrderCoupon,
-  calculateItemCouponRefund
+  calculateTotalCoupon,
+  calculateIndividualCoupon,
+  calculateDeductRefundCoupon,
+  calculateBalanceCoupon,
+  updateOrderCouponCalculations,
+  validateAndUpdateCartCoupon
 };
