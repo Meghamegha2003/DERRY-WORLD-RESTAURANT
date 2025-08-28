@@ -20,7 +20,7 @@ const userCouponRoutes = require('./routes/user/couponRoutes');
 const paymentRoutes = require('./routes/user/paymentRoutes');
 const adminWalletRoutes = require('./routes/admin/walletRoutes');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandlers');
-const { auth, adminAuth } = require('./middlewares/authMiddleware');
+const { auth, adminAuth, checkUserBlocked } = require('./middlewares/authMiddleware');
 const { cacheControl, preventBackAfterLogin, preventCache } = require('./middlewares/cacheControl');
 
 const app = express();
@@ -35,6 +35,20 @@ app.use(cookieParser(process.env.COOKIE_SECRET));
 // Cache control middleware
 app.use(cacheControl);
 app.use(preventBackAfterLogin);
+
+// Check for blocked users on all routes (except admin and auth routes)
+app.use((req, res, next) => {
+    // Skip check for admin routes, login/register pages, and static files
+    if (req.path.startsWith('/admin') || 
+        req.path.startsWith('/login') || 
+        req.path.startsWith('/register') || 
+        req.path.startsWith('/public') || 
+        req.path.startsWith('/uploads') ||
+        req.path.startsWith('/auth/google')) {
+        return next();
+    }
+    checkUserBlocked(req, res, next);
+});
 
 // Apply preventCache to all routes that should not be cached after logout
 app.use((req, res, next) => {

@@ -29,7 +29,6 @@ exports.viewOffers = async (req, res) => {
             path : '/admin/offers'
         });
     } catch (error) {
-        console.error('Error fetching offers:', error);
         
         if (req.xhr || req.headers.accept?.includes('application/json')) {
             return res.status(500).json({
@@ -58,7 +57,6 @@ exports.getActiveProducts = async (req, res) => {
             products
         });
     } catch (error) {
-        console.error('Error fetching active products:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to fetch active products'
@@ -77,7 +75,6 @@ exports.getActiveCategories = async (req, res) => {
             categories
         });
     } catch (error) {
-        console.error('Error fetching active categories:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to fetch active categories'
@@ -103,7 +100,6 @@ exports.getOffer = async (req, res) => {
             offer
         });
     } catch (error) {
-        console.error('Error fetching offer:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to fetch offer'
@@ -163,7 +159,6 @@ exports.createOffer = async (req, res) => {
             });
         }
 
-        // Check for duplicate offer names
         const existingOffer = await Offer.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
         if (existingOffer) {
             return res.status(400).json({
@@ -172,7 +167,6 @@ exports.createOffer = async (req, res) => {
             });
         }
 
-        // Prepare offer data
         const offerData = {
             name,
             discountType,
@@ -183,7 +177,6 @@ exports.createOffer = async (req, res) => {
             isActive: true
         };
 
-        // Add max discount for percentage type
         if (discountType === 'percentage' && maxDiscount) {
             offerData.maxDiscount = Number(maxDiscount);
         }
@@ -223,7 +216,6 @@ exports.createOffer = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error creating offer:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to create offer',
@@ -247,7 +239,6 @@ exports.updateOffer = async (req, res) => {
             targetId
         } = req.body;
 
-        // Find the offer
         const offer = await Offer.findById(offerId);
         if (!offer) {
             return res.status(404).json({
@@ -256,7 +247,6 @@ exports.updateOffer = async (req, res) => {
             });
         }
 
-        // Basic validation
         if (!name || !discountType || !discountValue || !startDate || !endDate || !targetType || !targetId) {
             return res.status(400).json({
                 success: false,
@@ -264,7 +254,6 @@ exports.updateOffer = async (req, res) => {
             });
         }
 
-        // Validate discount value based on type
         if (discountType === 'percentage' && (discountValue <= 0 || discountValue > 90)) {
             return res.status(400).json({
                 success: false,
@@ -288,7 +277,6 @@ exports.updateOffer = async (req, res) => {
             });
         }
 
-        // Validate dates
         const start = new Date(startDate);
         const end = new Date(endDate);
         const now = new Date();
@@ -300,7 +288,6 @@ exports.updateOffer = async (req, res) => {
             });
         }
 
-        // Update offer data
         offer.name = name;
         offer.discountType = discountType;
         offer.discountValue = Number(discountValue);
@@ -350,7 +337,6 @@ exports.updateOffer = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error updating offer:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to update offer',
@@ -385,7 +371,6 @@ exports.toggleOfferStatus = async (req, res) => {
             offer
         });
     } catch (error) {
-        console.error('Error toggling offer status:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to toggle offer status'

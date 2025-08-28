@@ -214,7 +214,6 @@ exports.getOrders = async (req, res) => {
             path : '/admin/orders'
         });
     } catch (error) {
-        console.error('Error fetching orders:', error);
         if (req.xhr || req.headers.accept?.includes('application/json')) {
             return res.status(500).json({
                 success: false,
@@ -290,26 +289,30 @@ exports.updateOrderStatus = async (req, res) => {
         await order.save();
 
         if (status === ORDER_STATUS.RETURN_APPROVED) {
+            const { processItemRefund } = require('../../services/refundService');
+            const { updateOrderCouponCalculations } = require('../../helpers/couponHelper');
+            
             for (const item of order.items) {
+                item.status = "Return Approved";
+                item.returnStatus = "Approved";
+                item.returnApprovedDate = new Date();
+                
                 if (item.product) {
                     await Product.findByIdAndUpdate(item.product, { $inc: { quantity: item.quantity } });
-                    console.log('[ADMIN] Inventory restored for product', item.product.toString(), 'quantity', item.quantity);
+                }
+                
+               if (order.paymentMethod && order.paymentMethod.toLowerCase() !== "cod") {
+                    try {
+                        await processItemRefund(order, item, 'Return');
+                    } catch (error) {}
+                } else {
+                    item.refundStatus = "Completed";
+                    item.refundDate = new Date();
                 }
             }
-            console.log('[ADMIN] Processing Return Approved for order', order._id);
-            console.log('[ADMIN] User ID:', order.user.toString());
-            let wallet = await Wallet.findOne({ user: order.user });
-            if (!wallet) {
-                console.log('[ADMIN] No wallet found, initializing new wallet');
-                wallet = new Wallet({ user: order.user, balance: 0, transactions: [] });
-            }
-            const refundAmount = order.totalAmount || order.total;
-            console.log('[ADMIN] Calculated refundAmount:', refundAmount);
-            wallet.balance += refundAmount;
-            wallet.transactions.push({ type: 'credit', amount: refundAmount, description: `Refund for order ${order._id}`, date: new Date(), orderId: order._id.toString(), status: 'completed' });
-            await wallet.save();
-            await User.findByIdAndUpdate(order.user, { wallet: wallet._id });
-            console.log('[ADMIN] Refund processed successfully for user:', order.user.toString());
+            
+            await updateOrderCouponCalculations(order);
+            
         }
 
         if (req.xhr || req.headers.accept?.includes('application/json')) {
@@ -326,17 +329,10 @@ exports.updateOrderStatus = async (req, res) => {
 
         res.redirect('/admin/orders/' + id);
     } catch (error) {
-        console.error('Error in updateOrderStatus:', error);
         if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to update order status'
-            });
+            return res.status(500).json({ success: false, message: 'Failed to update order status' });
         }
-        res.status(500).render('error', {
-            message: 'Failed to update order status',
-            error
-        });
+        res.status(500).render('error', { message: 'Failed to update order status', error });
     }
 };
 
@@ -393,7 +389,6 @@ exports.getOrderDetails = async (req, res) => {
             order: formattedOrder
         });
     } catch (error) {
-        console.error('Error in getOrderDetails:', error);
         if (req.xhr || req.headers.accept?.includes('application/json')) {
             return res.status(500).json({
                 success: false,
@@ -409,10 +404,8 @@ exports.getOrderDetails = async (req, res) => {
 
 exports.handleRefund = async (order, item) => {
     try {
-        console.log('[REFUND][DEBUG] Attempting refund for order:', order._id, 'item:', item._id);
         let wallet = await Wallet.findOne({ user: order.user });
         if (!wallet) {
-            console.log('[REFUND][DEBUG] No wallet found, creating new wallet for user:', order.user);
             wallet = new Wallet({ user: order.user, balance: 0, transactions: [] });
         }
 
@@ -420,7 +413,6 @@ exports.handleRefund = async (order, item) => {
         const refundAmount = unitPrice * (item.quantity || 1);
 
         if (refundAmount > 0) {
-            console.log('[REFUND][DEBUG] Wallet before save:', JSON.stringify(wallet));
             wallet.balance -= refundAmount;
             wallet.transactions.push({
                 type: 'debit',
@@ -431,24 +423,15 @@ exports.handleRefund = async (order, item) => {
                 status: 'completed'
             });
             await wallet.save();
-            console.log('[REFUND][DEBUG] Wallet after save:', JSON.stringify(wallet));
             await User.findByIdAndUpdate(order.user, { wallet: wallet._id });
 
             item.refundAmount = refundAmount;
             item.refundStatus = 'Completed';
             item.refundDate = new Date();
             await order.save();
-            console.log('[REFUND][DEBUG] Refund processed and wallet/order saved:', {
-                user: order.user,
-                refundAmount,
-                walletBalance: wallet.balance,
-                walletId: wallet._id
-            });
-        } else {
-            console.log('[REFUND][DEBUG] Refund amount is 0, skipping wallet update.');
-        }
+          
+        } 
     } catch (err) {
-        console.error('[REFUND][DEBUG] Error processing refund:', err);
         throw err;
     }
 };
@@ -503,7 +486,6 @@ exports.handleOrderCancellation = async (order, reason = 'Cancelled by admin') =
 
         await order.save();
     } catch (error) {
-        console.error('[ADMIN][CANCEL_ORDER] Error cancelling order:', error);
         throw error;
     }
 };

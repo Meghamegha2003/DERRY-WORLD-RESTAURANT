@@ -344,7 +344,25 @@
   let cropper = null;
   const cropperModal = new bootstrap.Modal(document.getElementById('cropperModal'));
 
-  // Validate product name
+  // Validate image filename
+  function validateImageFilename(filename) {
+    // Remove extension for validation
+    const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
+    
+    // Check if starts with number
+    if (/^\d/.test(nameWithoutExt)) {
+      return { valid: false, message: 'Image filename cannot start with a number' };
+    }
+    
+    // Check for symbols (only allow letters, numbers, hyphens, underscores)
+    if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(nameWithoutExt)) {
+      return { valid: false, message: 'Image filename can only contain letters, numbers, hyphens, and underscores, and must start with a letter' };
+    }
+    
+    return { valid: true };
+  }
+
+  // Validate product name for duplicates
   async function validateProductName(name) {
     try {
       const response = await fetch(`/admin/products/check-name?name=${encodeURIComponent(name)}`);
@@ -424,11 +442,11 @@
       return false;
     }
 
-    if (salesPrice > regularPrice) {
+    if (salesPrice >= regularPrice) {
       Swal.fire({
         icon: 'error',
         title: 'Invalid Price',
-        text: 'Sales price cannot be greater than regular price'
+        text: 'Sales price must be less than regular price'
       });
       return false;
     }
@@ -492,6 +510,17 @@
     }
 
     const productName = document.getElementById('productName').value.trim();
+
+    // Check for duplicate product name
+    const isNameValid = await validateProductName(productName);
+    if (!isNameValid) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Duplicate Product Name',
+        text: 'A product with this name already exists. Please choose a different name.'
+      });
+      return;
+    }
 
     // Show loading state
     Swal.fire({
@@ -585,7 +614,7 @@
     const salesPrice = parseFloat(document.getElementById('salesPrice').value);
     const regularPrice = parseFloat(this.value);
     
-    if (salesPrice > regularPrice) {
+    if (salesPrice >= regularPrice) {
       this.classList.add('is-invalid');
       document.getElementById('salesPrice').classList.add('is-invalid');
     } else {
@@ -598,7 +627,7 @@
     const regularPrice = parseFloat(document.getElementById('regularPrice').value);
     const salesPrice = parseFloat(this.value);
     
-    if (salesPrice > regularPrice) {
+    if (salesPrice >= regularPrice) {
       this.classList.add('is-invalid');
       document.getElementById('regularPrice').classList.add('is-invalid');
     } else {
@@ -717,6 +746,18 @@
         icon: 'error',
         title: 'Invalid File Type',
         text: 'Only image files are allowed'
+      });
+      this.value = '';
+      return;
+    }
+    
+    // Validate image filename
+    const filenameValidation = validateImageFilename(file.name);
+    if (!filenameValidation.valid) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Invalid Image Filename',
+        text: filenameValidation.message
       });
       this.value = '';
       return;

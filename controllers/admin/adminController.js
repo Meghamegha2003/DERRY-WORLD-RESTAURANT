@@ -73,7 +73,6 @@ exports.loginPage = async (req, res) => {
       error: null,
     });
   } catch (error) {
-    console.error("Error loading login page:", error);
     res.status(500).send("Internal Server Error");
   }
 };
@@ -91,11 +90,9 @@ exports.loginAdmin = async (req, res) => {
       roles: { $in: ["admin"] },
     });
 
-    // First check if user exists but is not an admin
     const regularUser = await User.findOne({ email: email.toLowerCase() });
     
     if (!user && regularUser) {
-      // User exists but is not an admin
       if (req.xhr || req.headers.accept?.includes("application/json")) {
         return res.status(403).json({
           success: false,
@@ -104,7 +101,6 @@ exports.loginAdmin = async (req, res) => {
       }
       return res.redirect('/admin/login?error=' + encodeURIComponent('Access denied. Please use the user login page.'));
     } else if (!user) {
-      // User doesn't exist at all
       return handleLoginError(req, res, "Invalid credentials");
     }
 
@@ -119,6 +115,7 @@ exports.loginAdmin = async (req, res) => {
         userId: user._id,
         email: user.email,
         isAdmin: true,
+        sessionVersion: user.sessionVersion || 0
       },
       process.env.JWT_SECRET,
       { expiresIn: "24h" }
@@ -126,7 +123,7 @@ exports.loginAdmin = async (req, res) => {
     res.cookie("adminToken", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 24 * 60 * 60 * 1000,
       sameSite: "strict",
     });
 
@@ -140,7 +137,6 @@ exports.loginAdmin = async (req, res) => {
 
     return res.redirect("/admin");
   } catch (error) {
-    console.error("Admin login error:", error);
     return handleLoginError(req, res, "An error occurred during login");
   }
 };
@@ -294,7 +290,6 @@ exports.getDashboardData = async (req, res) => {
     ]);
     const income = incomeResult[0]?.total || 0;
 
-    // Expense
     const expenseResult = await Order.aggregate([
       {
         $match: {
@@ -306,7 +301,6 @@ exports.getDashboardData = async (req, res) => {
     ]);
     const expense = expenseResult[0]?.total || 0;
 
-    // Revenue chart 
     const revenueData = await Order.aggregate([
       {
         $match: {
@@ -351,7 +345,6 @@ exports.getDashboardData = async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
 
-    // Top products (popular food)
     const topProducts = await Order.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       { $unwind: "$items" },
@@ -443,7 +436,6 @@ const topCategories = await Order.aggregate([
       },
     });
   } catch (error) {
-    console.error("Error getting dashboard data:", error);
     if (!res.headersSent) {
       return res.status(500).json({
         success: false,
@@ -498,7 +490,6 @@ exports.customerList = async (req, res) => {
       searchType: req.query.searchType || "name",
     });
   } catch (error) {
-    console.error("Error loading customer list:", error);
     res.status(500).send("Internal Server Error");
   }
 };
@@ -536,7 +527,6 @@ exports.toggleCustomerStatus = async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Error toggling user status:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Failed to update user status' 

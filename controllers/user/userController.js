@@ -34,7 +34,8 @@ const generateToken = (user, cartCount = 0) => {
       userId: user._id,
       email: user.email,
       isAdmin: false,
-      cartCount
+      cartCount,
+      sessionVersion: user.sessionVersion || 0
     },
     process.env.JWT_SECRET,
     { expiresIn: '7d' }

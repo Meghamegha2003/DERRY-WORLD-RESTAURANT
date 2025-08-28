@@ -55,8 +55,6 @@ exports.loadAddProductPage = async (req, res) => {
 
 exports.addProduct = async (req, res) => {
   try {
-    console.log('Received product data:', req.body);
-    console.log('Received files:', req.files);
 
     const { 
       productName, 
@@ -75,7 +73,13 @@ exports.addProduct = async (req, res) => {
       });
     }
 
-    // Check for unique product name 
+    if (parseFloat(salesPrice) >= parseFloat(regularPrice)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Sales price must be less than regular price' 
+      });
+    }
+
     const existingProduct = await Product.findOne({
       name: { $regex: new RegExp(`^${productName}$`, 'i') }
     });
@@ -87,7 +91,6 @@ exports.addProduct = async (req, res) => {
       });
     }
 
-    // Check if at least one image is uploaded
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ 
         success: false,
@@ -95,7 +98,24 @@ exports.addProduct = async (req, res) => {
       });
     }
 
-    // Process and save uploaded images
+    for (const file of req.files) {
+      const nameWithoutExt = file.originalname.replace(/\.[^/.]+$/, '');
+      
+      if (/^\d/.test(nameWithoutExt)) {
+        return res.status(400).json({ 
+          success: false,
+          message: `Image filename "${file.originalname}" cannot start with a number` 
+        });
+      }
+      
+      if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(nameWithoutExt)) {
+        return res.status(400).json({ 
+          success: false,
+          message: `Image filename "${file.originalname}" can only contain letters, numbers, hyphens, and underscores, and must start with a letter` 
+        });
+      }
+    }
+
     const uploadDir = path.join('public', 'uploads', 'reImage');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
@@ -143,8 +163,6 @@ exports.addProduct = async (req, res) => {
 
     try {
       await newProduct.save();
-      console.log('Product saved successfully:', newProduct._id);
-      console.log('Saved image paths:', imagePaths);
       res.status(201).json({ 
         success: true,
         message: 'Product added successfully',
@@ -181,12 +199,6 @@ exports.loadEditProductPage = async (req, res) => {
       return res.status(404).send('Product not found');
     }
 
-    console.log('Loading edit page for product:', {
-      id: product._id,
-      name: product.name,
-      images: product.productImage
-    });
-
     res.render('admin/editProduct', {
       title: 'Edit Product',
       product,
@@ -213,7 +225,25 @@ exports.updateProduct = async (req, res) => {
     } = req.body;
 
     
-    // Get the existing product
+    if (parseFloat(salesPrice) >= parseFloat(regularPrice)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Sales price must be less than regular price' 
+      });
+    }
+
+    const existingProduct = await Product.findOne({
+      name: { $regex: new RegExp(`^${productName.trim()}$`, 'i') },
+      _id: { $ne: productId }
+    });
+    
+    if (existingProduct) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'A product with this name already exists' 
+      });
+    }
+
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({
@@ -222,7 +252,6 @@ exports.updateProduct = async (req, res) => {
       });
     }
 
-    // Handle images
     let productImages = [];
     
     if (req.body.existingImages) {
@@ -233,7 +262,26 @@ exports.updateProduct = async (req, res) => {
       }
     }
 
-    // Process and add new images
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const nameWithoutExt = file.originalname.replace(/\.[^/.]+$/, '');
+        
+        if (/^\d/.test(nameWithoutExt)) {
+          return res.status(400).json({ 
+            success: false,
+            message: `Image filename "${file.originalname}" cannot start with a number` 
+          });
+        }
+        
+        if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(nameWithoutExt)) {
+          return res.status(400).json({ 
+            success: false,
+            message: `Image filename "${file.originalname}" can only contain letters, numbers, hyphens, and underscores, and must start with a letter` 
+          });
+        }
+      }
+    }
+
     if (req.files && req.files.length > 0) {
       const uploadDir = 'public/uploads/reImage';
       
@@ -241,7 +289,6 @@ exports.updateProduct = async (req, res) => {
         fs.mkdirSync(uploadDir, { recursive: true });
       }
 
-      // Process each new image
       for (const file of req.files) {
         try {
           if (!file.buffer) {
@@ -252,7 +299,6 @@ exports.updateProduct = async (req, res) => {
           const filename = `product_${Date.now()}-${Math.floor(Math.random() * 1000000000)}.jpg`;
           const outputPath = path.join(uploadDir, filename);
 
-          // Process image with sharp
           await sharp(file.buffer)
             .resize(800, 800, {
               fit: 'contain',
@@ -261,14 +307,12 @@ exports.updateProduct = async (req, res) => {
             .jpeg({ quality: 85 })
             .toFile(outputPath);
 
-          // Use posix-style paths with leading slash
           const imagePath = path.posix.join('/uploads', 'reImage', filename);
           productImages.push(imagePath);
 
           
         } catch (err) {
           console.error('Error processing image:', err);
-          // Continue with other images if one fails
         }
       }
     }
@@ -387,7 +431,6 @@ exports.toggleProductBlock = async (req, res) => {
       });
     }
 
-    // Toggle the isBlocked status
     product.isBlocked = !product.isBlocked;
     await product.save();
 
@@ -408,6 +451,40 @@ exports.toggleProductBlock = async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: 'Failed to toggle product block status' 
+    });
+  }
+};
+
+exports.checkProductName = async (req, res) => {
+  try {
+    const { name, excludeId } = req.query;
+    
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product name is required'
+      });
+    }
+
+    const query = {
+      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') }
+    };
+
+    if (excludeId) {
+      query._id = { $ne: excludeId };
+    }
+
+    const existingProduct = await Product.findOne(query);
+    
+    res.json({
+      exists: !!existingProduct,
+      success: true
+    });
+  } catch (error) {
+    console.error('Error checking product name:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking product name'
     });
   }
 };

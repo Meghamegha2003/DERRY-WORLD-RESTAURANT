@@ -821,50 +821,30 @@
         // Handle order placement
         async function placeOrder() {
             console.log('placeOrder called - inline version');
+            
+            // Validate address and payment method
+            if (!selectedAddressId) {
+                await showError('Address Required', 'Please select a delivery address');
+                return;
+            }
+            
+            if (!selectedPaymentMethod) {
+                await showError('Payment Method Required', 'Please select a payment method');
+                return;
+            }
+
+            const orderTotalEl = document.getElementById('orderTotal');
+            if (!orderTotalEl?.dataset?.total) {
+                await showError('Error', 'Unable to determine order total');
+                return;
+            }
+            
             try {
-                // Validate address and payment method
-                if (!selectedAddressId) {
-                    await showError('Address Required', 'Please select a delivery address');
-                    return;
-                }
-                
-                if (!selectedPaymentMethod) {
-                    await showError('Payment Method Required', 'Please select a payment method');
-                    return;
-                }
-
-                const orderTotalEl = document.getElementById('orderTotal');
-                if (!orderTotalEl?.dataset?.total) {
-                    await showError('Error', 'Unable to determine order total');
-                    return;
-                }
-                
-                const orderTotal = parseFloat(orderTotalEl.dataset.total);
-                
-                // Check COD limit
-                if (selectedPaymentMethod === 'cod' && orderTotal > 1000) {
-                    await showError('Payment Error', 'COD not available for orders above ₹1000');
-                    return;
-                }
-
-                // Show loading state
-                const loadingSwal = Swal.fire({
-                    title: 'Processing Order...',
-                    text: 'Please wait while we process your order',
-                    allowOutsideClick: false,
-                    allowEscapeKey: false,
-                    showConfirmButton: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
+                console.log('Placing order with:', {
+                    address: selectedAddressId,
+                    paymentMethod: selectedPaymentMethod
                 });
-
-                console.log('Processing order with:', { 
-                    addressId: selectedAddressId, 
-                    paymentMethod: selectedPaymentMethod 
-                });
-
-                // Use single endpoint for all payment methods
+                
                 const response = await fetch('/checkout/process', {
                     method: 'POST',
                     headers: {
@@ -877,30 +857,54 @@
                         paymentMethod: selectedPaymentMethod
                     })
                 });
-
-                const result = await response.json();
                 
-                // Close loading dialog
-                if (loadingSwal) {
-                    await loadingSwal.close();
-                }
-
-                if (result.success) {
-                    console.log('Order placed successfully');
+                const data = await response.json();
+                console.log('Checkout response:', data);
+                
+                if (!response.ok) {
+                    // Handle automatic cart cleanup for blocked items
+                    if (data.shouldRefresh) {
+                        await Swal.fire({
+                            icon: 'warning',
+                            title: 'Cart Updated',
+                            text: data.message,
+                            confirmButtonColor: '#ffbe33'
+                        });
+                        // Refresh the page to show updated cart
+                        window.location.reload();
+                        return;
+                    }
                     
-                    // Handle Razorpay payment if online method and order details returned
-                    if (selectedPaymentMethod === 'online' && result.order && result.order.id) {
-                        // Initialize Razorpay payment
+                    // Handle empty cart after cleanup
+                    if (data.cartEmpty && data.redirectTo) {
+                        await Swal.fire({
+                            icon: 'info',
+                            title: 'Cart Empty',
+                            text: data.message,
+                            confirmButtonColor: '#ffbe33'
+                        });
+                        window.location.href = data.redirectTo;
+                        return;
+                    }
+                    
+                    throw new Error(data.message || 'Order placement failed');
+                }
+                
+                // Handle successful response
+                if (data.success) {
+                    const result = data;
+                    
+                    // Handle Razorpay payment
+                    if (result.order && result.order.id) {
                         const razorpayOptions = {
-                            key: result.key || RAZORPAY_KEY_ID,
+                            key: result.key,
                             amount: result.order.amount,
-                            currency: result.order.currency || 'INR',
+                            currency: result.order.currency,
                             name: 'DERRY Restaurant',
-                            description: 'Order Payment',
+                            description: 'Food Order Payment',
                             order_id: result.order.id,
                             handler: async function(response) {
                                 try {
-                                    // Show verification loading
                                     const verifyingSwal = Swal.fire({
                                         title: 'Verifying Payment...',
                                         text: 'Please wait while we verify your payment',
@@ -941,7 +945,24 @@
                                     }
                                 } catch (error) {
                                     console.error('Payment verification failed:', error);
-                                    await showError('Payment Failed', error.message || 'Failed to verify payment');
+                                    console.log('Available result data:', result);
+                                    const orderId = result.order?.orderId || result.orderId;
+                                    console.log('Redirecting to order ID:', orderId);
+                                    
+                                    await Swal.fire({
+                                        icon: 'error',
+                                        title: 'Payment Failed',
+                                        text: 'Your payment could not be processed. You can retry payment from your order details.',
+                                        confirmButtonColor: '#ffbe33'
+                                    });
+                                    
+                                    // Redirect to order details page for failed payment
+                                    if (orderId) {
+                                        window.location.href = `/orders/${orderId}`;
+                                    } else {
+                                        // Fallback to orders list if no specific order ID
+                                        window.location.href = '/orders';
+                                    }
                                 }
                             },
                             prefill: {
@@ -954,7 +975,21 @@
                             },
                             modal: {
                                 ondismiss: function() {
-                                    showError('Payment Cancelled', 'Payment was cancelled. No order has been created.');
+                                    Swal.fire({
+                                        icon: 'warning',
+                                        title: 'Payment Cancelled',
+                                        text: 'Payment was cancelled. You can retry payment from your order details.',
+                                        confirmButtonColor: '#ffbe33'
+                                    }).then(() => {
+                                        // Redirect to order details page for cancelled payment
+                                        const orderId = result.order?.orderId || result.orderId;
+                                        console.log('Payment cancelled, redirecting to order ID:', orderId);
+                                        if (orderId) {
+                                            window.location.href = `/orders/${orderId}`;
+                                        } else {
+                                            window.location.href = '/orders';
+                                        }
+                                    });
                                 }
                             }
                         };
@@ -969,9 +1004,9 @@
                     }
                     
                     // For COD and Wallet payments, show success directly
-                    await showSuccessAndRedirect(result.orderId);
+                    await showSuccessAndRedirect(result.orderId || result.order?.orderId);
                 } else {
-                    throw new Error(result.message || 'Failed to process order');
+                    throw new Error(data.message || 'Failed to process order');
                 }
             } catch (error) {
                 console.error('Error in placeOrder:', error);

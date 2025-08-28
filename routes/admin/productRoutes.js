@@ -11,6 +11,7 @@ router.get('/add', productController.loadAddProductPage);
 router.post('/add', upload.array('images', 5), productController.addProduct);
 router.get('/edit/:id', productController.loadEditProductPage);
 router.post('/edit/:id', upload.array('images', 5), productController.updateProduct);
+router.get('/check-name', productController.checkProductName);
 router.get('/:id', productController.getProductDetails);
 router.delete('/:productId/images/:imageIndex', productController.deleteProductImage);
 router.post('/toggle-block/:id', productController.toggleProductBlock);

@@ -13,13 +13,24 @@ const verifyToken = async (token, requireAdmin = false) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const user = await User.findById(decoded.userId).select('-password');
         
-        if (!user) return { success: false, error: 'User not found' };
+        if (!user) return { success: false, error: 'User not found', clearToken: true };
         
-        if (!requireAdmin && !user.isActive) {
+        // Check if user is blocked (for both admin and regular users)
+        if (!user.isActive) {
             return { 
                 success: false, 
                 error: 'Your account has been blocked. Please contact support.',
-                isBlocked: true
+                isBlocked: true,
+                clearToken: true
+            };
+        }
+        
+        // Check session version to invalidate old tokens when user is blocked/unblocked
+        if (user.sessionVersion && decoded.sessionVersion !== user.sessionVersion) {
+            return {
+                success: false,
+                error: 'Session expired due to account changes',
+                clearToken: true
             };
         }
         
@@ -207,6 +218,9 @@ const optionalAuth = async (req, res, next) => {
                 } catch (error) {
                     req.cartCount = 0;
                 }
+            } else if (result.clearToken) {
+                // Clear invalid/blocked user token
+                clearToken(res, 'user');
             }
         }
         next();
@@ -216,9 +230,43 @@ const optionalAuth = async (req, res, next) => {
     }
 };
 
+// Middleware to check if user is blocked on every request
+const checkUserBlocked = async (req, res, next) => {
+    try {
+        const token = getToken(req, 'user');
+        if (token) {
+            const result = await verifyToken(token);
+            if (!result.success && result.isBlocked) {
+                // Clear the blocked user's token
+                clearToken(res, 'user');
+                
+                // Check if this is an AJAX request
+                if (req.xhr || req.headers.accept?.includes('application/json')) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Your account has been blocked. Please contact support.',
+                        redirect: '/login?blocked=true'
+                    });
+                } else {
+                    // Regular browser navigation - redirect to login
+                    return res.redirect('/login?blocked=true');
+                }
+            } else if (!result.success && result.clearToken) {
+                // Clear invalid token
+                clearToken(res, 'user');
+            }
+        }
+        next();
+    } catch (error) {
+        console.error('Check user blocked error:', error);
+        next();
+    }
+};
+
 module.exports = {
     auth,
     adminAuth,
     preventAuthPages,
-    optionalAuth
+    optionalAuth,
+    checkUserBlocked
 };

@@ -747,8 +747,8 @@
                   <% } %>
                   <div class="quantity">Quantity: <%= item.quantity %></div>
 
-                  <!-- Refund breakdown for cancelled/returned items (only for non-COD orders) -->
-                  <% if ((item.status === 'Cancelled' || item.status === 'Returned' || item.status === 'Return Approved') && order.paymentMethod && order.paymentMethod.toLowerCase() !== 'cod') { %>
+                  <!-- Refund breakdown for cancelled/returned items (only for non-COD orders and successful payments) -->
+                  <% if ((item.status === 'Cancelled' || item.status === 'Returned' || item.status === 'Return Approved') && order.paymentMethod && order.paymentMethod.toLowerCase() !== 'cod' && order.paymentStatus !== 'Failed' && order.paymentStatus !== 'Pending') { %>
                     <div class="refund-breakdown mt-2 p-2 bg-light rounded">
                       <div class="small text-muted mb-1"><strong>Refund Breakdown:</strong></div>
                       <div class="d-flex justify-content-between small">
@@ -817,11 +817,11 @@
                   <% } else if (item.returnStatus === 'Rejected') { %>
                     <span class="badge bg-danger">Return Rejected</span>
                   <% } else { %>
-                    <% if (order.orderStatus === 'Pending' || order.orderStatus === 'Processing') { %>
+                    <% if ((order.orderStatus === 'Pending' || order.orderStatus === 'Processing') && order.paymentStatus !== 'Failed') { %>
                       <div class="action-buttons mt-2">
                         <button onclick="cancelOrderItem('<%= order._id %>', '<%= item._id %>')" class="btn btn-sm btn-outline-danger me-2">Cancel</button>
                       </div>
-                    <% } else if (order.orderStatus === 'Delivered') { %>
+                    <% } else if (order.orderStatus === 'Delivered' && order.paymentStatus !== 'Failed') { %>
                       <div class="action-buttons mt-2">
                         <% if (order.canReturn && !item.returnStatus) { %>
                           <button onclick="returnOrderItem('<%= order._id %>', '<%= item._id %>')" class="btn btn-sm btn-outline-warning">Return</button>
@@ -829,6 +829,10 @@
                         <% } else if (!order.canReturn) { %>
                           <span class="text-danger small">(<%= order.returnWindowText %>)</span>
                         <% } %>
+                      </div>
+                    <% } else if (order.paymentStatus === 'Failed') { %>
+                      <div class="mt-2">
+                        <span class="text-muted small"><i class="fa fa-exclamation-triangle"></i> Payment Failed - No refund actions available</span>
                       </div>
                     <% } %>
                   <% } %>
@@ -969,15 +973,15 @@
               currentCouponDiscount = order.totalCoupon;
             }
             
-            // Calculate refunded amounts
+            // Calculate refunded amounts (only for successful payments)
             const cancelledReturnedItems = order.items.filter(item => 
               item.status === 'Cancelled' || 
               item.status === 'Returned' || 
               item.status === 'Return Approved'
             );
             
-            // Calculate total refunded amount - use stored refund amounts when available
-            const totalRefundedAmount = cancelledReturnedItems.reduce((sum, item) => {
+            // Calculate total refunded amount - use stored refund amounts when available (only for successful payments)
+            const totalRefundedAmount = (order.paymentStatus !== 'Failed' && order.paymentStatus !== 'Pending') ? cancelledReturnedItems.reduce((sum, item) => {
               // Always calculate using the same logic as individual item breakdown for consistency
               const itemTotal = item.quantity * item.price;
               const totalOrderValue = order.items.reduce((sum, orderItem) => sum + (orderItem.price * orderItem.quantity), 0);
@@ -1002,7 +1006,7 @@
               });
               
               return sum + Math.max(0, actualRefundAmount);
-            }, 0);
+            }, 0) : 0;
             
             // Calculate pending return amounts
             const pendingReturnItems = order.items.filter(item => item.returnStatus === 'Pending');
@@ -1173,7 +1177,7 @@
               <span id="current-total">₹<%= currentTotal.toFixed(2) %></span>
             </div>
             
-            <% if (totalRefundedAmount > 0 && order.paymentMethod && order.paymentMethod.toLowerCase() !== 'cod') { %>
+            <% if (totalRefundedAmount > 0 && order.paymentMethod && order.paymentMethod.toLowerCase() !== 'cod' && order.paymentStatus !== 'Failed' && order.paymentStatus !== 'Pending') { %>
               <div class="price-row" style="color: #ff8c00;">
                 <span>Total Refunded</span>
                 <span id="total-refunded">₹<%= totalRefundedAmount.toFixed(2) %></span>
@@ -1184,7 +1188,7 @@
       <div class="price-row">
         <span>Payment Status</span>
         <div class="d-flex align-items-center">
-          <% if (order.orderStatus === 'Cancelled' || order.orderStatus === 'Returned') { %>
+          <% if ((order.orderStatus === 'Cancelled' || order.orderStatus === 'Returned') && order.paymentStatus !== 'Pending') { %>
             <span class="badge bg-info">Refunded</span>
           <% } else if (order.paymentStatus === 'Failed') { %>
             <span class="badge bg-danger">Failed</span>
@@ -1207,13 +1211,13 @@
   );
   
 %>
-<% if ((order.paymentStatus === 'Paid' || order.paymentStatus === 'Success' || order.paymentStatus === 'Refunded') && hasActiveItems) { %>
+<% if ((order.paymentStatus === 'Paid' || order.paymentStatus === 'Success' || order.paymentStatus === 'Refunded') && hasActiveItems && order.orderStatus !== 'Cancelled') { %>
   <div class="d-grid mt-2">
     <a href="/orders/<%= order._id %>/invoice" class="btn btn-outline-primary btn-block" target="_blank">
       <i class="fas fa-download me-2"></i> Download Invoice
     </a>
   </div>
-<% } else if (order.paymentMethod.toLowerCase() === 'online' && (order.paymentStatus === 'Pending' || order.paymentStatus === 'Failed')) { %>
+<% } else if (order.paymentMethod.toLowerCase() === 'online' && (order.paymentStatus === 'Pending' || order.paymentStatus === 'Failed') && order.orderStatus !== 'Cancelled') { %>
   <div class="d-grid mt-3">
     <button id="retryBtn" onclick="retryPayment('<%= order._id %>')" class="btn btn-warning btn-block">
       <i class="fas fa-<%= order.paymentStatus === 'Failed' ? 'redo-alt' : 'credit-card' %> me-2"></i>

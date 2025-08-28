@@ -54,7 +54,6 @@
           <th scope="col">Customer</th>
           <th scope="col">Actions</th>
           <th scope="col">Total Amount</th>
-          <th scope="col">Coupon</th>
           <th scope="col">Order Date</th>
           <th scope="col">Status</th>
           <th scope="col">Payment Method</th>
@@ -86,21 +85,6 @@
                     const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
                 %>
                 ₹<%= currentBalance.toFixed(2) %>
-              </td>
-              <td>
-                <% if (order.appliedCoupon && order.appliedCoupon.code) { %>
-                  <span class="badge bg-success">
-                    <%= order.appliedCoupon.code %>
-                  </span>
-                  <br>
-                  <small class="text-muted">-₹<%= (order.couponDiscount || 0).toFixed(2) %></small>
-                <% } else if (order.couponDiscount > 0) { %>
-                  <span class="badge bg-info">Coupon Applied</span>
-                  <br>
-                  <small class="text-muted">-₹<%= order.couponDiscount.toFixed(2) %></small>
-                <% } else { %>
-                  <span class="text-muted">No Coupon</span>
-                <% } %>
               </td>
               <td><%= new Date(order.createdAt).toLocaleDateString('en-IN') %></td>
               <td>
@@ -148,7 +132,7 @@
           <% }); %>
         <% } else { %>
           <tr>
-            <td colspan="9" class="text-center">No orders found</td>
+            <td colspan="8" class="text-center">No orders found</td>
           </tr>
         <% } %>
       </tbody>
@@ -261,7 +245,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!orders || !orders.length) {
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="text-center py-4">
+                    <td colspan="6" class="text-center py-4">
                         <div class="text-muted">
                             <i class="fas fa-inbox fa-3x mb-3"></i>
                             <p>No orders found</p>

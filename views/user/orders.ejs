@@ -536,7 +536,11 @@
                         <%= order.cancelledAt ? (new Date(order.cancelledAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })) : '' %>
                     </span>
                 <% } else if (order.orderStatus === 'Pending') { %>
-                    <a href="#" class="btn btn-outline-danger btn-sm" onclick="cancelOrder('<%= order._id %>')"><i class="fas fa-times"></i> Cancel</a>
+                    <% if (order.paymentStatus !== 'Failed') { %>
+                        <a href="#" class="btn btn-outline-danger btn-sm" onclick="cancelOrder('<%= order._id %>')"><i class="fas fa-times"></i> Cancel</a>
+                    <% } else { %>
+                        <span class="text-muted small"><i class="fa fa-exclamation-triangle"></i> Payment Failed</span>
+                    <% } %>
                 <% } %>
             </div>
         </div>

@@ -136,16 +136,11 @@
       <div class="row justify-content-center">
         <div class="col-lg-6 col-md-8 col-sm-12">
           <div class="login-container">
-            <% if (typeof blocked !== 'undefined' && blocked === 'true') { %>
-              <div class="alert alert-danger">
-                <h4 class="alert-heading">Account Blocked</h4>
-                <p>Your account has been blocked. Please contact support.</p>
-                <% if (typeof reason !== 'undefined' && reason) { %>
-                  <hr>
-                  <p><strong>Reason:</strong> <%= decodeURIComponent(reason) %></p>
-                <% } %>
-              </div>
-            <% } %>
+            <!-- Blocked user alert (will be shown via JavaScript if blocked=true in URL) -->
+            <div id="blockedAlert" class="alert alert-warning" style="display: none;">
+              <h4 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> Account Access Restricted</h4>
+              <p>Your account has been temporarily restricted. Please contact support for assistance.</p>
+            </div>
 
             <h2 class="text-center mb-4">Login to Derry World</h2>
 
@@ -310,6 +305,15 @@
       // Handle any URL parameters for success/error messages
       const urlParams = new URLSearchParams(window.location.search);
       const success = urlParams.get('success');
+      const blocked = urlParams.get('blocked');
+      
+      // Show blocked user alert if blocked=true in URL
+      if (blocked === 'true') {
+        document.getElementById('blockedAlert').style.display = 'block';
+        // Clean up the URL
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
       
       if (success) {
         Swal.fire({

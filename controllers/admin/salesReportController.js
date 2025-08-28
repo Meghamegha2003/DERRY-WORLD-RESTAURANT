@@ -57,16 +57,13 @@ exports.viewSalesReport = async (req, res) => {
       .lean();
 
     const allOrders = await Order.find(query).lean();
-    // Calculate total sales using current balance after cancellations/returns
     const totalSales = allOrders.reduce((sum, order) => {
-      // Filter active items (non-cancelled/returned)
       const activeItems = order.items ? order.items.filter(item => 
         item.status !== 'Cancelled' && 
         item.status !== 'Returned' && 
         item.status !== 'Return Approved'
       ) : [];
       
-      // Calculate current balance
       const currentItemsTotal = activeItems.reduce((itemSum, item) => itemSum + (item.price * item.quantity), 0);
       const currentCouponDiscount = order.couponDiscount || 0;
       const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
@@ -183,16 +180,13 @@ exports.getSalesReportData = async (req, res) => {
 
     const total = await Order.countDocuments(query);
 
-    // Calculate total revenue using current balance after cancellations/returns
     const totalRevenue = orders.reduce((sum, order) => {
-      // Filter active items (non-cancelled/returned)
       const activeItems = order.items ? order.items.filter(item => 
         item.status !== 'Cancelled' && 
         item.status !== 'Returned' && 
         item.status !== 'Return Approved'
       ) : [];
       
-      // Calculate current balance
       const currentItemsTotal = activeItems.reduce((itemSum, item) => itemSum + (item.price * item.quantity), 0);
       const currentCouponDiscount = order.couponDiscount || 0;
       const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
@@ -315,18 +309,14 @@ exports.exportSalesReportPDF = async (req, res) => {
       doc.moveDown();
     }
 
-    // Order Summary
     const totalOrdersCount = orders.length;
-    // Calculate total revenue using current balance after cancellations/returns
     const totalRevenueAmount = orders.reduce((sum, order) => {
-      // Filter active items (non-cancelled/returned)
       const activeItems = order.items ? order.items.filter(item => 
         item.status !== 'Cancelled' && 
         item.status !== 'Returned' && 
         item.status !== 'Return Approved'
       ) : [];
       
-      // Calculate current balance
       const currentItemsTotal = activeItems.reduce((itemSum, item) => itemSum + (item.price * item.quantity), 0);
       const currentCouponDiscount = order.couponDiscount || 0;
       const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
@@ -369,7 +359,6 @@ exports.exportSalesReportPDF = async (req, res) => {
       );
     doc.moveDown();
 
-    // Table headers (centered and narrower)
     const pageMargin = doc.page.margins.left;
     const availableWidth =
       doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -486,7 +475,6 @@ exports.exportSalesReportPDF = async (req, res) => {
         doc.font("Helvetica").fontSize(12);
         rowY = tableTop + 20;
       }
-      // Calculate current balance after cancellations/returns
       const activeItems = order.items ? order.items.filter(item => 
         item.status !== 'Cancelled' && 
         item.status !== 'Returned' && 
@@ -677,7 +665,6 @@ exports.exportSalesReportExcel = async (req, res) => {
               )
               .join(", ")
           : "";
-      // Calculate current balance after cancellations/returns
       const activeItems = order.items ? order.items.filter(item => 
         item.status !== 'Cancelled' && 
         item.status !== 'Returned' && 
