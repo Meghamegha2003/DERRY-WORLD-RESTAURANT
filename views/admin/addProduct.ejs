@@ -344,19 +344,21 @@
   let cropper = null;
   const cropperModal = new bootstrap.Modal(document.getElementById('cropperModal'));
 
-  // Validate image filename
+  // Validate image filename - more permissive validation
   function validateImageFilename(filename) {
-    // Remove extension for validation
-    const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
+    // Just check for basic image file extensions and reasonable characters
+    const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+    const hasValidExtension = validExtensions.some(ext => 
+      filename.toLowerCase().endsWith(ext)
+    );
     
-    // Check if starts with number
-    if (/^\d/.test(nameWithoutExt)) {
-      return { valid: false, message: 'Image filename cannot start with a number' };
+    if (!hasValidExtension) {
+      return { valid: false, message: 'Please upload a valid image file (jpg, jpeg, png, gif, webp, bmp)' };
     }
     
-    // Check for symbols (only allow letters, numbers, hyphens, underscores)
-    if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(nameWithoutExt)) {
-      return { valid: false, message: 'Image filename can only contain letters, numbers, hyphens, and underscores, and must start with a letter' };
+    // Check for extremely problematic characters only
+    if (/[<>:"|?*\\]/.test(filename)) {
+      return { valid: false, message: 'Image filename contains invalid characters' };
     }
     
     return { valid: true };
@@ -544,16 +546,17 @@
     formData.append('quantity', document.getElementById('quantity').value);
     formData.append('description', document.getElementById('description').value.trim());
 
-    // Add images
+    // Add images - convert base64 to files
     const imagePromises = croppedImages.filter(img => img).map(async (imageDataUrl, index) => {
       try {
         // Convert base64 to blob
         const base64Response = await fetch(imageDataUrl);
         const blob = await base64Response.blob();
         
-        // Create a File object from the blob
-        const file = new File([blob], `image${index + 1}.jpg`, { type: 'image/jpeg' });
+        // Create a File object from the blob with proper name
+        const file = new File([blob], `product_image_${index + 1}.jpg`, { type: 'image/jpeg' });
         formData.append('images', file);
+        console.log(`Added image ${index + 1} to form data:`, file.name, file.size);
       } catch (error) {
         console.error(`Error processing image ${index + 1}:`, error);
         throw new Error(`Failed to process image ${index + 1}`);
@@ -563,6 +566,8 @@
     try {
       // Wait for all image conversions
       await Promise.all(imagePromises);
+      
+      console.log('Sending form data with', formData.getAll('images').length, 'images');
 
       const response = await fetch('/admin/products/add', {
         method: 'POST',

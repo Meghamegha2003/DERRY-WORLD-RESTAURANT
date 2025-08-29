@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const cloudinary = require('../../config/cloudinary');
+const { cloudinary } = require('../../config/cloudinary');
 const { auth } = require('../../middlewares/authMiddleware');
 
 // Generate Cloudinary signature for secure uploads

@@ -51,6 +51,9 @@ exports.loadAddProductPage = async (req, res) => {
 
 exports.addProduct = async (req, res) => {
   try {
+    console.log('Add Product Request Body:', req.body);
+    console.log('Add Product Files:', req.files ? req.files.length : 0);
+    console.log('Cloudinary Uploads:', req.cloudinaryUploads ? req.cloudinaryUploads.length : 0);
 
     const { 
       productName, 
@@ -62,7 +65,7 @@ exports.addProduct = async (req, res) => {
       dietaryType 
     } = req.body;
     
-   if (!productName || !category || !regularPrice || !quantity || !description || !dietaryType) {
+    if (!productName || !category || !regularPrice || !quantity || !description || !dietaryType) {
       return res.status(400).json({ 
         success: false,
         message: 'All fields are required' 
@@ -87,7 +90,18 @@ exports.addProduct = async (req, res) => {
       });
     }
 
-    if (!req.cloudinaryUploads || req.cloudinaryUploads.length === 0) {
+    // Check if we have images from Cloudinary middleware or need to handle them differently
+    let productImages = [];
+    
+    if (req.cloudinaryUploads && req.cloudinaryUploads.length > 0) {
+      productImages = req.cloudinaryUploads;
+    } else if (req.files && req.files.length > 0) {
+      // Fallback: if middleware didn't process, we still have files
+      return res.status(400).json({ 
+        success: false,
+        message: 'Image processing failed. Please try again.' 
+      });
+    } else {
       return res.status(400).json({ 
         success: false,
         message: 'Please upload at least one product image' 
@@ -102,33 +116,24 @@ exports.addProduct = async (req, res) => {
       quantity: parseInt(quantity),
       description: description.trim(),
       dietaryType,
-      productImage: req.cloudinaryUploads,
+      productImage: productImages,
       isListed: true,
       isBlocked: false,
       updatedAt: new Date()
     });
 
-    try {
-      await newProduct.save();
-      res.status(201).json({ 
-        success: true,
-        message: 'Product added successfully',
-        product: newProduct
-      });
-    } catch (saveError) {
-      console.error('Error saving product to database:', saveError);
-      res.status(500).json({ 
-        success: false,
-        message: 'Failed to save product to database',
-        error: saveError.message
-      });
-    }
+    await newProduct.save();
+    res.status(201).json({ 
+      success: true,
+      message: 'Product added successfully',
+      product: newProduct
+    });
 
   } catch (error) {
-    console.error('Unexpected error in addProduct:', error);
+    console.error('Error in addProduct:', error);
     res.status(500).json({ 
       success: false,
-      message: 'Unexpected error adding product',
+      message: error.message || 'Failed to add product',
       error: error.message 
     });
   }
@@ -160,6 +165,10 @@ exports.loadEditProductPage = async (req, res) => {
 
 exports.updateProduct = async (req, res) => {
   try {
+    console.log('Update Product Request Body:', req.body);
+    console.log('Update Product Files:', req.files ? req.files.length : 0);
+    console.log('Cloudinary Uploads:', req.cloudinaryUploads ? req.cloudinaryUploads.length : 0);
+    
     const productId = req.params.id;
     const { 
       productName, 
@@ -171,7 +180,6 @@ exports.updateProduct = async (req, res) => {
       dietaryType
     } = req.body;
 
-    
     if (parseFloat(salesPrice) >= parseFloat(regularPrice)) {
       return res.status(400).json({ 
         success: false,
@@ -201,7 +209,14 @@ exports.updateProduct = async (req, res) => {
 
     let productImages = [];
     
-    if (req.body.existingImages) {
+    // Handle existing images from form data
+    if (req.body['existingImages[]']) {
+      if (Array.isArray(req.body['existingImages[]'])) {
+        productImages = [...req.body['existingImages[]']];
+      } else {
+        productImages = [req.body['existingImages[]']];
+      }
+    } else if (req.body.existingImages) {
       if (Array.isArray(req.body.existingImages)) {
         productImages = [...req.body.existingImages];
       } else {
@@ -209,10 +224,16 @@ exports.updateProduct = async (req, res) => {
       }
     }
 
+    // Handle new uploaded images
     if (req.cloudinaryUploads && req.cloudinaryUploads.length > 0) {
       productImages.push(...req.cloudinaryUploads);
     }
 
+    // Remove null/empty values and ensure we have at least one image
+    productImages = productImages.filter(img => img && img.trim() !== '');
+    
+    console.log('Final product images array:', productImages);
+    
     if (productImages.length === 0) {
       return res.status(400).json({
         success: false,
@@ -220,22 +241,21 @@ exports.updateProduct = async (req, res) => {
       });
     }
 
-    while (productImages.length < 4) {
-      productImages.push(null);
-    }
+    // Ensure we don't exceed 4 images
     productImages = productImages.slice(0, 4);
 
-  const updatedProduct = await Product.findByIdAndUpdate(
+    const updatedProduct = await Product.findByIdAndUpdate(
       productId,
       {
-        name: productName,
+        name: productName.trim(),
         category,
-        regularPrice,
-        salesPrice,
-        quantity,
-        description,
+        regularPrice: parseFloat(regularPrice),
+        salesPrice: parseFloat(salesPrice),
+        quantity: parseInt(quantity),
+        description: description.trim(),
         dietaryType,
-        productImage: productImages
+        productImage: productImages,
+        updatedAt: new Date()
       },
       { new: true, runValidators: true }
     );
