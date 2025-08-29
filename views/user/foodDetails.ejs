@@ -542,7 +542,7 @@
                 </div>
             <% } %>
 
-            <!-- Inline addToCart function to ensure immediate availability -->
+            <!-- Inline JavaScript for all functionality -->
             <script>
                 // Define addToCart function immediately to prevent ReferenceError
                 window.addToCart = async function(productId, event) {
@@ -582,9 +582,101 @@
                         });
                     }
                 };
+
+                // Zoom and Thumbnail functionality - inline implementation
+                document.addEventListener('DOMContentLoaded', function() {
+                    initializeZoomAndThumbnails();
+                });
+
+                function initializeZoomAndThumbnails() {
+                    // Initialize zoom functionality
+                    const zoomLevel = 3;
+                    const mainImage = document.querySelector(".main-image");
+                    const zoomLens = document.querySelector(".zoom-lens");
+                    const zoomResult = document.querySelector(".zoom-result");
+                    const container = document.querySelector(".product-image-container");
+                    
+                    if (mainImage && zoomLens && zoomResult && container) {
+                        function moveLens(e) {
+                            e.preventDefault();
+                            const rect = container.getBoundingClientRect();
+                            const lensWidth = 80;
+                            const lensHeight = 80;
+                            
+                            const x = Math.min(
+                                Math.max(e.clientX - rect.left - lensWidth / 2, 0),
+                                rect.width - lensWidth
+                            );
+                            const y = Math.min(
+                                Math.max(e.clientY - rect.top - lensHeight / 2, 0),
+                                rect.height - lensHeight
+                            );
+                            
+                            zoomLens.style.left = x + "px";
+                            zoomLens.style.top = y + "px";
+                            zoomResult.style.backgroundImage = `url('${mainImage.src}')`;
+                            zoomResult.style.backgroundSize = `${
+                                mainImage.offsetWidth * zoomLevel
+                            }px ${mainImage.offsetHeight * zoomLevel}px`;
+                            zoomResult.style.backgroundPosition = `-${x * zoomLevel}px -${
+                                y * zoomLevel
+                            }px`;
+                        }
+
+                        function showZoom() {
+                            if (window.innerWidth > 1200) {
+                                zoomLens.style.display = "block";
+                                zoomResult.style.display = "block";
+                            }
+                        }
+
+                        function hideZoom() {
+                            zoomLens.style.display = "none";
+                            zoomResult.style.display = "none";
+                        }
+
+                        container.addEventListener("mousemove", moveLens);
+                        container.addEventListener("mouseenter", showZoom);
+                        container.addEventListener("mouseleave", hideZoom);
+                    }
+
+                    // Initialize thumbnail functionality
+                    const thumbnails = document.querySelectorAll(".thumbnail");
+                    if (thumbnails.length > 0 && mainImage) {
+                        thumbnails.forEach(function(thumb) {
+                            thumb.addEventListener("click", function(e) {
+                                e.preventDefault();
+                                
+                                if (this.src && mainImage) {
+                                    mainImage.src = this.src;
+                                    
+                                    // Update zoom background if zoom result exists
+                                    if (zoomResult) {
+                                        zoomResult.style.backgroundImage = `url('${this.src}')`;
+                                    }
+                                    
+                                    // Update active thumbnail
+                                    thumbnails.forEach(function(t) {
+                                        t.classList.remove("active");
+                                    });
+                                    this.classList.add("active");
+                                }
+                            });
+                        });
+                    }
+                }
+
+                // Re-initialize after page updates (like cart status changes)
+                setInterval(function() {
+                    const button = document.querySelector('.btn-add-cart');
+                    if (button && (button.textContent.includes('View in Cart') || button.textContent.includes('Out of Stock'))) {
+                        // Re-initialize zoom and thumbnails after cart status change
+                        setTimeout(function() {
+                            initializeZoomAndThumbnails();
+                        }, 100);
+                    }
+                }, 2000);
             </script>
-            <!-- Externalizing all client JS to avoid EJS parsing issues -->
-            <script src="/js/foodDetails.js"></script>
         </div>
       
     </div>

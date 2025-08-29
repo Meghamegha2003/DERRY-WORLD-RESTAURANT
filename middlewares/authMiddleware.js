@@ -51,9 +51,9 @@ const verifyToken = async (token, requireAdmin = false) => {
 const clearToken = (res, type) => {
     res.clearCookie(`${type}Token`, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: false, // Match the cookie setting attributes
         path: '/',
-        sameSite: 'strict'
+        sameSite: 'lax' // Match the cookie setting attributes
     });
 };
 

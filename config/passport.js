@@ -39,7 +39,8 @@ passport.use(new GoogleStrategy({
       const token = jwt.sign(
         { 
           userId: user._id,
-          isAdmin: user.roles?.includes('admin')
+          isAdmin: user.roles?.includes('admin'),
+          sessionVersion: user.sessionVersion || 1
         },
         process.env.JWT_SECRET,
         { expiresIn: '7d' }

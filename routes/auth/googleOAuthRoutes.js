@@ -19,18 +19,27 @@ router.get('/callback',
   }),
   (req, res) => {
     try {
+      console.log('Google OAuth callback - req.user:', !!req.user);
+      console.log('Google OAuth callback - req.user.token:', !!req.user?.token);
+      
       if (!req.user || !req.user.token) {
         console.error('No user or token found after Google authentication');
         return res.redirect('/login?error=Authentication+failed');
       }
 
+      console.log('Google OAuth callback - Setting token cookie for user:', req.user.email);
+      console.log('Google OAuth callback - Token value:', req.user.token);
+
       // Set JWT token in cookie
       res.cookie('userToken', req.user.token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        secure: false, // Match regular login settings
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        path: '/',
+        sameSite: 'lax' // Match regular login settings
       });
 
+      console.log('Google OAuth callback - Cookie set, redirecting to home');
       // Redirect to home page
       res.redirect('/');
     } catch (error) {

@@ -1,11 +1,7 @@
 const Product = require('../../models/productSchema');
 const Category = require('../../models/categorySchema');
 const Cart = require('../../models/cartSchema');
-const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
-const sharp = require('sharp');
-const { saveBase64Image } = require("../../helpers/imageHelper");
+const { deleteFromCloudinary } = require('../../config/cloudinary');
 
 exports.viewProducts = async (req, res) => {
   const currentPage = parseInt(req.query.page) || 1;
@@ -91,60 +87,11 @@ exports.addProduct = async (req, res) => {
       });
     }
 
-    if (!req.files || req.files.length === 0) {
+    if (!req.cloudinaryUploads || req.cloudinaryUploads.length === 0) {
       return res.status(400).json({ 
         success: false,
         message: 'Please upload at least one product image' 
       });
-    }
-
-    for (const file of req.files) {
-      const nameWithoutExt = file.originalname.replace(/\.[^/.]+$/, '');
-      
-      if (/^\d/.test(nameWithoutExt)) {
-        return res.status(400).json({ 
-          success: false,
-          message: `Image filename "${file.originalname}" cannot start with a number` 
-        });
-      }
-      
-      if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(nameWithoutExt)) {
-        return res.status(400).json({ 
-          success: false,
-          message: `Image filename "${file.originalname}" can only contain letters, numbers, hyphens, and underscores, and must start with a letter` 
-        });
-      }
-    }
-
-    const uploadDir = path.join('public', 'uploads', 'reImage');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    const imagePaths = [];
-    for (const file of req.files) {
-      try {
-        if (!file.buffer) {
-          console.error('No buffer found in file:', file);
-          continue;
-        }
-
-        const filename = `product_${Date.now()}-${Math.floor(Math.random() * 1000000000)}.jpg`;
-        const outputPath = path.join(uploadDir, filename);
-
-        await sharp(file.buffer)
-          .resize(800, 800, {
-            fit: 'contain',
-            background: { r: 255, g: 255, b: 255, alpha: 1 }
-          })
-          .jpeg({ quality: 85 })
-          .toFile(outputPath);
-
-        const imagePath = path.posix.join('/uploads', 'reImage', filename);
-        imagePaths.push(imagePath);
-
-      } catch (err) {
-        console.error('Error processing image:', err);
-      }
     }
 
     const newProduct = new Product({
@@ -155,7 +102,7 @@ exports.addProduct = async (req, res) => {
       quantity: parseInt(quantity),
       description: description.trim(),
       dietaryType,
-      productImage: imagePaths,
+      productImage: req.cloudinaryUploads,
       isListed: true,
       isBlocked: false,
       updatedAt: new Date()
@@ -262,59 +209,8 @@ exports.updateProduct = async (req, res) => {
       }
     }
 
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        const nameWithoutExt = file.originalname.replace(/\.[^/.]+$/, '');
-        
-        if (/^\d/.test(nameWithoutExt)) {
-          return res.status(400).json({ 
-            success: false,
-            message: `Image filename "${file.originalname}" cannot start with a number` 
-          });
-        }
-        
-        if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(nameWithoutExt)) {
-          return res.status(400).json({ 
-            success: false,
-            message: `Image filename "${file.originalname}" can only contain letters, numbers, hyphens, and underscores, and must start with a letter` 
-          });
-        }
-      }
-    }
-
-    if (req.files && req.files.length > 0) {
-      const uploadDir = 'public/uploads/reImage';
-      
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      for (const file of req.files) {
-        try {
-          if (!file.buffer) {
-            console.error('No buffer found in file:', file);
-            continue;
-          }
-
-          const filename = `product_${Date.now()}-${Math.floor(Math.random() * 1000000000)}.jpg`;
-          const outputPath = path.join(uploadDir, filename);
-
-          await sharp(file.buffer)
-            .resize(800, 800, {
-              fit: 'contain',
-              background: { r: 255, g: 255, b: 255, alpha: 1 }
-            })
-            .jpeg({ quality: 85 })
-            .toFile(outputPath);
-
-          const imagePath = path.posix.join('/uploads', 'reImage', filename);
-          productImages.push(imagePath);
-
-          
-        } catch (err) {
-          console.error('Error processing image:', err);
-        }
-      }
+    if (req.cloudinaryUploads && req.cloudinaryUploads.length > 0) {
+      productImages.push(...req.cloudinaryUploads);
     }
 
     if (productImages.length === 0) {
@@ -400,13 +296,24 @@ exports.deleteProductImage = async (req, res) => {
 
     const index = parseInt(imageIndex);
     if (index >= 0 && index < product.productImage.length) {
-      const imagePath = path.join('public', product.productImage[index]);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
+      const imageUrl = product.productImage[index];
+      
+      // Extract public_id from Cloudinary URL for deletion
+      if (imageUrl && imageUrl.includes('cloudinary.com')) {
+        try {
+          const urlParts = imageUrl.split('/');
+          const publicIdWithExt = urlParts[urlParts.length - 1];
+          const publicId = publicIdWithExt.split('.')[0];
+          const folder = urlParts[urlParts.length - 2];
+          const fullPublicId = `${folder}/${publicId}`;
+          
+          await deleteFromCloudinary(fullPublicId);
+        } catch (deleteError) {
+          console.error('Error deleting from Cloudinary:', deleteError);
+        }
       }
 
-      product.productImage[index] = null;
-      product.productImage = product.productImage.filter(path => path !== null);
+      product.productImage.splice(index, 1);
       await product.save();
 
       res.json({ success: true, message: 'Image deleted successfully' });

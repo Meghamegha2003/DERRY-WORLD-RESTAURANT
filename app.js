@@ -4,6 +4,9 @@ const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
 require('dotenv').config();
 
+// Import passport configuration
+require('./config/passport');
+
 // Import routes
 const adminRouter = require('./routes/admin/adminRouter');
 const userRouter = require('./routes/user/userRouter');
@@ -30,7 +33,7 @@ app.set('view engine', 'ejs');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser(process.env.COOKIE_SECRET));
+app.use(cookieParser());
 
 // Cache control middleware
 app.use(cacheControl);
@@ -56,6 +59,56 @@ app.use((req, res, next) => {
         res.locals.authenticated = true;
     }
     next();
+});
+
+// Global middleware to make user data available to all templates
+app.use(async (req, res, next) => {
+    try {
+        const jwt = require('jsonwebtoken');
+        const User = require('./models/userSchema');
+        const Cart = require('./models/cartSchema');
+        
+        const token = req.cookies.userToken;
+        
+        if (token) {
+            try {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                const user = await User.findById(decoded.userId).select('-password');
+                
+                if (user && user.isActive) {
+                    res.locals.user = user;
+                    
+                    // Get cart count for user
+                    try {
+                        const cart = await Cart.findOne({ user: user._id });
+                        res.locals.cartCount = cart?.items ? new Set(
+                            cart.items
+                                .filter(item => item && item.product)
+                                .map(item => item.product.toString())
+                        ).size : 0;
+                    } catch (error) {
+                        res.locals.cartCount = 0;
+                    }
+                } else {
+                    res.locals.user = null;
+                    res.locals.cartCount = 0;
+                }
+            } catch (error) {
+                res.locals.user = null;
+                res.locals.cartCount = 0;
+            }
+        } else {
+            res.locals.user = null;
+            res.locals.cartCount = 0;
+        }
+        
+        next();
+    } catch (error) {
+        console.error('Global user middleware error:', error);
+        res.locals.user = null;
+        res.locals.cartCount = 0;
+        next();
+    }
 });
 
 // Static files with cache control

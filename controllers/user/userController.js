@@ -163,10 +163,14 @@ exports.loginUser = async (req, res) => {
     // Set the token in cookie
     res.cookie("userToken", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: false, // Set to false for development
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      sameSite: 'strict'
+      path: '/',
+      sameSite: 'lax'
     });
+    
+    console.log('Token set in cookie for user:', user.email);
+    console.log('Token value:', token);
 
     // Return success response
     return res.json({
@@ -343,8 +347,7 @@ exports.registerUser = async (req, res) => {
                 password, // Will be hashed later during user creation
                 referralCode: newReferralCode,
                 referredBy,
-                timestamp: Date.now(),
-                otp: otp // Include OTP in the token for verification
+                timestamp: Date.now()
             },
             process.env.JWT_SECRET,
             { expiresIn: '30m' }
@@ -972,8 +975,7 @@ exports.resendOTP = async (req, res) => {
     const newToken = jwt.sign(
       { 
         email: decoded.email, 
-        purpose: 'otp_verification',
-        otp 
+        purpose: 'otp_verification'
       },
       process.env.JWT_SECRET,
       { expiresIn: '30m' }
@@ -1118,24 +1120,7 @@ exports.verifyOTP = async (req, res) => {
                 });
             }
             
-            if (decoded.otp !== otp) {
-                const errorMsg = 'Invalid OTP. Please try again.';
-                console.error('OTP mismatch for:', decoded.email);
-                
-                if (req.accepts('json')) {
-                    return res.status(400).json({ 
-                        success: false, 
-                        message: errorMsg 
-                    });
-                }
-                return res.status(400).render('user/verify-otp', {
-                    title: 'Verify OTP',
-                    error: errorMsg,
-                    token: otpToken,
-                    email: decoded.email
-                });
-            }
-            
+            // Skip token OTP comparison - rely on database verification instead
             console.log('Token verified for:', decoded.email, 'issued at:', new Date(decoded.iat * 1000).toISOString());
             
         } catch (error) {
@@ -1153,6 +1138,9 @@ exports.verifyOTP = async (req, res) => {
             return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
         }
         
+        // Enhanced debugging for OTP lookup
+        console.log('Database OTP lookup for:', decoded.email, 'OTP:', otp, 'Current time:', new Date());
+        
         const otpRecord = await OTP.findOne({
             email: { $regex: new RegExp(`^${decoded.email}$`, 'i') },
             otp: otp,
@@ -1160,6 +1148,18 @@ exports.verifyOTP = async (req, res) => {
         });
         
         console.log('OTP verification attempt for:', decoded.email, 'Found:', !!otpRecord);
+        
+        // If not found, check what OTP records exist for this email
+        if (!otpRecord) {
+            const allOtpRecords = await OTP.find({ 
+                email: { $regex: new RegExp(`^${decoded.email}$`, 'i') } 
+            });
+            console.log('All OTP records for', decoded.email + ':', allOtpRecords.map(r => ({
+                otp: r.otp,
+                expiresAt: r.expiresAt,
+                expired: r.expiresAt <= new Date()
+            })));
+        }
         
         if (!otpRecord) {
             const errorMsg = 'Invalid or expired OTP. Please try again.';
