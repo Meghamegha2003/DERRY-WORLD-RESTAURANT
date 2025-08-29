@@ -900,10 +900,25 @@ exports.rejectReturn = async (req, res) => {
 // Submit product rating
 exports.submitRating = async (req, res) => {
   try {
-    const { productId, rating, orderId } = req.body;
+    const { productId, rating, orderId, review, images } = req.body;
     const userId = req.user._id;
 
+    // Debug logging
+    console.log('Received rating data:', {
+      productId,
+      rating,
+      orderId,
+      review,
+      images,
+      userId
+    });
+
     if (!productId || !rating || !orderId) {
+      console.log('Missing fields validation failed:', {
+        hasProductId: !!productId,
+        hasRating: !!rating,
+        hasOrderId: !!orderId
+      });
       return res.status(400).json({
         success: false,
         message: "Missing required fields",
@@ -951,6 +966,8 @@ exports.submitRating = async (req, res) => {
         $set: {
           "items.$.rating": Number(rating),
           "items.$.ratedAt": new Date(),
+          "items.$.review": review || "",
+          "items.$.reviewImages": images || [],
         },
       },
       { new: true }
@@ -960,13 +977,23 @@ exports.submitRating = async (req, res) => {
       throw new Error("Failed to update order rating");
     }
 
+    // Get user name for the rating
+    const User = require('../../models/userSchema');
+    const user = await User.findById(userId).select('name');
+    const userName = user ? user.name : 'Anonymous';
+
     const product = await Product.findByIdAndUpdate(
       productId,
       {
         $push: {
           ratings: {
             user: userId,
+            userId: userId,
+            userName: userName,
             rating: Number(rating),
+            review: review || "",
+            images: images || [],
+            date: new Date(),
           },
         },
       },

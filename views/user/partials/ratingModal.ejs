@@ -1,4 +1,96 @@
 <!-- Rating Modal -->
+<style>
+  .image-upload-container {
+    display: flex;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+  
+  .image-upload-box {
+    width: 80px;
+    height: 80px;
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
+    background-color: #f8f9fa;
+  }
+  
+  .image-upload-box:hover {
+    border-color: #ffbe33;
+    background-color: #fff8e1;
+  }
+  
+  .image-upload-box.has-image {
+    border-color: #28a745;
+    border-style: solid;
+  }
+  
+  .upload-placeholder {
+    text-align: center;
+    color: #6c757d;
+  }
+  
+  .upload-placeholder i {
+    font-size: 20px;
+    margin-bottom: 4px;
+    display: block;
+  }
+  
+  .upload-placeholder small {
+    font-size: 10px;
+    line-height: 1;
+  }
+  
+  .uploaded-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 6px;
+  }
+  
+  .remove-image {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 20px;
+    height: 20px;
+    background-color: #dc3545;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 10px;
+    z-index: 10;
+  }
+  
+  .remove-image:hover {
+    background-color: #c82333;
+  }
+  
+  .upload-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 190, 51, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    color: white;
+    font-size: 12px;
+  }
+</style>
+
 <div class="modal fade" id="ratingModal" tabindex="-1" aria-labelledby="ratingModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -22,6 +114,61 @@
           <div class="mb-3">
             <textarea class="form-control" id="reviewText" rows="3" placeholder="Write your review (optional)"></textarea>
           </div>
+          
+          <!-- Image Upload Section -->
+          <div class="mb-3">
+            <label class="form-label">Add Photos (Optional)</label>
+            <div class="image-upload-container d-flex gap-2">
+              <div class="image-upload-box" onclick="selectImage(0)">
+                <input type="file" id="imageInput0" accept="image/*" style="display: none;" onchange="handleImageSelect(0, this)">
+                <div class="upload-placeholder">
+                  <i class="fas fa-camera"></i>
+                  <small>Add Photo</small>
+                </div>
+                <img class="uploaded-image" style="display: none;">
+                <div class="remove-image" onclick="removeImage(0)" style="display: none;">
+                  <i class="fas fa-times"></i>
+                </div>
+              </div>
+              
+              <div class="image-upload-box" onclick="selectImage(1)">
+                <input type="file" id="imageInput1" accept="image/*" style="display: none;" onchange="handleImageSelect(1, this)">
+                <div class="upload-placeholder">
+                  <i class="fas fa-camera"></i>
+                  <small>Add Photo</small>
+                </div>
+                <img class="uploaded-image" style="display: none;">
+                <div class="remove-image" onclick="removeImage(1)" style="display: none;">
+                  <i class="fas fa-times"></i>
+                </div>
+              </div>
+              
+              <div class="image-upload-box" onclick="selectImage(2)">
+                <input type="file" id="imageInput2" accept="image/*" style="display: none;" onchange="handleImageSelect(2, this)">
+                <div class="upload-placeholder">
+                  <i class="fas fa-camera"></i>
+                  <small>Add Photo</small>
+                </div>
+                <img class="uploaded-image" style="display: none;">
+                <div class="remove-image" onclick="removeImage(2)" style="display: none;">
+                  <i class="fas fa-times"></i>
+                </div>
+              </div>
+              
+              <div class="image-upload-box" onclick="selectImage(3)">
+                <input type="file" id="imageInput3" accept="image/*" style="display: none;" onchange="handleImageSelect(3, this)">
+                <div class="upload-placeholder">
+                  <i class="fas fa-camera"></i>
+                  <small>Add Photo</small>
+                </div>
+                <img class="uploaded-image" style="display: none;">
+                <div class="remove-image" onclick="removeImage(3)" style="display: none;">
+                  <i class="fas fa-times"></i>
+                </div>
+              </div>
+            </div>
+            <small class="text-muted">Upload up to 4 photos to help others with your review</small>
+          </div>
           <div id="ratingStatus" class="mb-2 text-center small"></div>
           <div class="d-grid">
             <button type="submit" class="btn btn-primary">Submit Review</button>
@@ -33,18 +180,188 @@
 </div>
 <script>
   let selectedRating = 0;
-  function openRatingModal(productId, orderId) {
+  let uploadedImages = []; // Array to store uploaded image URLs
+  
+  // Global function to open rating modal
+  window.openRatingModal = function(productId, orderId) {
     selectedRating = 0;
+    uploadedImages = [null, null, null, null];
     document.getElementById('ratingProductId').value = productId;
     document.getElementById('ratingOrderId').value = orderId;
     document.getElementById('reviewText').value = '';
-    document.getElementById('ratingStatus').textContent = '';
+    
+    // Reset rating stars
     document.querySelectorAll('.rating-star').forEach(star => {
       star.classList.remove('fa-solid');
       star.classList.add('fa-regular');
     });
+    
+    // Reset image upload boxes
+    document.querySelectorAll('.image-upload-box').forEach((box, index) => {
+      const placeholder = box.querySelector('.upload-placeholder');
+      const image = box.querySelector('.uploaded-image');
+      const removeBtn = box.querySelector('.remove-image');
+      
+      placeholder.style.display = 'flex';
+      image.style.display = 'none';
+      removeBtn.style.display = 'none';
+      box.classList.remove('has-image');
+    });
+    
     const modal = new bootstrap.Modal(document.getElementById('ratingModal'));
     modal.show();
+  }
+  
+  function resetImageBoxes() {
+    for (let i = 0; i < 4; i++) {
+      const box = document.querySelector(`.image-upload-box:nth-child(${i + 1})`);
+      const placeholder = box.querySelector('.upload-placeholder');
+      const image = box.querySelector('.uploaded-image');
+      const removeBtn = box.querySelector('.remove-image');
+      const input = box.querySelector('input[type="file"]');
+      
+      box.classList.remove('has-image');
+      placeholder.style.display = 'flex';
+      image.style.display = 'none';
+      removeBtn.style.display = 'none';
+      input.value = '';
+      image.src = '';
+    }
+  }
+  
+  function selectImage(index) {
+    event.stopPropagation();
+    document.getElementById(`imageInput${index}`).click();
+  }
+  
+  async function handleImageSelect(index, input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Invalid File Type',
+        text: 'Please select a valid image file',
+        confirmButtonColor: '#ffbe33'
+      });
+      return;
+    }
+    
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      Swal.fire({
+        icon: 'error',
+        title: 'File Too Large',
+        text: 'Image size should be less than 5MB',
+        confirmButtonColor: '#ffbe33'
+      });
+      return;
+    }
+    
+    const box = document.querySelector(`.image-upload-box:nth-child(${index + 1})`);
+    const placeholder = box.querySelector('.upload-placeholder');
+    const image = box.querySelector('.uploaded-image');
+    const removeBtn = box.querySelector('.remove-image');
+    
+    // Show progress
+    const progressDiv = document.createElement('div');
+    progressDiv.className = 'upload-progress';
+    progressDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+    box.appendChild(progressDiv);
+    
+    try {
+      // Upload to Cloudinary
+      const imageUrl = await uploadToCloudinary(file);
+      
+      // Update UI
+      uploadedImages[index] = imageUrl;
+      image.src = imageUrl;
+      image.style.display = 'block';
+      placeholder.style.display = 'none';
+      removeBtn.style.display = 'flex';
+      box.classList.add('has-image');
+      
+    } catch (error) {
+      console.error('Upload failed:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Upload Failed',
+        text: 'Failed to upload image. Please try again.',
+        confirmButtonColor: '#ffbe33'
+      });
+    } finally {
+      // Remove progress indicator
+      if (progressDiv.parentNode) {
+        progressDiv.parentNode.removeChild(progressDiv);
+      }
+    }
+  }
+  
+  function removeImage(index) {
+    event.stopPropagation();
+    
+    const box = document.querySelector(`.image-upload-box:nth-child(${index + 1})`);
+    const placeholder = box.querySelector('.upload-placeholder');
+    const image = box.querySelector('.uploaded-image');
+    const removeBtn = box.querySelector('.remove-image');
+    const input = box.querySelector('input[type="file"]');
+    
+    // Reset UI
+    uploadedImages[index] = null;
+    box.classList.remove('has-image');
+    placeholder.style.display = 'flex';
+    image.style.display = 'none';
+    removeBtn.style.display = 'none';
+    input.value = '';
+    image.src = '';
+  }
+  
+  async function uploadToCloudinary(file) {
+    try {
+      // Get upload signature from server
+      const signatureResponse = await fetch('/upload/cloudinary-signature', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!signatureResponse.ok) {
+        throw new Error('Failed to get upload signature');
+      }
+      
+      const signatureData = await signatureResponse.json();
+      if (!signatureData.success) {
+        throw new Error(signatureData.message || 'Failed to get signature');
+      }
+      
+      // Upload directly to Cloudinary
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('signature', signatureData.signature);
+      formData.append('timestamp', signatureData.timestamp);
+      formData.append('api_key', signatureData.apiKey);
+      formData.append('folder', signatureData.folder);
+      formData.append('transformation', 'w_800,h_600,c_limit,q_auto,f_auto');
+      
+      const uploadResponse = await fetch(`https://api.cloudinary.com/v1_1/${signatureData.cloudName}/image/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error('Upload to Cloudinary failed');
+      }
+      
+      const uploadData = await uploadResponse.json();
+      return uploadData.secure_url;
+      
+    } catch (error) {
+      console.error('Upload error:', error);
+      throw error;
+    }
   }
   document.querySelectorAll('.rating-star').forEach(star => {
     star.addEventListener('mouseenter', function() {
@@ -88,25 +405,68 @@
     const productId = document.getElementById('ratingProductId').value;
     const orderId = document.getElementById('ratingOrderId').value;
     const review = document.getElementById('reviewText').value;
+    
     if (selectedRating < 1 || selectedRating > 5) {
-      document.getElementById('ratingStatus').textContent = 'Please select a rating.';
+      Swal.fire({
+        icon: 'warning',
+        title: 'Rating Required',
+        text: 'Please select a rating before submitting.',
+        confirmButtonColor: '#ffbe33'
+      });
       return;
     }
+    
+    // Filter out null values from uploaded images
+    const reviewImages = uploadedImages.filter(img => img !== null && img !== undefined);
+    
+    // Debug logging
+    console.log('Form data:', {
+      productId,
+      orderId,
+      rating: selectedRating,
+      review,
+      images: reviewImages
+    });
+    
     try {
       const response = await fetch('/orders/submit-rating', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId, orderId, rating: selectedRating, review })
+        body: JSON.stringify({ 
+          productId, 
+          orderId, 
+          rating: selectedRating, 
+          review,
+          images: reviewImages 
+        })
       });
       const data = await response.json();
       if (data.success) {
-        document.getElementById('ratingStatus').textContent = 'Thank you! Your review has been submitted.';
-        setTimeout(() => { window.location.reload(); }, 1200);
+        Swal.fire({
+          icon: 'success',
+          title: 'Review Submitted!',
+          text: 'Thank you! Your review has been submitted successfully.',
+          confirmButtonColor: '#ffbe33',
+          timer: 2000,
+          showConfirmButton: false
+        }).then(() => {
+          window.location.reload();
+        });
       } else {
-        document.getElementById('ratingStatus').textContent = data.message || 'Failed to submit rating.';
+        Swal.fire({
+          icon: 'error',
+          title: 'Submission Failed',
+          text: data.message || 'Failed to submit rating. Please try again.',
+          confirmButtonColor: '#ffbe33'
+        });
       }
     } catch (err) {
-      document.getElementById('ratingStatus').textContent = 'Network error. Please try again.';
+      Swal.fire({
+        icon: 'error',
+        title: 'Network Error',
+        text: 'Network error. Please check your connection and try again.',
+        confirmButtonColor: '#ffbe33'
+      });
     }
   });
 </script>

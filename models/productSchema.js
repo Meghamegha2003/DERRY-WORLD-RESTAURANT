@@ -3,8 +3,15 @@ const mongoose = require('mongoose');
 const ratingSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
+        ref: 'User'
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    userName: {
+        type: String,
+        default: 'Anonymous'
     },
     rating: {
         type: Number,
@@ -14,6 +21,14 @@ const ratingSchema = new mongoose.Schema({
     },
     review: {
         type: String
+    },
+    images: {
+        type: [String],
+        default: []
+    },
+    date: {
+        type: Date,
+        default: Date.now
     },
     createdAt: {
         type: Date,

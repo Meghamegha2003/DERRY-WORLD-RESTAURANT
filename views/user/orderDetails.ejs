@@ -824,11 +824,28 @@
                     <% } else if (order.orderStatus === 'Delivered' && order.paymentStatus !== 'Failed') { %>
                       <div class="action-buttons mt-2">
                         <% if (order.canReturn && !item.returnStatus) { %>
-                          <button onclick="returnOrderItem('<%= order._id %>', '<%= item._id %>')" class="btn btn-sm btn-outline-warning">Return</button>
+                          <button onclick="returnOrderItem('<%= order._id %>', '<%= item._id %>')" class="btn btn-sm btn-outline-warning me-2">Return</button>
                           <span class="text-warning small">(<%= order.returnWindowText %>)</span>
                         <% } else if (!order.canReturn) { %>
                           <span class="text-danger small">(<%= order.returnWindowText %>)</span>
                         <% } %>
+                        
+                        <!-- Rating Section for Delivered Items -->
+                        <div class="mt-2">
+                          <% if (!item.rating) { %>
+                            <button class="btn btn-sm btn-outline-primary" onclick="openRatingModal('<%= item.product._id %>', '<%= order._id %>')">
+                              <i class="fas fa-star"></i> Rate & Review
+                            </button>
+                          <% } else { %>
+                            <div class="rating-display">
+                              <span class="text-success small me-2"><i class="fas fa-check-circle"></i> Reviewed</span>
+                              <% for (let i = 1; i <= 5; i++) { %>
+                                <i class="<%= i <= item.rating ? 'fas' : 'far' %> fa-star"></i>
+                              <% } %>
+                              <span class="ms-1 small text-muted">(<%= item.rating %>/5)</span>
+                            </div>
+                          <% } %>
+                        </div>
                       </div>
                     <% } else if (order.paymentStatus === 'Failed') { %>
                       <div class="mt-2">
@@ -1494,8 +1511,11 @@
     }
   }
 
+
 </script>
 
+    <%- include('../partials/user/footer') %>
+    <%- include('partials/ratingModal') %>
 </body>
 
 </html>

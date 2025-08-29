@@ -332,6 +332,223 @@
             text-decoration: line-through;
             margin-left: 8px;
         }
+
+        /* Reviews Section Styles - Flipkart Style */
+        .reviews-section {
+            background: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+            margin-top: 30px;
+        }
+
+        .rating-summary {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .overall-rating .score {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #2d3436;
+            display: block;
+        }
+
+        .stars-large {
+            margin: 10px 0;
+        }
+
+        .stars-large i {
+            font-size: 1.5rem;
+            color: #ffd700;
+            margin: 0 2px;
+        }
+
+        .total-reviews {
+            color: #636e72;
+            font-size: 1rem;
+            margin: 10px 0 0 0;
+        }
+
+        .rating-breakdown {
+            margin-top: 25px;
+        }
+
+        .rating-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            gap: 10px;
+        }
+
+        .star-label {
+            min-width: 40px;
+            font-size: 0.9rem;
+            color: #2d3436;
+        }
+
+        .star-label i {
+            color: #ffd700;
+            font-size: 0.8rem;
+        }
+
+        .progress-bar {
+            flex: 1;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #ffbe33;
+            transition: width 0.3s ease;
+        }
+
+        .percentage {
+            min-width: 35px;
+            font-size: 0.9rem;
+            color: #636e72;
+            text-align: right;
+        }
+
+        .reviews-list {
+            padding-left: 20px;
+        }
+
+        .review-card {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: box-shadow 0.3s ease;
+        }
+
+        .review-card:hover {
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .review-header {
+            margin-bottom: 15px;
+        }
+
+        .reviewer-info {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+        }
+
+        .reviewer-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #ffbe33;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 1.2rem;
+        }
+
+        .reviewer-details h5 {
+            margin: 0 0 5px 0;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #2d3436;
+        }
+
+        .review-rating {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+
+        .review-rating i {
+            color: #ffd700;
+            font-size: 0.9rem;
+        }
+
+        .rating-number {
+            background: #28a745;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .review-date {
+            color: #636e72;
+            font-size: 0.85rem;
+            margin: 0;
+        }
+
+        .review-content {
+            margin-top: 10px;
+        }
+
+        .review-text {
+            color: #2d3436;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .review-images {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .review-image {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 2px solid #e9ecef;
+            transition: border-color 0.3s ease;
+        }
+
+        .review-image:hover {
+            border-color: #ffbe33;
+        }
+
+        .reviews-pagination {
+            margin-top: 30px;
+        }
+
+        .pagination .page-link {
+            color: #ffbe33;
+            border-color: #ffbe33;
+        }
+
+        .pagination .page-item.active .page-link {
+            background-color: #ffbe33;
+            border-color: #ffbe33;
+        }
+
+        .pagination .page-link:hover {
+            color: #e69b00;
+            border-color: #e69b00;
+        }
+
+        .pagination-info {
+            margin-top: 15px;
+            color: #636e72;
+            font-size: 0.9rem;
+        }
+
+        .no-reviews {
+            text-align: center;
+            padding: 40px;
+            color: #636e72;
+        }
     </style>
 </head>
 <body>
@@ -542,6 +759,146 @@
                 </div>
             <% } %>
 
+            <!-- Reviews Section - Flipkart Style -->
+            <% if (product.ratings && product.ratings.length > 0) { %>
+                <div class="reviews-section mt-5">
+                    <div class="row">
+                        <!-- Rating Summary -->
+                        <div class="col-lg-4">
+                            <div class="rating-summary">
+                                <h3 class="section-title">Ratings & Reviews</h3>
+                                <div class="overall-rating">
+                                    <div class="rating-score">
+                                        <span class="score"><%= product.averageRating ? product.averageRating.toFixed(1) : '0.0' %></span>
+                                        <div class="stars-large">
+                                            <% for(let i = 1; i <= 5; i++) { %>
+                                                <% if (i <= Math.floor(product.averageRating)) { %>
+                                                    <i class="fas fa-star"></i>
+                                                <% } else if (i - 0.5 <= product.averageRating) { %>
+                                                    <i class="fas fa-star-half-alt"></i>
+                                                <% } else { %>
+                                                    <i class="far fa-star"></i>
+                                                <% } %>
+                                            <% } %>
+                                        </div>
+                                        <p class="total-reviews"><%= product.ratings.length %> reviews</p>
+                                    </div>
+                                </div>
+                                
+                                <!-- Rating Breakdown -->
+                                <div class="rating-breakdown">
+                                    <% for(let star = 5; star >= 1; star--) { %>
+                                        <div class="rating-row">
+                                            <span class="star-label"><%= star %> <i class="fas fa-star"></i></span>
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: <%= ratingPercentages[star] %>%"></div>
+                                            </div>
+                                            <span class="percentage"><%= ratingPercentages[star] %>%</span>
+                                        </div>
+                                    <% } %>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Reviews List -->
+                        <div class="col-lg-8">
+                            <div class="reviews-list">
+                                <% if (paginatedRatings && paginatedRatings.length > 0) { %>
+                                    <% paginatedRatings.forEach(function(rating) { %>
+                                        <div class="review-card">
+                                            <div class="review-header">
+                                                <div class="reviewer-info">
+                                                    <div class="reviewer-avatar">
+                                                        <%= (rating.userName && rating.userName.length > 0) ? rating.userName.charAt(0).toUpperCase() : 'A' %>
+                                                    </div>
+                                                    <div class="reviewer-details">
+                                                        <h5 class="reviewer-name"><%= rating.userName || 'Anonymous' %></h5>
+                                                        <div class="review-rating">
+                                                            <% for(let i = 1; i <= 5; i++) { %>
+                                                                <% if (i <= rating.rating) { %>
+                                                                    <i class="fas fa-star"></i>
+                                                                <% } else { %>
+                                                                    <i class="far fa-star"></i>
+                                                                <% } %>
+                                                            <% } %>
+                                                            <span class="rating-number"><%= rating.rating %>/5</span>
+                                                        </div>
+                                                        <p class="review-date"><%= new Date(rating.date || rating.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) %></p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="review-content">
+                                                <% if (rating.review) { %>
+                                                    <p class="review-text"><%= rating.review %></p>
+                                                <% } %>
+                                                <% if (rating.images && rating.images.length > 0) { %>
+                                                    <div class="review-images">
+                                                        <% rating.images.forEach(function(image) { %>
+                                                            <img src="<%= image %>" alt="Review image" class="review-image" onclick="openImageModal('<%= image %>')">
+                                                        <% }); %>
+                                                    </div>
+                                                <% } %>
+                                            </div>
+                                        </div>
+                                    <% }); %>
+
+                                    <!-- Pagination -->
+                                    <% if (reviewsPagination.totalPages > 1) { %>
+                                        <div class="reviews-pagination">
+                                            <nav aria-label="Reviews pagination">
+                                                <ul class="pagination justify-content-center">
+                                                    <% if (reviewsPagination.hasPrev) { %>
+                                                        <li class="page-item">
+                                                            <a class="page-link" href="?page=<%= reviewsPagination.prevPage %>">Previous</a>
+                                                        </li>
+                                                    <% } %>
+                                                    
+                                                    <% for(let i = 1; i <= reviewsPagination.totalPages; i++) { %>
+                                                        <li class="page-item <%= i === reviewsPagination.currentPage ? 'active' : '' %>">
+                                                            <a class="page-link" href="?page=<%= i %>"><%= i %></a>
+                                                        </li>
+                                                    <% } %>
+                                                    
+                                                    <% if (reviewsPagination.hasNext) { %>
+                                                        <li class="page-item">
+                                                            <a class="page-link" href="?page=<%= reviewsPagination.nextPage %>">Next</a>
+                                                        </li>
+                                                    <% } %>
+                                                </ul>
+                                            </nav>
+                                            <p class="pagination-info text-center">
+                                                Showing <%= ((reviewsPagination.currentPage - 1) * 3) + 1 %> to 
+                                                <%= Math.min(reviewsPagination.currentPage * 3, reviewsPagination.totalReviews) %> 
+                                                of <%= reviewsPagination.totalReviews %> reviews
+                                            </p>
+                                        </div>
+                                    <% } %>
+                                <% } else { %>
+                                    <div class="no-reviews">
+                                        <p>No reviews available for this page.</p>
+                                    </div>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            <% } %>
+
+            <!-- Image Modal -->
+            <div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Review Image</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body text-center">
+                            <img id="modalImage" src="" alt="Review image" class="img-fluid">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Inline JavaScript for all functionality -->
             <script>
                 // Define addToCart function immediately to prevent ReferenceError
@@ -676,6 +1033,13 @@
                         }, 100);
                     }
                 }, 2000);
+
+                // Function to open image modal for review images
+                window.openImageModal = function(imageSrc) {
+                    const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+                    document.getElementById('modalImage').src = imageSrc;
+                    modal.show();
+                };
             </script>
         </div>
       

@@ -518,7 +518,7 @@
 
                     <% if ((order.deliveredAt || order.deliveryDate) && order.canReturn) { %>
                         <span class="mx-1">|</span>
-                        <a href="#" class="btn btn-link p-0 text-decoration-underline text-info small" onclick="window.openReturnModal('<%= order._id %>', <%= order.total %>)">Return</a>
+                        <a href="#" class="btn btn-link p-0 text-decoration-underline text-info small" onclick="window.openReturnModal('<%= order._id %>', '<%= order.total %>')">Return</a>
                         <span class="text-warning small">(<%= order.returnWindowText %>)</span>
                     <% } else if (!(order.deliveredAt || order.deliveryDate)) { %>
                         <span class="text-danger small">Return not available (order not delivered)</span>
@@ -526,11 +526,6 @@
                         <span class="text-danger small">(<%= order.returnWindowText %>)</span>
                     <% } %>
 
-                    <% if (!item.rating) { %>
-                        <a href="#" class="btn btn-link p-0 text-decoration-underline text-primary small" onclick="openRatingModal('<%= product && product._id %>', '<%= order._id %>')">Rate & Review Product</a>
-                    <% } else { %>
-                        <span class="text-success small"><i class="fa fa-star"></i> Reviewed</span>
-                    <% } %>
                 <% } else if (order.orderStatus === 'Cancelled') { %>
                     <span class="text-danger small"><i class="fa fa-times-circle"></i> Cancelled on 
                         <%= order.cancelledAt ? (new Date(order.cancelledAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })) : '' %>
@@ -798,8 +793,6 @@ async function cancelOrder(orderId) {
    
    </script>
 
-
     <%- include('../partials/user/footer') %>
-    <%- include('partials/ratingModal') %>
 </body>
 </html>

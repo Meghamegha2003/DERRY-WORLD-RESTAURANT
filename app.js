@@ -22,6 +22,7 @@ const adminProductRoutes = require('./routes/admin/productRoutes');
 const userCouponRoutes = require('./routes/user/couponRoutes');
 const paymentRoutes = require('./routes/user/paymentRoutes');
 const adminWalletRoutes = require('./routes/admin/walletRoutes');
+const uploadRoutes = require('./routes/user/uploadRoutes');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandlers');
 const { auth, adminAuth, checkUserBlocked } = require('./middlewares/authMiddleware');
 const { cacheControl, preventBackAfterLogin, preventCache } = require('./middlewares/cacheControl');
@@ -134,6 +135,7 @@ app.use('/', preventCache, userRouter);
 app.use('/user/coupons', auth, userCouponRoutes);
 app.use('/checkout', auth, checkoutRouter);
 app.use('/orders', auth, userOrderRoutes);
+app.use('/upload', uploadRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

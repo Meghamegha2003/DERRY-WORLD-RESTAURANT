@@ -70,6 +70,10 @@ exports.getAllProducts = async (req, res) => {
 exports.getProductDetails = async (req, res) => {
     try {
         const productId = req.params.id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = 3;
+        const skip = (page - 1) * limit;
+        
         const product = await Product.findById(productId).populate('category');
         
         if (!product) {
@@ -80,7 +84,6 @@ exports.getProductDetails = async (req, res) => {
             return res.redirect('/products');
         }
 
-
         const offerDetails = await OfferService.getBestOffer(product);
         const productObj = product.toObject();
         productObj.offerDetails = {
@@ -89,6 +92,51 @@ exports.getProductDetails = async (req, res) => {
         };
         productObj.inStock = productObj.quantity > 0;
 
+        // Calculate rating breakdown for Flipkart-style display
+        const ratingBreakdown = {
+            5: 0, 4: 0, 3: 0, 2: 0, 1: 0
+        };
+        
+        if (product.ratings && product.ratings.length > 0) {
+            product.ratings.forEach(rating => {
+                ratingBreakdown[rating.rating]++;
+            });
+        }
+
+        // Calculate percentages
+        const totalRatings = product.ratings ? product.ratings.length : 0;
+        const ratingPercentages = {};
+        for (let i = 1; i <= 5; i++) {
+            ratingPercentages[i] = totalRatings > 0 ? Math.round((ratingBreakdown[i] / totalRatings) * 100) : 0;
+        }
+
+        // Get paginated reviews
+        const paginatedRatings = product.ratings ? 
+            product.ratings
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .slice(skip, skip + limit) : [];
+
+        // Use ratings directly since userName is now stored in the schema
+        const populatedRatings = paginatedRatings.map(rating => {
+            const ratingObj = rating.toObject();
+            return {
+                ...ratingObj,
+                userName: ratingObj.userName || 'Anonymous',
+                images: ratingObj.images || []
+            };
+        });
+
+        // Pagination info
+        const totalPages = Math.ceil(totalRatings / limit);
+        const reviewsPagination = {
+            currentPage: page,
+            totalPages,
+            totalReviews: totalRatings,
+            hasNext: page < totalPages,
+            hasPrev: page > 1,
+            nextPage: page + 1,
+            prevPage: page - 1
+        };
 
         let isInCart = false;
         if (req.user) {
@@ -97,7 +145,6 @@ exports.getProductDetails = async (req, res) => {
                 isInCart = cart.items.some(item => item.product.toString() === productId);
             }
         }
-
 
         const cartCount = req.user ? await exports.getCartCount(req.user._id) : 0;
 
@@ -109,7 +156,7 @@ exports.getProductDetails = async (req, res) => {
                 category: product.category._id,
                 isListed: true,
                 isBlocked: false
-            }).limit(4);
+            }).limit(8);
 
             relatedProducts = await Promise.all(related.map(async (rp) => {
                 const rpOffer = await OfferService.getBestOffer(rp);
@@ -140,7 +187,11 @@ exports.getProductDetails = async (req, res) => {
             messages: res.locals.messages,
             isInCart,
             cartCount,
-            path: '/menu'
+            path: '/menu',
+            ratingBreakdown,
+            ratingPercentages,
+            paginatedRatings: populatedRatings,
+            reviewsPagination
         });
 
     } catch (error) {
@@ -217,21 +268,32 @@ exports.rateProduct = async (req, res) => {
             r.userId.toString() === userId.toString()
         );
 
+        // Get user name for the rating
+        const User = require('../../models/userSchema');
+        const user = await User.findById(userId).select('name');
+        const userName = user ? user.name : 'Anonymous';
+
         if (existingRatingIndex > -1) {
 
             product.ratings[existingRatingIndex] = {
+                user: userId,
                 userId,
+                userName: userName,
                 rating,
                 review,
-                date: new Date()
+                date: new Date(),
+                images: []
             };
         } else {
 
             product.ratings.push({
+                user: userId,
                 userId,
+                userName: userName,
                 rating,
                 review,
-                date: new Date()
+                date: new Date(),
+                images: []
             });
         }
 
