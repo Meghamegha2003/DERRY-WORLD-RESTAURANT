@@ -505,6 +505,116 @@
             color: #ffbe33;
             font-size: 18px;
         }
+
+        /* Product Details Styling */
+        .product-details-container {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .product-item-card {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            transition: background-color 0.3s ease;
+        }
+
+        .product-item-card:last-child {
+            border-bottom: none;
+        }
+
+        .product-item-card:hover {
+            background-color: #f8f9fa;
+        }
+
+        .product-item-image {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .product-item-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .product-item-description {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .product-item-price {
+            display: flex;
+            align-items: center;
+        }
+
+        .current-price {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #28a745;
+        }
+
+        .original-price {
+            font-size: 0.9rem;
+        }
+
+        .quantity-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .item-total-price {
+            font-size: 1.1rem;
+            color: #ffbe33;
+        }
+
+        @media (max-width: 768px) {
+            .product-item-card {
+                padding: 15px;
+            }
+            
+            .product-item-image {
+                width: 60px;
+                height: 60px;
+            }
+            
+            .product-item-name {
+                font-size: 0.9rem;
+            }
+            
+            .product-item-description {
+                font-size: 0.8rem;
+            }
+        }
+
+        /* Payment Method Card Container */
+        .payment-method-card-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .payment-method-card-container h5 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        @media (min-width: 768px) {
+            .col-md-4 {
+                flex: 0 0 auto;
+                width: 33.33333333%;
+                margin-bottom: 25px;
+            }
+        }
     </style>
 </head>
 
@@ -561,45 +671,98 @@
                     <% } %>
                 </div>
 
-                <!-- Payment Method Section -->
-                <div class="payment-section mb-4">
-                    <h5 class="mb-3">Payment Method</h5>
-                    <div class="payment-method-card" data-method="cod" onclick="selectPaymentMethod('cod')">
-                        <div class="d-flex align-items-center">
-                            <i class="fas fa-money-bill-wave me-3"></i>
-                            <div>
-                                <h6 class="mb-0">Cash on Delivery</h6>
-                                <small class="text-muted">Pay when your order arrives</small>
+                <!-- Product Details Section -->
+                <div class="product-details-section mb-4">
+                    <h5 class="mb-3">Order Items</h5>
+                    <div class="product-details-container">
+                        <% if (cart.items && cart.items.length > 0) { %>
+                            <% cart.items.forEach(item => { %>
+                                <div class="product-item-card">
+                                    <div class="row align-items-center">
+                                        <div class="col-3">
+                                            <img src="<%= item.product.productImage && item.product.productImage[0] ? item.product.productImage[0] : '/images/default-food.png' %>" 
+                                                 alt="<%= item.product.productName %>" 
+                                                 class="product-item-image">
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="product-item-details">
+                                                <h6 class="product-item-name"><%= item.product.productName %></h6>
+                                                <p class="product-item-description"><%= item.product.description %></p>
+                                                <div class="product-item-price">
+                                                    <% 
+                                                        const price = item.product?.offerDetails?.finalPrice || 
+                                                                     (item.product?.salesPrice && item.product.salesPrice < item.product.regularPrice 
+                                                                      ? item.product.salesPrice 
+                                                                      : item.product?.regularPrice) || 0;
+                                                        const originalPrice = item.product?.regularPrice || 0;
+                                                        const hasDiscount = price < originalPrice;
+                                                    %>
+                                                    <span class="current-price">₹<%= price.toFixed(2) %></span>
+                                                    <% if (hasDiscount) { %>
+                                                        <span class="original-price text-decoration-line-through text-muted ms-2">₹<%= originalPrice.toFixed(2) %></span>
+                                                    <% } %>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-3 text-end">
+                                            <div class="product-item-quantity">
+                                                <span class="quantity-label">Qty: <strong><%= item.quantity %></strong></span>
+                                                <div class="item-total-price mt-2">
+                                                    <strong>₹<%= (price * item.quantity).toFixed(2) %></strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            <% }); %>
+                        <% } else { %>
+                            <div class="text-center py-4">
+                                <p class="mb-0">No items in cart</p>
+                            </div>
+                        <% } %>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="col-md-4">
+                <!-- Payment Method Card -->
+                <div class="payment-method-card-container mb-4">
+                    <div class="payment-section">
+                        <h5 class="mb-3">Payment Method</h5>
+                        <div class="payment-method-card" data-method="cod" onclick="selectPaymentMethod('cod')">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-money-bill-wave me-3"></i>
+                                <div>
+                                    <h6 class="mb-0">Cash on Delivery</h6>
+                                    <small class="text-muted">Pay when your order arrives</small>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="payment-method-card" data-method="wallet" onclick="selectPaymentMethod('wallet')">
-                        <div class="d-flex align-items-center">
-                            <i class="fas fa-wallet me-3"></i>
-                            <div>
-                                <h6 class="mb-0">Wallet</h6>
-                                <small class="text-muted">Available Balance: ₹<%= (walletBalance || 0).toFixed(2) %></small>
+                        <div class="payment-method-card" data-method="wallet" onclick="selectPaymentMethod('wallet')">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-wallet me-3"></i>
+                                <div>
+                                    <h6 class="mb-0">Wallet</h6>
+                                    <small class="text-muted">Available Balance: ₹<%= (walletBalance || 0).toFixed(2) %></small>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="payment-method-card" data-method="online" onclick="selectPaymentMethod('online')">
-                        <div class="d-flex align-items-center">
-                            <i class="fas fa-credit-card me-3"></i>
-                            <div>
-                                <h6 class="mb-0">Online Payment</h6>
-                                <small class="text-muted">Pay securely with Razorpay</small>
+                        <div class="payment-method-card" data-method="online" onclick="selectPaymentMethod('online')">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-credit-card me-3"></i>
+                                <div>
+                                    <h6 class="mb-0">Online Payment</h6>
+                                    <small class="text-muted">Pay securely with Razorpay</small>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <!-- Payment Section -->
-            </div>
-
-            <div class="col-md-4">
-                <!-- Order Summary -->
+                
+                <!-- Order Summary Card -->
                 <div class="order-summary">
                     <h4 class="summary-title">Order Summary</h4>
                     <div class="summary-item">

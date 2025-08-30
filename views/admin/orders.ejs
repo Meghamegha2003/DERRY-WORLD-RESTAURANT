@@ -81,7 +81,9 @@
                         item.status !== 'Return Approved'
                     ) : [];
                     const currentItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                    const currentCouponDiscount = order.couponDiscount || 0;
+                    
+                    // Use proper coupon calculation - balance coupon is the remaining coupon after deductions
+                    const currentCouponDiscount = order.balanceCoupon || order.couponDiscount || 0;
                     const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
                 %>
                 ₹<%= currentBalance.toFixed(2) %>
@@ -272,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         item.status !== 'Return Approved'
                     ) : [];
                     const currentItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                    const currentCouponDiscount = order.couponDiscount || 0;
+                    const currentCouponDiscount = order.balanceCoupon || order.couponDiscount || 0;
                     const currentBalance = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
                     return currentBalance.toFixed(2);
                 })()}</td>

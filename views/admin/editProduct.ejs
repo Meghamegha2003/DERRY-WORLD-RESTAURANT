@@ -1,11 +1,10 @@
 <%- include('../../views/partials/admin/header') %>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 
-<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css">
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <style>
   .preview-grid {
@@ -212,7 +211,7 @@
   }
 </style>
 
-<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
   <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Edit Product</h1>
     <a href="/admin/products" class="btn btn-secondary">
@@ -220,7 +219,7 @@
     </a>
   </div>
 
-  <form id="editProductForm" action="/admin/products/edit/<%= product._id %>" method="POST" enctype="multipart/form-data" autocomplete="off">
+  <form id="editProductForm" action="/admin/products/edit/<%= product._id %>" method="POST" enctype="multipart/form-data" autocomplete="off" onsubmit="return false;">
     <input type="hidden" name="productId" value="<%= product._id %>">
     <input type="file" id="hiddenImageInput" name="images" accept="image/*" style="display:none;" multiple>
     
@@ -343,7 +342,12 @@
   let croppedImages = [];
   let currentBoxIndex = 0;
   let cropper = null;
-  const cropperModal = new bootstrap.Modal(document.getElementById('cropperModal'));
+  let cropperModal = null;
+
+  // Initialize Bootstrap modal after DOM is loaded
+  document.addEventListener('DOMContentLoaded', function() {
+    cropperModal = new bootstrap.Modal(document.getElementById('cropperModal'));
+  });
 
   // Initialize existing images in croppedImages array
   <% if (product && product.productImage) { %>
@@ -577,11 +581,25 @@
   document.getElementById('productImages').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
+    
+    // Enhanced file validation
     if (!file.type.startsWith('image/')) {
       Swal.fire({
         icon: 'error',
         title: 'Invalid File Type',
-        text: 'Only image files are allowed'
+        text: 'Only image files are allowed!'
+      });
+      this.value = '';
+      return;
+    }
+    
+    // File size validation (5MB limit)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      Swal.fire({
+        icon: 'error',
+        title: 'File Too Large',
+        text: `File "${file.name}" is too large. Maximum size is 5MB.`
       });
       this.value = '';
       return;
@@ -604,7 +622,9 @@
         const cropperImage = document.getElementById('cropperImage');
         cropperImage.src = e.target.result;
         
-        cropperModal.show();
+        if (cropperModal) {
+          cropperModal.show();
+        }
         
         document.getElementById('cropperModal').addEventListener('shown.bs.modal', function() {
           if (cropper) {
@@ -639,7 +659,9 @@
     croppedImages[currentBoxIndex] = croppedImage;
     updateImagePreview();
 
-    cropperModal.hide();
+    if (cropperModal) {
+      cropperModal.hide();
+    }
     if (cropper) {
       cropper.destroy();
       cropper = null;
@@ -792,20 +814,49 @@
 
       const response = await fetch(this.action, {
         method: 'POST',
-        body: formData
+        body: formData,
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
       });
 
+      // Handle response
       if (response.ok) {
-        Swal.fire({
-          title: 'Success!',
-          text: 'Product updated successfully',
-          icon: 'success',
-          confirmButtonText: 'OK'
-        }).then(() => {
-          window.location.href = '/admin/products';
-        });
+        try {
+          const result = await response.json();
+          if (result.success !== false) {
+            Swal.fire({
+              title: 'Success!',
+              text: 'Product updated successfully',
+              icon: 'success',
+              confirmButtonText: 'OK'
+            }).then(() => {
+              window.location.href = '/admin/products';
+            });
+            return;
+          } else {
+            throw new Error(result.message || 'Failed to update product');
+          }
+        } catch (parseError) {
+          // If JSON parsing fails but response is OK, assume success
+          Swal.fire({
+            title: 'Success!',
+            text: 'Product updated successfully',
+            icon: 'success',
+            confirmButtonText: 'OK'
+          }).then(() => {
+            window.location.href = '/admin/products';
+          });
+          return;
+        }
       } else {
-        throw new Error('Failed to update product');
+        // Handle error responses
+        try {
+          const errorResult = await response.json();
+          throw new Error(errorResult.message || 'Failed to update product');
+        } catch (parseError) {
+          throw new Error(`Server error: ${response.status} ${response.statusText}`);
+        }
       }
     } catch (error) {
       Swal.fire({
