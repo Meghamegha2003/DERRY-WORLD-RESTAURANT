@@ -130,6 +130,7 @@ app.use('/admin', preventCache, adminRouter);
 app.use('/admin', preventCache, adminGroup);  
 app.use('/payment', paymentRoutes);
 app.use('/auth/google', googleOAuthRoutes);
+app.use('/', require('./debug-oauth')); // Temporary debug route
 app.use('/cart', preventCache, auth, cartRouter);
 app.use('/', preventCache, userRouter);
 app.use('/user/coupons', auth, userCouponRoutes);

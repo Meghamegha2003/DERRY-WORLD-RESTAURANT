@@ -4,6 +4,11 @@ const router = express.Router();
 
 // Google OAuth login route
 router.get('/',
+  (req, res, next) => {
+    console.log('Google OAuth initiated from:', req.get('host'));
+    console.log('Callback URL will be:', process.env.GOOGLE_CALLBACK_URL || 'http://derryworld.ddns.net/auth/google/callback');
+    next();
+  },
   passport.authenticate('google', { 
     scope: ['profile', 'email'],
     prompt: 'select_account',
