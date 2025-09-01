@@ -383,6 +383,565 @@ exports.registerUser = async (req, res) => {
   }
 };
 
+exports.resendOTP = async (req, res) => {
+  try {
+    let otpToken = req.body.token || req.query.token || req.cookies.otpToken;
+    
+    if (!otpToken) {
+      const errorMsg = 'Verification session expired. Please register again.';
+      if (req.accepts('json')) {
+        return res.status(400).json({ 
+          success: false, 
+          message: errorMsg
+        });
+      }
+      return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
+      if (decoded.purpose !== 'otp_verification') throw new Error('Invalid token purpose');
+    } catch (error) {
+      res.clearCookie('otpToken');
+      if (req.accepts('json')) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Verification session expired. Please register again.' 
+        });
+      }
+      return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
+    }
+
+    const otp = generateOtp();
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+
+    await OTP.deleteMany({ email: decoded.email });
+    await OTP.create({ 
+      email: decoded.email, 
+      otp, 
+      expiresAt,
+      createdAt: new Date()
+    });
+    
+    console.log(`New OTP for ${decoded.email}: ${otp} (Expires at: ${expiresAt})`);
+
+    await exports.sendOTPEmail(decoded.email, otp);
+
+    const newToken = jwt.sign(
+      { 
+        email: decoded.email, 
+        purpose: 'otp_verification'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '30m' }
+    );
+
+    // Use the new cookie configuration helper for resend
+    const { getOTPCookieConfig } = require('../../utils/cookieConfig');
+    const resendCookieOptions = getOTPCookieConfig(req);
+    
+    res.cookie('otpToken', newToken, resendCookieOptions);
+
+    const responseData = {
+      success: true, 
+      message: 'New OTP sent successfully to your email',
+      token: newToken 
+    };
+
+    if (req.accepts('json')) {
+      return res.json(responseData);
+    }
+
+    return res.redirect(`/verify-otp?token=${encodeURIComponent(newToken)}&message=${encodeURIComponent('New OTP sent successfully to your email')}`);
+
+  } catch (error) {
+    console.error('Resend OTP error:', error);
+    const errorMsg = error.message || 'Failed to resend OTP. Please try again.';
+    
+    if (req.accepts('json')) {
+      return res.status(500).json({ 
+        success: false, 
+        message: errorMsg
+      });
+    }
+    
+    const redirectUrl = req.cookies.otpToken || req.body.token || req.query.token
+      ? `/verify-otp?token=${encodeURIComponent(req.cookies.otpToken || req.body.token || req.query.token)}&error=${encodeURIComponent(errorMsg)}`
+      : `/register?error=${encodeURIComponent(errorMsg)}`;
+      
+    return res.redirect(redirectUrl);
+  }
+};
+
+exports.renderVerifyOtpPage = async (req, res) => {
+  try {
+    // ========== VERIFY OTP PAGE DEBUG LOGGING ==========
+    console.log('\n=== VERIFY OTP PAGE RENDER DEBUG ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Request IP:', req.ip || req.connection.remoteAddress);
+    console.log('User-Agent:', req.get('User-Agent'));
+    console.log('Host Header:', req.get('Host'));
+    console.log('Protocol:', req.protocol);
+    console.log('Secure:', req.secure);
+    console.log('Environment:', process.env.NODE_ENV);
+    
+    // Log all cookies received
+    console.log('\n--- COOKIES ON VERIFY PAGE ---');
+    console.log('All cookies:', JSON.stringify(req.cookies, null, 2));
+    console.log('Cookie header raw:', req.get('Cookie'));
+    
+    // Log query parameters
+    console.log('\n--- QUERY PARAMETERS ---');
+    console.log('Query:', JSON.stringify(req.query, null, 2));
+    
+    const tokenFromUrl = req.query.token;
+    const tokenFromCookie = req.cookies.otpToken;
+    
+    console.log('\n--- TOKEN SOURCES ON PAGE RENDER ---');
+    console.log('Token from URL:', tokenFromUrl ? 'EXISTS (length: ' + tokenFromUrl.length + ')' : 'NULL');
+    console.log('Token from cookie:', tokenFromCookie ? 'EXISTS (length: ' + tokenFromCookie.length + ')' : 'NULL');
+    
+    const otpToken = tokenFromUrl || tokenFromCookie;
+    console.log('Final token selected:', otpToken ? 'EXISTS (length: ' + otpToken.length + ')' : 'NULL');
+    
+    if (!otpToken) {
+      console.log('❌ No OTP token found, redirecting to register');
+      console.log('=== VERIFY OTP PAGE RENDER DEBUG END ===\n');
+      return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
+    }
+    
+    let decoded;
+    try {
+      console.log('\n--- JWT VERIFICATION ON PAGE RENDER ---');
+      decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
+      console.log('✅ JWT verification successful on page render');
+      console.log('Decoded email:', decoded.email);
+      console.log('Token purpose:', decoded.purpose);
+      
+      if (decoded.purpose !== 'otp_verification') throw new Error('Invalid token purpose');
+      
+      if (tokenFromUrl && !tokenFromCookie) {
+        console.log('Setting cookie from URL token...');
+        const { getOTPCookieConfig } = require('../../utils/cookieConfig');
+        const pageRenderCookieOptions = getOTPCookieConfig(req);
+        console.log('Page render cookie options:', JSON.stringify(pageRenderCookieOptions, null, 2));
+        
+        res.cookie('otpToken', otpToken, pageRenderCookieOptions);
+        console.log('Cookie set from URL token');
+      }
+    } catch (error) {
+      console.error('❌ Token verification failed on page render:', error.message);
+      console.error('Error type:', error.name);
+      res.clearCookie('otpToken');
+      console.log('=== VERIFY OTP PAGE RENDER DEBUG END ===\n');
+      return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
+    }
+    
+    console.log('=== VERIFY OTP PAGE RENDER DEBUG END ===\n');
+
+    res.render('user/verify-otp', {
+      title: 'Verify OTP',
+      email: decoded.email,
+      token: otpToken, 
+      error: req.query.error || null,
+      message: req.query.message || null
+    });
+  } catch (error) {
+    console.error('Error rendering verify OTP page:', error);
+    res.redirect('/register?error=' + encodeURIComponent('Something went wrong. Please try again.'));
+  }
+};
+
+exports.verifyOTP = async (req, res) => {
+    try {
+        // ========== COMPREHENSIVE DEBUG LOGGING START ==========
+        console.log('\n=== OTP VERIFICATION DEBUG START ===');
+        console.log('Timestamp:', new Date().toISOString());
+        console.log('Request IP:', req.ip || req.connection.remoteAddress);
+        console.log('User-Agent:', req.get('User-Agent'));
+        console.log('Host Header:', req.get('Host'));
+        console.log('Protocol:', req.protocol);
+        console.log('Secure:', req.secure);
+        console.log('Environment:', process.env.NODE_ENV);
+        
+        // Log all cookies received
+        console.log('\n--- COOKIES RECEIVED ---');
+        console.log('All cookies:', JSON.stringify(req.cookies, null, 2));
+        console.log('Cookie header raw:', req.get('Cookie'));
+        
+        // Log request body
+        console.log('\n--- REQUEST BODY ---');
+        console.log('Body:', JSON.stringify(req.body, null, 2));
+        console.log('Content-Type:', req.get('Content-Type'));
+        
+        // Log query parameters
+        console.log('\n--- QUERY PARAMETERS ---');
+        console.log('Query:', JSON.stringify(req.query, null, 2));
+        
+        const { otp, token: tokenFromBody } = req.body;
+        
+        // Log token sources
+        console.log('\n--- TOKEN SOURCES ---');
+        console.log('Token from body:', tokenFromBody ? 'EXISTS (length: ' + tokenFromBody.length + ')' : 'NULL');
+        console.log('Token from query:', req.query.token ? 'EXISTS (length: ' + req.query.token.length + ')' : 'NULL');
+        console.log('Token from cookie:', req.cookies.otpToken ? 'EXISTS (length: ' + req.cookies.otpToken.length + ')' : 'NULL');
+        
+        const otpToken = tokenFromBody || req.query.token || req.cookies.otpToken;
+        console.log('Final token selected:', otpToken ? 'EXISTS (length: ' + otpToken.length + ')' : 'NULL');
+        
+        // ========== COMPREHENSIVE DEBUG LOGGING END ==========
+        
+        if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
+            const errorMsg = 'Please enter a valid 6-digit OTP';
+            console.log('❌ OTP validation failed:', { otp, length: otp?.length });
+            
+            if (req.accepts('json')) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: errorMsg 
+                });
+            }
+            return res.status(400).render('user/verify-otp', {
+                title: 'Verify OTP',
+                error: errorMsg,
+                token: otpToken
+            });
+        }
+        
+        if (!otpToken) {
+            const errorMsg = 'Verification session expired. Please register again.';
+            console.error('❌ No OTP token found in any source (body/query/cookie)');
+            
+            if (req.accepts('json')) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: errorMsg 
+                });
+            }
+            return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
+        }
+        
+        let decoded;
+        try {
+            console.log('\n--- JWT TOKEN VERIFICATION ---');
+            console.log('Attempting to verify JWT token...');
+            
+            decoded = jwt.verify(otpToken, process.env.JWT_SECRET, { ignoreExpiration: false });
+            
+            console.log('✅ JWT verification successful');
+            console.log('Decoded payload:', JSON.stringify(decoded, null, 2));
+            console.log('Token issued at:', new Date(decoded.iat * 1000).toISOString());
+            console.log('Token expires at:', new Date(decoded.exp * 1000).toISOString());
+            console.log('Current time:', new Date().toISOString());
+            console.log('Token age (minutes):', Math.floor((Date.now() - (decoded.iat * 1000)) / 60000));
+            
+            if (decoded.purpose !== 'otp_verification') {
+                const errorMsg = 'Invalid verification request. Please try again.';
+                console.error('❌ Invalid token purpose:', decoded.purpose, 'Expected: otp_verification');
+                
+                if (req.accepts('json')) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        message: errorMsg 
+                    });
+                }
+                return res.status(400).render('user/verify-otp', {
+                    title: 'Verify OTP',
+                    error: errorMsg,
+                    token: otpToken
+                });
+            }
+            
+        } catch (error) {
+            console.error('❌ JWT verification failed:', error.message);
+            console.error('Error type:', error.name);
+            console.error('Token that failed:', otpToken?.substring(0, 50) + '...');
+            
+            const errorMsg = 'Verification session expired. Please register again.';
+            
+            res.clearCookie('otpToken', { path: '/verify-otp' });
+            
+            if (req.accepts('json')) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: errorMsg 
+                });
+            }
+            return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
+        }
+        
+        // Enhanced debugging for OTP lookup
+        console.log('\n--- DATABASE OTP LOOKUP ---');
+        console.log('Looking up OTP for email:', decoded.email);
+        console.log('OTP to match:', otp);
+        console.log('Current server time:', new Date().toISOString());
+        
+        const otpRecord = await OTP.findOne({
+            email: { $regex: new RegExp(`^${decoded.email}$`, 'i') },
+            otp: otp,
+            expiresAt: { $gt: new Date() }
+        });
+        
+        console.log('OTP record found:', !!otpRecord);
+        if (otpRecord) {
+            console.log('✅ Valid OTP found in database');
+            console.log('OTP details:', {
+                email: otpRecord.email,
+                otp: otpRecord.otp,
+                createdAt: otpRecord.createdAt,
+                expiresAt: otpRecord.expiresAt,
+                timeUntilExpiry: Math.floor((otpRecord.expiresAt - new Date()) / 60000) + ' minutes'
+            });
+        }
+        
+        // If not found, check what OTP records exist for this email
+        if (!otpRecord) {
+            console.log('❌ No valid OTP found, checking all records for this email...');
+            
+            const allOtpRecords = await OTP.find({ 
+                email: { $regex: new RegExp(`^${decoded.email}$`, 'i') } 
+            });
+            
+            console.log('All OTP records for', decoded.email + ':', allOtpRecords.map(r => ({
+                otp: r.otp,
+                createdAt: r.createdAt,
+                expiresAt: r.expiresAt,
+                expired: r.expiresAt <= new Date(),
+                minutesUntilExpiry: Math.floor((r.expiresAt - new Date()) / 60000)
+            })));
+            
+            // Check if there are any OTPs with different values
+            const otpsWithSameEmail = allOtpRecords.filter(r => r.expiresAt > new Date());
+            if (otpsWithSameEmail.length > 0) {
+                console.log('⚠️  Found valid OTPs for this email but with different values:');
+                otpsWithSameEmail.forEach(r => {
+                    console.log(`   - OTP: ${r.otp}, Created: ${r.createdAt}, Expires: ${r.expiresAt}`);
+                });
+            }
+        }
+        
+        console.log('=== OTP VERIFICATION DEBUG END ===\n');
+        
+        if (!otpRecord) {
+            const errorMsg = 'Invalid or expired OTP. Please try again.';
+            
+            if (req.accepts('json')) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: errorMsg 
+                });
+            }
+            
+            return res.status(400).render('user/verify-otp', {
+                title: 'Verify OTP',
+                error: errorMsg,
+                token: otpToken,
+                email: decoded.email
+            });
+        }
+        
+        await OTP.deleteOne({ _id: otpRecord._id });
+
+    const userData = decoded;
+    if (userData.name) {
+      try {
+        const newUser = new User({
+          name: userData.name,
+          email: userData.email.toLowerCase(),
+          phone: userData.phone,
+          password: userData.password, 
+          referralCode: userData.referralCode,
+          referredBy: userData.referredBy,
+          isVerified: true,
+          isActive: true
+        });
+        
+        await newUser.save();
+        
+        console.log('New user created:', newUser.email);
+        
+        if (userData.referredBy) {
+          try {
+            await processReferralReward(userData.referredBy, newUser._id);
+            console.log('Referral reward processed successfully');
+          } catch (referralError) {
+            console.error('Referral reward processing failed:', referralError);
+          }
+        }
+        
+        res.clearCookie('otpToken', { path: '/verify-otp' });
+        
+        exports.sendWelcomeEmail(userData.email, userData.name)
+          .catch(emailError => {
+            console.error('Failed to send welcome email:', emailError);
+          });
+        
+        if (req.accepts('json')) {
+          return res.json({ 
+            success: true, 
+            message: 'Registration successful! You can now log in.',
+            redirectUrl: '/login?message=' + encodeURIComponent('Registration successful! Please log in.')
+          });
+        }
+        
+        return res.redirect('/login?message=' + encodeURIComponent('Registration successful! Please log in.'));
+        
+      } catch (error) {
+        console.error('Error creating user:', error);
+        const errorMsg = 'Failed to create user. Please try again.';
+        
+        if (req.accepts('json')) {
+          return res.status(500).json({ 
+            success: false, 
+            message: errorMsg 
+          });
+        }
+        
+        return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
+      }
+    } else {
+      res.clearCookie('otpToken');
+      return res.redirect('/login?message=' + encodeURIComponent('Verification successful. Please login to continue.'));
+    }
+
+  } catch (error) {
+    console.error('OTP verification error:', error);
+    return res.redirect('/verify-otp?error=' + encodeURIComponent('Verification failed. Please try again.'));
+  }
+};
+
+exports.renderForgotPassword = async (req, res) => {
+  res.render('user/forgot-password', {
+    message: req.query.message || '',
+    successMessage: req.query.successMessage || '',
+    activePage: 'forgot-password',
+    error: null,
+    path: '/forgot-password'
+  });
+};
+
+exports.handleForgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      if (req.xhr || req.headers.accept?.includes('application/json')) {
+        return res.status(404).json({ success: false, message: 'No account found with that email address.' });
+      }
+      return res.render('user/forgot-password', {
+        message: 'No account found with that email address.',
+        successMessage: '',
+        activePage: 'forgot-password',
+        error: null,
+        path: '/forgot-password'
+      });
+    }
+
+    const passwordResetToken = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    user.resetPasswordToken = passwordResetToken;
+    user.resetPasswordExpires = Date.now() + 3600000; 
+    await user.save();
+
+    const info = await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: 'Password Reset Request',
+      html: `
+        <h1>Password Reset Request</h1>
+        <p>You requested a password reset. Click the link below to reset your password:</p>
+        <a href="${req.protocol}://${req.get('host')}/reset-password/${passwordResetToken}">Reset Password</a>
+        <p>This link will expire in 1 hour.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+      `
+    });
+
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(200).json({ success: true, message: 'Password reset link has been sent to your email.' });
+    }
+    res.render('user/forgot-password', {
+      message: '',
+      successMessage: 'Password reset link has been sent to your email.',
+      activePage: 'forgot-password',
+      error: null,
+      path: '/forgot-password'
+    });
+
+  } catch (error) {
+    console.error('Error in handleForgotPassword:', error);
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(500).json({ success: false, message: 'An error occurred while processing your request.' });
+    }
+    res.render('user/forgot-password', {
+      message: '',
+      successMessage: '',
+      activePage: 'forgot-password',
+      error: 'An error occurred while processing your request.',
+      path: '/forgot-password'
+    });
+  }
+};
+
+exports.googleCallback = async (req, res) => {
+  try {
+    if (!req.user) throw new Error('No user data from Google');
+
+    const { id, email, displayName, picture } = req.user;
+    if (!email) {
+      res.setMessage('error', 'Email access is required for Google login');
+      return res.redirect('/login');
+    }
+
+    let user = await User.findOne({ email });
+    let newUserCreated = false;
+
+    if (!user) {
+      user = new User({
+        name: displayName,
+        email,
+        googleId: id,
+        profilePicture: picture,
+        isVerified: true,
+        password: crypto.randomBytes(20).toString('hex'),
+        referralCode: generateReferralCode()
+      });
+      await user.save();
+      newUserCreated = true;
+    } else if (!user.googleId) {
+      user.googleId = id;
+      user.profilePicture = picture;
+      await user.save();
+    }
+
+    const cartCount = await getCartCount(user._id);
+    const token = generateToken(user, cartCount);
+
+    res.cookie('userToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 30 * 24 * 60 * 60 * 1000
+    });
+
+    const flashMessage = newUserCreated ? 'Account created successfully with Google' : 'Welcome back!';
+    res.cookie('flash', JSON.stringify({ type: 'success', message: flashMessage }), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 5000
+    });
+
+    res.redirect('/');
+  } catch (error) {
+    console.error('Google callback error:', error);
+    res.setMessage('error', 'Failed to authenticate with Google');
+    res.redirect('/login');
+  }
+};
 
 
 // Profile Controllers
@@ -925,513 +1484,6 @@ exports.applyOffersToProducts = async (products) => {
 
 
 
-exports.resendOTP = async (req, res) => {
-  try {
-    let otpToken = req.body.token || req.query.token || req.cookies.otpToken;
-    
-    if (!otpToken) {
-      const errorMsg = 'Verification session expired. Please register again.';
-      if (req.accepts('json')) {
-        return res.status(400).json({ 
-          success: false, 
-          message: errorMsg
-        });
-      }
-      return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
-    }
-
-    let decoded;
-    try {
-      decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
-      if (decoded.purpose !== 'otp_verification') throw new Error('Invalid token purpose');
-    } catch (error) {
-      res.clearCookie('otpToken');
-      if (req.accepts('json')) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Verification session expired. Please register again.' 
-        });
-      }
-      return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
-    }
-
-    const otp = generateOtp();
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
-
-    await OTP.deleteMany({ email: decoded.email });
-    await OTP.create({ 
-      email: decoded.email, 
-      otp, 
-      expiresAt,
-      createdAt: new Date()
-    });
-    
-    console.log(`New OTP for ${decoded.email}: ${otp} (Expires at: ${expiresAt})`);
-
-    await exports.sendOTPEmail(decoded.email, otp);
-
-    const newToken = jwt.sign(
-      { 
-        email: decoded.email, 
-        purpose: 'otp_verification'
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '30m' }
-    );
-
-    // Use the new cookie configuration helper for resend
-    const { getOTPCookieConfig } = require('../../utils/cookieConfig');
-    const resendCookieOptions = getOTPCookieConfig(req);
-    
-    res.cookie('otpToken', newToken, resendCookieOptions);
-
-    const responseData = {
-      success: true, 
-      message: 'New OTP sent successfully to your email',
-      token: newToken 
-    };
-
-    if (req.accepts('json')) {
-      return res.json(responseData);
-    }
-
-    return res.redirect(`/verify-otp?token=${encodeURIComponent(newToken)}&message=${encodeURIComponent('New OTP sent successfully to your email')}`);
-
-  } catch (error) {
-    console.error('Resend OTP error:', error);
-    const errorMsg = error.message || 'Failed to resend OTP. Please try again.';
-    
-    if (req.accepts('json')) {
-      return res.status(500).json({ 
-        success: false, 
-        message: errorMsg
-      });
-    }
-    
-    const redirectUrl = req.cookies.otpToken || req.body.token || req.query.token
-      ? `/verify-otp?token=${encodeURIComponent(req.cookies.otpToken || req.body.token || req.query.token)}&error=${encodeURIComponent(errorMsg)}`
-      : `/register?error=${encodeURIComponent(errorMsg)}`;
-      
-    return res.redirect(redirectUrl);
-  }
-};
-
-
-
-exports.renderVerifyOtpPage = async (req, res) => {
-  try {
-    // ========== VERIFY OTP PAGE DEBUG LOGGING ==========
-    console.log('\n=== VERIFY OTP PAGE RENDER DEBUG ===');
-    console.log('Timestamp:', new Date().toISOString());
-    console.log('Request IP:', req.ip || req.connection.remoteAddress);
-    console.log('User-Agent:', req.get('User-Agent'));
-    console.log('Host Header:', req.get('Host'));
-    console.log('Protocol:', req.protocol);
-    console.log('Secure:', req.secure);
-    console.log('Environment:', process.env.NODE_ENV);
-    
-    // Log all cookies received
-    console.log('\n--- COOKIES ON VERIFY PAGE ---');
-    console.log('All cookies:', JSON.stringify(req.cookies, null, 2));
-    console.log('Cookie header raw:', req.get('Cookie'));
-    
-    // Log query parameters
-    console.log('\n--- QUERY PARAMETERS ---');
-    console.log('Query:', JSON.stringify(req.query, null, 2));
-    
-    const tokenFromUrl = req.query.token;
-    const tokenFromCookie = req.cookies.otpToken;
-    
-    console.log('\n--- TOKEN SOURCES ON PAGE RENDER ---');
-    console.log('Token from URL:', tokenFromUrl ? 'EXISTS (length: ' + tokenFromUrl.length + ')' : 'NULL');
-    console.log('Token from cookie:', tokenFromCookie ? 'EXISTS (length: ' + tokenFromCookie.length + ')' : 'NULL');
-    
-    const otpToken = tokenFromUrl || tokenFromCookie;
-    console.log('Final token selected:', otpToken ? 'EXISTS (length: ' + otpToken.length + ')' : 'NULL');
-    
-    if (!otpToken) {
-      console.log('❌ No OTP token found, redirecting to register');
-      console.log('=== VERIFY OTP PAGE RENDER DEBUG END ===\n');
-      return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
-    }
-    
-    let decoded;
-    try {
-      console.log('\n--- JWT VERIFICATION ON PAGE RENDER ---');
-      decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
-      console.log('✅ JWT verification successful on page render');
-      console.log('Decoded email:', decoded.email);
-      console.log('Token purpose:', decoded.purpose);
-      
-      if (decoded.purpose !== 'otp_verification') throw new Error('Invalid token purpose');
-      
-      if (tokenFromUrl && !tokenFromCookie) {
-        console.log('Setting cookie from URL token...');
-        const { getOTPCookieConfig } = require('../../utils/cookieConfig');
-        const pageRenderCookieOptions = getOTPCookieConfig(req);
-        console.log('Page render cookie options:', JSON.stringify(pageRenderCookieOptions, null, 2));
-        
-        res.cookie('otpToken', otpToken, pageRenderCookieOptions);
-        console.log('Cookie set from URL token');
-      }
-    } catch (error) {
-      console.error('❌ Token verification failed on page render:', error.message);
-      console.error('Error type:', error.name);
-      res.clearCookie('otpToken');
-      console.log('=== VERIFY OTP PAGE RENDER DEBUG END ===\n');
-      return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
-    }
-    
-    console.log('=== VERIFY OTP PAGE RENDER DEBUG END ===\n');
-
-    res.render('user/verify-otp', {
-      title: 'Verify OTP',
-      email: decoded.email,
-      token: otpToken, 
-      error: req.query.error || null,
-      message: req.query.message || null
-    });
-  } catch (error) {
-    console.error('Error rendering verify OTP page:', error);
-    res.redirect('/register?error=' + encodeURIComponent('Something went wrong. Please try again.'));
-  }
-};
-
-exports.verifyOTP = async (req, res) => {
-    try {
-        // ========== COMPREHENSIVE DEBUG LOGGING START ==========
-        console.log('\n=== OTP VERIFICATION DEBUG START ===');
-        console.log('Timestamp:', new Date().toISOString());
-        console.log('Request IP:', req.ip || req.connection.remoteAddress);
-        console.log('User-Agent:', req.get('User-Agent'));
-        console.log('Host Header:', req.get('Host'));
-        console.log('Protocol:', req.protocol);
-        console.log('Secure:', req.secure);
-        console.log('Environment:', process.env.NODE_ENV);
-        
-        // Log all cookies received
-        console.log('\n--- COOKIES RECEIVED ---');
-        console.log('All cookies:', JSON.stringify(req.cookies, null, 2));
-        console.log('Cookie header raw:', req.get('Cookie'));
-        
-        // Log request body
-        console.log('\n--- REQUEST BODY ---');
-        console.log('Body:', JSON.stringify(req.body, null, 2));
-        console.log('Content-Type:', req.get('Content-Type'));
-        
-        // Log query parameters
-        console.log('\n--- QUERY PARAMETERS ---');
-        console.log('Query:', JSON.stringify(req.query, null, 2));
-        
-        const { otp, token: tokenFromBody } = req.body;
-        
-        // Log token sources
-        console.log('\n--- TOKEN SOURCES ---');
-        console.log('Token from body:', tokenFromBody ? 'EXISTS (length: ' + tokenFromBody.length + ')' : 'NULL');
-        console.log('Token from query:', req.query.token ? 'EXISTS (length: ' + req.query.token.length + ')' : 'NULL');
-        console.log('Token from cookie:', req.cookies.otpToken ? 'EXISTS (length: ' + req.cookies.otpToken.length + ')' : 'NULL');
-        
-        const otpToken = tokenFromBody || req.query.token || req.cookies.otpToken;
-        console.log('Final token selected:', otpToken ? 'EXISTS (length: ' + otpToken.length + ')' : 'NULL');
-        
-        // ========== COMPREHENSIVE DEBUG LOGGING END ==========
-        
-        if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
-            const errorMsg = 'Please enter a valid 6-digit OTP';
-            console.log('❌ OTP validation failed:', { otp, length: otp?.length });
-            
-            if (req.accepts('json')) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: errorMsg 
-                });
-            }
-            return res.status(400).render('user/verify-otp', {
-                title: 'Verify OTP',
-                error: errorMsg,
-                token: otpToken
-            });
-        }
-        
-        if (!otpToken) {
-            const errorMsg = 'Verification session expired. Please register again.';
-            console.error('❌ No OTP token found in any source (body/query/cookie)');
-            
-            if (req.accepts('json')) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: errorMsg 
-                });
-            }
-            return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
-        }
-        
-        let decoded;
-        try {
-            console.log('\n--- JWT TOKEN VERIFICATION ---');
-            console.log('Attempting to verify JWT token...');
-            
-            decoded = jwt.verify(otpToken, process.env.JWT_SECRET, { ignoreExpiration: false });
-            
-            console.log('✅ JWT verification successful');
-            console.log('Decoded payload:', JSON.stringify(decoded, null, 2));
-            console.log('Token issued at:', new Date(decoded.iat * 1000).toISOString());
-            console.log('Token expires at:', new Date(decoded.exp * 1000).toISOString());
-            console.log('Current time:', new Date().toISOString());
-            console.log('Token age (minutes):', Math.floor((Date.now() - (decoded.iat * 1000)) / 60000));
-            
-            if (decoded.purpose !== 'otp_verification') {
-                const errorMsg = 'Invalid verification request. Please try again.';
-                console.error('❌ Invalid token purpose:', decoded.purpose, 'Expected: otp_verification');
-                
-                if (req.accepts('json')) {
-                    return res.status(400).json({ 
-                        success: false, 
-                        message: errorMsg 
-                    });
-                }
-                return res.status(400).render('user/verify-otp', {
-                    title: 'Verify OTP',
-                    error: errorMsg,
-                    token: otpToken
-                });
-            }
-            
-        } catch (error) {
-            console.error('❌ JWT verification failed:', error.message);
-            console.error('Error type:', error.name);
-            console.error('Token that failed:', otpToken?.substring(0, 50) + '...');
-            
-            const errorMsg = 'Verification session expired. Please register again.';
-            
-            res.clearCookie('otpToken', { path: '/verify-otp' });
-            
-            if (req.accepts('json')) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: errorMsg 
-                });
-            }
-            return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
-        }
-        
-        // Enhanced debugging for OTP lookup
-        console.log('\n--- DATABASE OTP LOOKUP ---');
-        console.log('Looking up OTP for email:', decoded.email);
-        console.log('OTP to match:', otp);
-        console.log('Current server time:', new Date().toISOString());
-        
-        const otpRecord = await OTP.findOne({
-            email: { $regex: new RegExp(`^${decoded.email}$`, 'i') },
-            otp: otp,
-            expiresAt: { $gt: new Date() }
-        });
-        
-        console.log('OTP record found:', !!otpRecord);
-        if (otpRecord) {
-            console.log('✅ Valid OTP found in database');
-            console.log('OTP details:', {
-                email: otpRecord.email,
-                otp: otpRecord.otp,
-                createdAt: otpRecord.createdAt,
-                expiresAt: otpRecord.expiresAt,
-                timeUntilExpiry: Math.floor((otpRecord.expiresAt - new Date()) / 60000) + ' minutes'
-            });
-        }
-        
-        // If not found, check what OTP records exist for this email
-        if (!otpRecord) {
-            console.log('❌ No valid OTP found, checking all records for this email...');
-            
-            const allOtpRecords = await OTP.find({ 
-                email: { $regex: new RegExp(`^${decoded.email}$`, 'i') } 
-            });
-            
-            console.log('All OTP records for', decoded.email + ':', allOtpRecords.map(r => ({
-                otp: r.otp,
-                createdAt: r.createdAt,
-                expiresAt: r.expiresAt,
-                expired: r.expiresAt <= new Date(),
-                minutesUntilExpiry: Math.floor((r.expiresAt - new Date()) / 60000)
-            })));
-            
-            // Check if there are any OTPs with different values
-            const otpsWithSameEmail = allOtpRecords.filter(r => r.expiresAt > new Date());
-            if (otpsWithSameEmail.length > 0) {
-                console.log('⚠️  Found valid OTPs for this email but with different values:');
-                otpsWithSameEmail.forEach(r => {
-                    console.log(`   - OTP: ${r.otp}, Created: ${r.createdAt}, Expires: ${r.expiresAt}`);
-                });
-            }
-        }
-        
-        console.log('=== OTP VERIFICATION DEBUG END ===\n');
-        
-        if (!otpRecord) {
-            const errorMsg = 'Invalid or expired OTP. Please try again.';
-            
-            if (req.accepts('json')) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: errorMsg 
-                });
-            }
-            
-            return res.status(400).render('user/verify-otp', {
-                title: 'Verify OTP',
-                error: errorMsg,
-                token: otpToken,
-                email: decoded.email
-            });
-        }
-        
-        await OTP.deleteOne({ _id: otpRecord._id });
-
-    const userData = decoded;
-    if (userData.name) {
-      try {
-        const newUser = new User({
-          name: userData.name,
-          email: userData.email.toLowerCase(),
-          phone: userData.phone,
-          password: userData.password, 
-          referralCode: userData.referralCode,
-          referredBy: userData.referredBy,
-          isVerified: true,
-          isActive: true
-        });
-        
-        await newUser.save();
-        
-        console.log('New user created:', newUser.email);
-        
-        if (userData.referredBy) {
-          try {
-            await processReferralReward(userData.referredBy, newUser._id);
-            console.log('Referral reward processed successfully');
-          } catch (referralError) {
-            console.error('Referral reward processing failed:', referralError);
-          }
-        }
-        
-        res.clearCookie('otpToken', { path: '/verify-otp' });
-        
-        exports.sendWelcomeEmail(userData.email, userData.name)
-          .catch(emailError => {
-            console.error('Failed to send welcome email:', emailError);
-          });
-        
-        if (req.accepts('json')) {
-          return res.json({ 
-            success: true, 
-            message: 'Registration successful! You can now log in.',
-            redirectUrl: '/login?message=' + encodeURIComponent('Registration successful! Please log in.')
-          });
-        }
-        
-        return res.redirect('/login?message=' + encodeURIComponent('Registration successful! Please log in.'));
-        
-      } catch (error) {
-        console.error('Error creating user:', error);
-        const errorMsg = 'Failed to create user. Please try again.';
-        
-        if (req.accepts('json')) {
-          return res.status(500).json({ 
-            success: false, 
-            message: errorMsg 
-          });
-        }
-        
-        return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
-      }
-    } else {
-      res.clearCookie('otpToken');
-      return res.redirect('/login?message=' + encodeURIComponent('Verification successful. Please login to continue.'));
-    }
-
-  } catch (error) {
-    console.error('OTP verification error:', error);
-    return res.redirect('/verify-otp?error=' + encodeURIComponent('Verification failed. Please try again.'));
-  }
-};
-
-
-exports.renderForgotPassword = async (req, res) => {
-  res.render('user/forgot-password', {
-    message: req.query.message || '',
-    successMessage: req.query.successMessage || '',
-    activePage: 'forgot-password',
-    error: null,
-    path: '/forgot-password'
-  });
-};
-
-exports.handleForgotPassword = async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    const user = await User.findOne({ email });
-    if (!user) {
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(404).json({ success: false, message: 'No account found with that email address.' });
-      }
-      return res.render('user/forgot-password', {
-        message: 'No account found with that email address.',
-        successMessage: '',
-        activePage: 'forgot-password',
-        error: null,
-        path: '/forgot-password'
-      });
-    }
-
-    const passwordResetToken = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-
-    user.resetPasswordToken = passwordResetToken;
-    user.resetPasswordExpires = Date.now() + 3600000; 
-    await user.save();
-
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: user.email,
-      subject: 'Password Reset Request',
-      html: `
-        <h1>Password Reset Request</h1>
-        <p>You requested a password reset. Click the link below to reset your password:</p>
-        <a href="${req.protocol}://${req.get('host')}/reset-password/${passwordResetToken}">Reset Password</a>
-        <p>This link will expire in 1 hour.</p>
-        <p>If you didn't request this, please ignore this email.</p>
-      `
-    });
-
-    if (req.xhr || req.headers.accept?.includes('application/json')) {
-      return res.status(200).json({ success: true, message: 'Password reset link has been sent to your email.' });
-    }
-    res.render('user/forgot-password', {
-      message: '',
-      successMessage: 'Password reset link has been sent to your email.',
-      activePage: 'forgot-password',
-      error: null,
-      path: '/forgot-password'
-    });
-
-  } catch (error) {
-    console.error('Error in handleForgotPassword:', error);
-    if (req.xhr || req.headers.accept?.includes('application/json')) {
-      return res.status(500).json({ success: false, message: 'An error occurred while processing your request.' });
-    }
-    res.render('user/forgot-password', {
-      message: '',
-      successMessage: '',
-      activePage: 'forgot-password',
-      error: 'An error occurred while processing your request.',
-      path: '/forgot-password'
-    });
-  }
-};
 
 exports.renderResetPassword = async (req, res) => {
   try {
@@ -1553,71 +1605,7 @@ exports.renderProfilePage = async (req, res) => {
   }
 };
 
-exports.googleCallback = async (req, res) => {
-  try {
-    const { id, email, displayName, picture } = req.user;
 
-    if (!email) {
-      res.setMessage('error', 'Email access is required for Google login');
-      return res.redirect('/login');
-    }
-
-    // Check if user exists
-    let user = await User.findOne({ email });
-    
-    if (!user) {
-      // Create new user
-      user = new User({
-        name: displayName,
-        email: email,
-        googleId: id,
-        profilePicture: picture,
-        isVerified: true, // Google users are pre-verified
-        password: crypto.randomBytes(20).toString('hex'), // Random password for Google users
-        referralCode: generateReferralCode()
-      });
-      await user.save();
-      res.setMessage('success', 'Account created successfully with Google');
-    } else {
-      // Update existing user's Google ID if not set
-      if (!user.googleId) {
-        user.googleId = id;
-        user.profilePicture = picture;
-        await user.save();
-      } 
-      res.setMessage('success', 'Welcome back!');
-    }
-
-    // Get cart count
-    const cartCount = await getCartCount(user._id);
-
-    // Generate token with extended expiry for Google users
-    const token = generateToken(user, cartCount);
-
-    // Set token in cookie
-    res.cookie('userToken', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-    });
-
-    // Set flash message cookie
-    res.cookie('flash', JSON.stringify({ 
-      type: 'success', 
-      message: user.googleId ? 'Welcome back!' : 'Account created successfully with Google' 
-    }), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 5000 // 5 seconds
-    });
-
-    // Redirect to home page
-    res.redirect('/');
-  } catch (error) {
-    res.setMessage('error', 'Failed to authenticate with Google');
-    res.redirect('/login');
-  }
-};
 
 exports.changePassword = async (req, res) => {
   try {
