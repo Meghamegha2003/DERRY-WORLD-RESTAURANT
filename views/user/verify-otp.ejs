@@ -198,6 +198,24 @@
         function handleOtpSubmit(event) {
             event.preventDefault();
             
+            // ========== FRONTEND DEBUG LOGGING START ==========
+            console.log('\n=== FRONTEND OTP SUBMISSION DEBUG ===');
+            console.log('Timestamp:', new Date().toISOString());
+            console.log('Current URL:', window.location.href);
+            console.log('Current domain:', window.location.hostname);
+            console.log('Current protocol:', window.location.protocol);
+            console.log('Current port:', window.location.port);
+            console.log('User agent:', navigator.userAgent);
+            
+            // Log all cookies available to JavaScript
+            console.log('\n--- FRONTEND COOKIES ---');
+            console.log('Document.cookie:', document.cookie);
+            console.log('All cookies parsed:', document.cookie.split(';').reduce((cookies, cookie) => {
+                const [name, value] = cookie.trim().split('=');
+                if (name) cookies[name] = value;
+                return cookies;
+            }, {}));
+            
             // Show loading state
             const submitButton = event.target.querySelector('button[type="submit"]');
             const originalButtonText = submitButton.innerHTML;
@@ -206,9 +224,14 @@
             
             // Collect OTP digits
             const otp = Array.from(otpInputs).map(input => input.value).join('');
+            console.log('\n--- OTP COLLECTION ---');
+            console.log('OTP entered:', otp);
+            console.log('OTP length:', otp.length);
+            console.log('OTP is numeric:', /^\d+$/.test(otp));
             
             // Validate OTP format
             if (!/^\d{6}$/.test(otp)) {
+                console.log('❌ OTP validation failed');
                 submitButton.disabled = false;
                 submitButton.innerHTML = originalButtonText;
                 
@@ -222,12 +245,15 @@
             }
 
             // Get the OTP token from hidden input or URL parameter
+            console.log('\n--- TOKEN COLLECTION ---');
             let otpToken = document.getElementById('otpToken').value;
+            console.log('Token from hidden input:', otpToken ? 'EXISTS (length: ' + otpToken.length + ')' : 'NULL');
             
             // If token is not in the form, try to get it from URL
             if (!otpToken) {
                 const urlParams = new URLSearchParams(window.location.search);
                 otpToken = urlParams.get('token');
+                console.log('Token from URL params:', otpToken ? 'EXISTS (length: ' + otpToken.length + ')' : 'NULL');
             }
             
             if (!otpToken) {
@@ -238,34 +264,69 @@
                     if (parts.length === 2) return parts.pop().split(';').shift();
                 };
                 otpToken = getCookie('otpToken');
+                console.log('Token from cookie:', otpToken ? 'EXISTS (length: ' + otpToken.length + ')' : 'NULL');
             }
             
+            console.log('Final token selected:', otpToken ? 'EXISTS (length: ' + otpToken.length + ')' : 'NULL');
+            
             if (!otpToken) {
+                console.log('❌ No token found in any source, redirecting to register');
                 window.location.href = '/register?error=Verification session expired. Please register again.';
                 return;
             }
 
+            // Prepare request data
+            const requestData = { 
+                otp,
+                token: otpToken
+            };
+            
+            const requestHeaders = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            };
+            
+            console.log('\n--- API REQUEST PREPARATION ---');
+            console.log('Request URL:', '/verify-otp');
+            console.log('Full URL will be:', window.location.origin + '/verify-otp');
+            console.log('Request method:', 'POST');
+            console.log('Request headers:', JSON.stringify(requestHeaders, null, 2));
+            console.log('Request body:', JSON.stringify(requestData, null, 2));
+            console.log('Credentials mode:', 'same-origin');
+            
+            console.log('\n--- MAKING API REQUEST ---');
+            console.log('Sending request to server...');
+
             fetch('/verify-otp', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({ 
-                    otp,
-                    token: otpToken // Include token in the request body
-                }),
+                headers: requestHeaders,
+                body: JSON.stringify(requestData),
                 credentials: 'same-origin'
             })
             .then(async response => {
+                console.log('\n--- API RESPONSE RECEIVED ---');
+                console.log('Response status:', response.status);
+                console.log('Response status text:', response.statusText);
+                console.log('Response OK:', response.ok);
+                console.log('Response redirected:', response.redirected);
+                console.log('Response URL:', response.url);
+                console.log('Response headers:');
+                for (let [key, value] of response.headers.entries()) {
+                    console.log(`  ${key}: ${value}`);
+                }
+                
                 const contentType = response.headers.get('content-type');
+                console.log('Content-Type:', contentType);
                 
                 // Handle JSON response
                 if (contentType && contentType.includes('application/json')) {
+                    console.log('Processing JSON response...');
                     const data = await response.json();
+                    console.log('Response data:', JSON.stringify(data, null, 2));
                     
                     if (response.ok) {
+                        console.log('✅ OTP verification successful!');
                         // Show success message and redirect to login
                         await Swal.fire({
                             icon: 'success',
@@ -278,21 +339,29 @@
                         
                         window.location.href = '/login';
                     } else {
+                        console.log('❌ OTP verification failed with JSON error');
                         throw new Error(data.message || 'Failed to verify OTP');
                     }
                 } 
                 // Handle redirect
                 else if (response.redirected) {
+                    console.log('Response is redirected, following redirect...');
                     window.location.href = response.url;
                 } 
                 // Handle other response types
                 else {
+                    console.log('Processing non-JSON response...');
                     const text = await response.text();
+                    console.log('Response text:', text);
                     throw new Error(text || 'An error occurred during verification');
                 }
             })
             .catch(error => {
-                console.error('OTP verification error:', error);
+                console.error('❌ OTP verification error:', error);
+                console.error('Error name:', error.name);
+                console.error('Error message:', error.message);
+                console.error('Error stack:', error.stack);
+                console.log('=== FRONTEND OTP SUBMISSION DEBUG END ===\n');
                 
                 Swal.fire({
                     icon: 'error',
@@ -304,7 +373,7 @@
             .finally(() => {
                 submitButton.disabled = false;
                 submitButton.innerHTML = originalButtonText;
-            });;
+            });
         }
 
         async function handleResendOTP() {
