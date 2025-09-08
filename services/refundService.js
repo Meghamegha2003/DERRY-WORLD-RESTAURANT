@@ -18,68 +18,93 @@ async function processOrderRefund(order, reason = 'Cancellation') {
       };
     }
 
-    const refundCalculation = calculateOrderRefund(order, reason);
+    // Process each item individually to get proper coupon breakdown
+    let totalRefundAmount = 0;
+    const refundResults = [];
     
-    if (refundCalculation.error) {
-      return {
-        success: false,
-        message: `Calculation failed: ${refundCalculation.error}`,
-        refundAmount: 0
-      };
-    }
-
-    const { totalRefundAmount, orderSubtotal, couponDiscount, offerDiscount } = refundCalculation;
-
-    if (totalRefundAmount <= 0) {
-      return {
-        success: false,
-        message: 'No refund amount calculated',
-        refundAmount: 0
-      };
-    }
-
-    let refundResult = { success: false, refundAmount: totalRefundAmount };
-
-    // Process refund based on payment method
     if (order.paymentMethod === 'cod') {
-      refundResult = {
+      return {
         success: true,
         message: 'COD order - no refund needed',
         refundAmount: 0,
         method: 'cod'
       };
-    } else if (order.paymentMethod === 'wallet') {
-      refundResult = await processWalletRefund(order.user, totalRefundAmount, order, reason);
-    } else if (order.paymentMethod === 'online' && order.razorpay?.paymentId) {
-      refundResult = await processRazorpayRefund(order, totalRefundAmount, reason);
-      
-      if (!refundResult.success) {
-        refundResult = await processWalletRefund(order.user, totalRefundAmount, order, reason);
-      }
-    } else {
-      refundResult = await processWalletRefund(order.user, totalRefundAmount, order, reason);
     }
 
-    if (refundResult.success) {
-      order.orderLevelRefund = (order.orderLevelRefund || 0) + totalRefundAmount;
-      
-      if (refundResult.method === 'wallet') {
-        order.walletRefund = (order.walletRefund || 0) + totalRefundAmount;
-      }
+    // Process each active item individually for proper coupon calculations
+    for (const item of order.items) {
+      if (item.status === 'Active' || !item.status) {
+        const itemRefundCalculation = calculateItemRefund(order, item);
+        
+        if (itemRefundCalculation.error) {
+          continue; // Skip this item if calculation fails
+        }
 
+        const { 
+          itemTotal, 
+          itemCouponDiscount, 
+          refundAmount: itemRefundAmount, 
+          couponRatio 
+        } = itemRefundCalculation;
+
+        if (itemRefundAmount > 0) {
+          let itemRefundResult;
+          
+          if (order.paymentMethod === 'wallet') {
+            itemRefundResult = await processWalletRefund(order.user, itemRefundAmount, order, reason, item);
+          } else if (order.paymentMethod === 'online' && order.razorpay?.paymentId) {
+            itemRefundResult = await processWalletRefund(order.user, itemRefundAmount, order, reason, item);
+          } else {
+            itemRefundResult = await processWalletRefund(order.user, itemRefundAmount, order, reason, item);
+          }
+
+          if (itemRefundResult.success) {
+            // Store refund data in item for tracking
+            item.refundAmount = itemRefundAmount;
+            item.itemCouponDiscount = itemCouponDiscount;
+            item.couponRatio = couponRatio;
+            item.refundStatus = 'Completed';
+            item.refundDate = new Date();
+            
+            totalRefundAmount += itemRefundAmount;
+            refundResults.push(itemRefundResult);
+          }
+        }
+      }
+    }
+
+    if (totalRefundAmount > 0 && refundResults.length > 0) {
+      order.orderLevelRefund = (order.orderLevelRefund || 0) + totalRefundAmount;
+      order.walletRefund = (order.walletRefund || 0) + totalRefundAmount;
+
+      // Add consolidated refund transaction record
       order.refundTransactions.push({
-        type: refundResult.method === 'wallet' ? 'Wallet' : 'Razorpay',
+        type: 'Wallet',
         amount: totalRefundAmount,
         reason,
-        razorpayRefundId: refundResult.razorpayRefundId,
-        walletTransactionId: refundResult.walletTransactionId,
+        walletTransactionId: refundResults.map(r => r.walletTransactionId).join(','),
         status: 'Completed'
       });
 
-      await order.save();
-    }
+      // Reset coupon discount since entire order is cancelled
+      order.couponDiscount = 0;
 
-    return refundResult;
+      await order.save();
+
+      return {
+        success: true,
+        message: 'Order refund processed successfully',
+        refundAmount: totalRefundAmount,
+        method: 'wallet',
+        itemsProcessed: refundResults.length
+      };
+    } else {
+      return {
+        success: false,
+        message: 'No refund amount calculated or all item refunds failed',
+        refundAmount: 0
+      };
+    }
 
   } catch (error) {
     return {
