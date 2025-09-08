@@ -54,14 +54,6 @@ const orderItemSchema = new Schema({
     enum: ['Active', 'Cancelled', 'Returned', 'Return Requested', 'Return Approved', 'Return Rejected'],
     default: 'Active'
   },
-  rating: {
-    type: Number,
-    min: [1, 'Rating must be at least 1'],
-    max: [5, 'Rating cannot be more than 5']
-  },
-  ratedAt: {
-    type: Date
-  },
   returnReason: String,
   returnRequestDate: Date,
   returnStatus: {

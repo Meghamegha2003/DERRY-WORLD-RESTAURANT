@@ -23,7 +23,6 @@ const notFoundHandler = (req, res, next) => {
  * General error handler
  */
 const errorHandler = (err, req, res, next) => {
-    console.error('Error:', err);
 
     // Check if it's an API request
     if (req.xhr || req.headers.accept?.includes('application/json')) {

@@ -12,6 +12,7 @@ const Coupon = require("../../models/couponSchema");
 const Wallet = require("../../models/walletSchema"); 
 const { validateAndUpdateCartCoupon } = require("../../helpers/couponHelper");
 const { getBestOffer } = require("../../helpers/offerHelper");
+const HttpStatus = require('../../utils/httpStatus');
 
 const razorpay =
   process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET
@@ -43,7 +44,6 @@ exports.calculateCartCount = async (userId) => {
 
     return getUniqueProductCount(cart);
   } catch (error) {
-    console.error("Error calculating cart count:", error);
     return 0;
   }
 };
@@ -108,8 +108,7 @@ exports.renderProductDetails = async (req, res) => {
       isInCart,
     });
   } catch (error) {
-    console.error("Error in renderProductDetails:", error);
-    res.status(500).render("error", {
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).render("error", {
       message: "Error loading product details",
       error: process.env.NODE_ENV === "development" ? error : {},
       user: req.user,
@@ -160,8 +159,7 @@ exports.submitRating = async (req, res) => {
       totalRatings: product.totalRatings,
     });
   } catch (error) {
-    console.error("Error submitting rating:", error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       message: "Failed to submit rating",
       error:
         process.env.NODE_ENV === "development"
@@ -214,7 +212,6 @@ exports.calculateCartTotal = async (cart) => {
           const calculatedDiscount = coupon.calculateDiscount(subtotal);
           cart.couponDiscount = isNaN(calculatedDiscount) ? 0 : Number(calculatedDiscount) || 0;
         } catch (error) {
-          console.error('Error calculating discount:', error);
           cart.couponDiscount = 0;
         }
         cart.couponCode = coupon.code;
@@ -227,7 +224,6 @@ exports.calculateCartTotal = async (cart) => {
         await cart.save();
       }
     } catch (error) {
-      console.error('Error validating coupon:', error);
       cart.appliedCoupon = undefined;
       cart.couponDiscount = 0;
       await cart.save();
@@ -375,9 +371,8 @@ exports.addToCart = async (req, res) => {
       cartCount: cartCount, 
     });
   } catch (error) {
-    console.error("Error in addToCart:", error);
     return res
-      .status(500)
+      .status(HttpStatus.INTERNAL_SERVER_ERROR)
       .json({ success: false, message: "Internal server error" });
   }
 };
@@ -478,8 +473,7 @@ exports.updateCart = async (req, res) => {
       totals,
     });
   } catch (error) {
-    console.error("Error updating cart:", error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to update cart",
       error: error.message,
@@ -618,8 +612,7 @@ exports.placeOrder = async (req, res) => {
       orderId: order._id
     });
   } catch (error) {
-    console.error("Error placing order:", error);
-    res.status(500).json({ success: false, message: "Error placing order" });
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: "Error placing order" });
   }
 };
 
@@ -656,8 +649,7 @@ exports.getWishlist = async (req, res) => {
       path: "/wishlist",
     });
   } catch (error) {
-    console.error("Error getting wishlist:", error);
-    res.status(500).render("user/error", {
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).render("user/error", {
       message: "Unable to get wishlist",
       error: process.env.NODE_ENV === "development" ? error : {},
       cartCount: 0,
@@ -699,8 +691,7 @@ exports.addToWishlist = async (req, res) => {
       message: "Product added to wishlist",
     });
   } catch (error) {
-    console.error("Error adding to wishlist:", error);
-    res.status(500).render("user/error", {
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).render("user/error", {
       message: "Unable to add product to wishlist",
       error: process.env.NODE_ENV === "development" ? error : {},
       cartCount: 0,
@@ -740,8 +731,7 @@ exports.removeFromWishlist = async (req, res) => {
       message: "Product removed from wishlist",
     });
   } catch (error) {
-    console.error("Error removing from wishlist:", error);
-    res.status(500).render("user/error", {
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).render("user/error", {
       message: "Unable to remove product from wishlist",
       error: process.env.NODE_ENV === "development" ? error : {},
       cartCount: 0,
@@ -812,8 +802,7 @@ exports.toggleWishlist = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error("Error in toggleWishlist:", error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Unable to update wishlist",
       error:
@@ -918,7 +907,6 @@ exports.renderCheckoutPage = async (req, res) => {
       pageTitle: "Checkout",
     });
   } catch (error) {
-    console.error("Error rendering checkout page:", error);
     req.flash("error", "Failed to load checkout page");
     res.redirect("/cart");
   }
@@ -1096,9 +1084,8 @@ exports.processCheckout = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error("Checkout Error:", error);
     res
-      .status(500)
+      .status(HttpStatus.INTERNAL_SERVER_ERROR)
       .json({ error: "Failed to process checkout. Please try again." });
   }
 };
@@ -1142,8 +1129,7 @@ exports.verifyRazorpayPayment = async (req, res) => {
       return res.status(400).json({ error: "Invalid signature" });
     }
   } catch (error) {
-    console.error("Payment Verification Error:", error);
-    res.status(500).json({ error: "Failed to verify payment" });
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ error: "Failed to verify payment" });
   }
 };
 
@@ -1159,8 +1145,7 @@ exports.checkProductInCart = async (req, res) => {
 
     res.json({ inCart });
   } catch (error) {
-    console.error("Error checking cart status:", error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       error: "Failed to check cart status",
     });
   }
@@ -1302,8 +1287,7 @@ exports.getCartPage = async (req, res) => {
       path: "/cart",
     });
   } catch (error) {
-    console.error("[ERROR] Error in getCartPage:", error);
-    res.status(500).render("error", {
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).render("error", {
       error: "Failed to load cart page",
       user: req.user,
       cartCount: 0,
@@ -1412,8 +1396,7 @@ exports.applyCoupon = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Error applying coupon:", error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to apply coupon",
     });
@@ -1466,8 +1449,7 @@ exports.removeCoupon = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Error removing coupon:", error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to remove coupon",
     });
@@ -1506,8 +1488,7 @@ exports.removeCouponOnAdd = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error removing coupon:', error);
-    res.status(500).json({ 
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
       success: false, 
       message: 'Failed to remove coupon',
       error: error.message 
@@ -1559,8 +1540,7 @@ exports.getAvailableCoupons = async (req, res) => {
       })),
     });
   } catch (error) {
-    console.error("Error getting available coupons:", error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to get available coupons",
     });
@@ -1626,9 +1606,8 @@ exports.incrementCartItem = async (req, res) => {
       ...summary,
     });
   } catch (error) {
-    console.error("Error incrementing cart item:", error);
     res
-      .status(500)
+      .status(HttpStatus.INTERNAL_SERVER_ERROR)
       .json({ success: false, message: "Failed to increase quantity" });
   }
 };
@@ -1670,9 +1649,8 @@ exports.decrementCartItem = async (req, res) => {
       ...summary,
     });
   } catch (error) {
-    console.error("Error decrementing cart item:", error);
     res
-      .status(500)
+      .status(HttpStatus.INTERNAL_SERVER_ERROR)
       .json({ success: false, message: "Failed to decrease quantity" });
   }
 };
@@ -1733,8 +1711,7 @@ exports.clearCart = async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    console.error('Error clearing cart:', error);
-    res.status(500).json({ 
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
       success: false, 
       message: 'Failed to clear cart',
       error: error.message 
@@ -1806,8 +1783,7 @@ exports.incrementCartItem = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error incrementing cart item:', error);
-    res.status(500).json({ 
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
       success: false, 
       message: 'Failed to update quantity' 
     });
@@ -1871,8 +1847,7 @@ exports.decrementCartItem = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error decrementing cart item:', error);
-    res.status(500).json({ 
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
       success: false, 
       message: 'Failed to update quantity' 
     });
@@ -1908,8 +1883,7 @@ exports.getCartData = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error getting cart data:', error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Failed to get cart data',
       error: error.message

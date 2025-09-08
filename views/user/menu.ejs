@@ -189,7 +189,7 @@
 
     <div class="menu-content">
       <!-- Filters Sidebar -->
-      <form class="filters-sidebar" method="get" action="/menu" id="menuFilterForm">
+      <form class="filters-sidebar" method="post" action="/menu" id="menuFilterForm">
         <!-- Search -->
         <div class="filter-section">
           <h3>Search</h3>
@@ -270,8 +270,8 @@
     var minInput = document.getElementById('minPrice');
     var maxInput = document.getElementById('maxPrice');
     var form = document.getElementById('menuFilterForm');
-    var sliderMin = <%= typeof priceRangeMin !== 'undefined' ? priceRangeMin : 0 %>;
-    var sliderMax = <%= typeof priceRangeMax !== 'undefined' ? priceRangeMax : 5000 %>;
+    var sliderMin = <% if (typeof priceRangeMin !== 'undefined' && priceRangeMin) { %><%= priceRangeMin %><% } else { %>0<% } %>;
+    var sliderMax = <% if (typeof priceRangeMax !== 'undefined' && priceRangeMax) { %><%= priceRangeMax %><% } else { %>5000<% } %>;
     var minVal = minInput.value ? parseInt(minInput.value) : sliderMin;
     var maxVal = maxInput.value ? parseInt(maxInput.value) : sliderMax;
     if (minVal < sliderMin) minVal = sliderMin;
@@ -384,9 +384,9 @@
             <div class="pagination-wrapper">
               <div class="pagination">
                 <% if (pagination.currentPage > 1) { %>
-                  <a href="?<%= new URLSearchParams({ ...filters, page: pagination.currentPage - 1 }).toString() %>" class="page-link prev">
+                  <button type="button" class="page-link prev" data-page="<%= pagination.currentPage - 1 %>" onclick="submitPageForm(this.dataset.page)">
                     <i class="fas fa-chevron-left"></i>
-                  </a>
+                  </button>
                 <% } %>
 
                 <% 
@@ -398,32 +398,32 @@
                 %>
 
                 <% if (startPage > 1) { %>
-                  <a href="?<%= new URLSearchParams({ ...filters, page: 1 }).toString() %>" class="page-link">1</a>
+                  <button type="button" class="page-link" data-page="1" onclick="submitPageForm(this.dataset.page)">1</button>
                   <% if (startPage > 2) { %>
                     <span class="page-dots">...</span>
                   <% } %>
                 <% } %>
 
                 <% for (let i = startPage; i <= endPage; i++) { %>
-                  <a href="?<%= new URLSearchParams({ ...filters, page: i }).toString() %>" 
-                     class="page-link <%= i === pagination.currentPage ? 'active' : '' %>">
+                  <button type="button" class="page-link <%= i === pagination.currentPage ? 'active' : '' %>" 
+                          data-page="<%= i %>" onclick="submitPageForm(this.dataset.page)">
                     <%= i %>
-                  </a>
+                  </button>
                 <% } %>
 
                 <% if (endPage < pagination.totalPages) { %>
                   <% if (endPage < pagination.totalPages - 1) { %>
                     <span class="page-dots">...</span>
                   <% } %>
-                  <a href="?<%= new URLSearchParams({ ...filters, page: pagination.totalPages }).toString() %>" 
-                     class="page-link"><%= pagination.totalPages %></a>
+                  <button type="button" class="page-link" data-page="<%= pagination.totalPages %>" onclick="submitPageForm(this.dataset.page)">
+                    <%= pagination.totalPages %>
+                  </button>
                 <% } %>
 
                 <% if (pagination.currentPage < pagination.totalPages) { %>
-                  <a href="?<%= new URLSearchParams({ ...filters, page: pagination.currentPage + 1 }).toString() %>" 
-                     class="page-link next">
+                  <button type="button" class="page-link next" data-page="<%= pagination.currentPage + 1 %>" onclick="submitPageForm(this.dataset.page)">
                     <i class="fas fa-chevron-right"></i>
-                  </a>
+                  </button>
                 <% } %>
               </div>
             </div>
@@ -438,6 +438,25 @@
 <script src="/public/js/menu.js"></script>
 
 <script>
+// Function to handle pagination with POST method
+function submitPageForm(pageNumber) {
+    const form = document.getElementById('menuFilterForm');
+    
+    // Create or update page input
+    let pageInput = document.getElementById('pageInput');
+    if (!pageInput) {
+        pageInput = document.createElement('input');
+        pageInput.type = 'hidden';
+        pageInput.name = 'page';
+        pageInput.id = 'pageInput';
+        form.appendChild(pageInput);
+    }
+    pageInput.value = pageNumber;
+    
+    // Submit the form
+    form.submit();
+}
+
 async function toggleWishlist(productId, button) {
     try {
         const response = await fetch(`/wishlist/toggle/${productId}`, {

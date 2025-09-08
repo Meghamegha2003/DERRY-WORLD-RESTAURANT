@@ -832,7 +832,7 @@
                         
                         <!-- Rating Section for Delivered Items -->
                         <div class="mt-2">
-                          <% if (!item.rating) { %>
+                          <% if (!item.userRating) { %>
                             <button class="btn btn-sm btn-outline-primary" onclick="openRatingModal('<%= item.product._id %>', '<%= order._id %>')">
                               <i class="fas fa-star"></i> Rate & Review
                             </button>
@@ -840,9 +840,9 @@
                             <div class="rating-display">
                               <span class="text-success small me-2"><i class="fas fa-check-circle"></i> Reviewed</span>
                               <% for (let i = 1; i <= 5; i++) { %>
-                                <i class="<%= i <= item.rating ? 'fas' : 'far' %> fa-star"></i>
+                                <i class="<%= i <= item.userRating.rating ? 'fas' : 'far' %> fa-star"></i>
                               <% } %>
-                              <span class="ms-1 small text-muted">(<%= item.rating %>/5)</span>
+                              <span class="ms-1 small text-muted">(<%= item.userRating.rating %>/5)</span>
                             </div>
                           <% } %>
                         </div>
@@ -1014,14 +1014,7 @@
               
               const actualRefundAmount = itemTotal - itemCouponDiscount;
               
-              // Debug log for each item
-              console.log(`[PRICE_DETAILS] Item ${item._id} refund calculation:`, {
-                itemTotal,
-                itemCouponDiscount,
-                actualRefundAmount,
-                calculationCheck: `${itemTotal} - ${itemCouponDiscount} = ${actualRefundAmount}`
-              });
-              
+             
               return sum + Math.max(0, actualRefundAmount);
             }, 0) : 0;
             
@@ -1404,7 +1397,6 @@
                 location.reload();
               });
             } catch (err) {
-              console.error("Dismiss error:", err);
               Swal.fire("Error", "Failed to update order status.", "error");
             }
           }
@@ -1422,7 +1414,6 @@
       rzp.open();
 
     } catch (err) {
-      console.error(err);
       Swal.fire("Error", err.message || "Payment failed", "error");
     } finally {
       retryBtn.disabled = false;
@@ -1514,7 +1505,7 @@
 
 </script>
 
-    <%- include('../partials/user/footer') %>
+   
     <%- include('partials/ratingModal') %>
 </body>
 

@@ -30,7 +30,6 @@ if (typeof window.addToCart === 'undefined') {
         });
 
     } catch (err) {
-        console.error(err);
         addButton.disabled = false;
         addButton.innerHTML = '<i class="fas fa-shopping-cart me-2"></i>Add to Cart';
         Swal.fire({
@@ -95,7 +94,7 @@ if (typeof window.addToCart === 'undefined') {
           btn.onclick = () => (window.location.href = "/cart");
         }
       } catch (e) {
-        console.error("Polling error:", e);
+        // Polling error - silently continue
       }
     }
     update();

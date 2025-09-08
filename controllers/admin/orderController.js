@@ -221,7 +221,7 @@ exports.getOrders = async (req, res) => {
                 error: error.message
             });
         }
-        res.status(500).render('error', {
+        res.status(500).render('admin/error', {
             message: 'Failed to fetch orders',
             error
         });
@@ -332,7 +332,7 @@ exports.updateOrderStatus = async (req, res) => {
         if (req.xhr || req.headers.accept?.includes('application/json')) {
             return res.status(500).json({ success: false, message: 'Failed to update order status' });
         }
-        res.status(500).render('error', { message: 'Failed to update order status', error });
+        res.status(500).render('admin/error', { message: 'Failed to update order status', error });
     }
 };
 
@@ -395,7 +395,7 @@ exports.getOrderDetails = async (req, res) => {
                 message: 'Failed to fetch order details'
             });
         }
-        res.status(500).render('error', {
+        res.status(500).render('admin/error', {
             message: 'Failed to fetch order details',
             error
         });

@@ -24,7 +24,6 @@ function calculateTotalCoupon(order, coupon) {
     // Use coupon's built-in calculation method
     return coupon.calculateTotalDiscount(orderSubtotal);
   } catch (error) {
-    console.error('[COUPON_HELPER] Error calculating total coupon:', error);
     return 0;
   }
 }
@@ -71,7 +70,6 @@ function calculateIndividualCoupon(order, totalCouponAmount) {
       };
     });
   } catch (error) {
-    console.error('[COUPON_HELPER] Error calculating individual coupons:', error);
     return order.items.map(item => ({
       ...item,
       individualCoupon: 0,
@@ -98,7 +96,6 @@ function calculateDeductRefundCoupon(order) {
         return sum + (item.deductRefundCoupon || 0);
       }, 0);
   } catch (error) {
-    console.error('[COUPON_HELPER] Error calculating deduct refund coupon:', error);
     return 0;
   }
 }
@@ -114,7 +111,6 @@ function calculateBalanceCoupon(totalCoupon, deductRefundCoupon) {
     const balance = (totalCoupon || 0) - (deductRefundCoupon || 0);
     return Math.max(0, balance);
   } catch (error) {
-    console.error('[COUPON_HELPER] Error calculating balance coupon:', error);
     return 0;
   }
 }
@@ -175,17 +171,8 @@ async function updateOrderCouponCalculations(order, coupon = null) {
     const balanceCoupon = calculateBalanceCoupon(totalCoupon, deductRefundCoupon);
     order.balanceCoupon = balanceCoupon;
 
-    console.log('[COUPON_HELPER] Updated order coupon calculations:', {
-      orderId: order._id,
-      totalCoupon,
-      deductRefundCoupon,
-      balanceCoupon,
-      appliedCoupon: order.appliedCoupon?.code
-    });
-
     return order;
   } catch (error) {
-    console.error('[COUPON_HELPER] Error updating order coupon calculations:', error);
     return order;
   }
 }
@@ -218,7 +205,6 @@ async function validateAndUpdateCartCoupon(cart) {
       await cart.save();
     }
   } catch (error) {
-    console.error('Error validating cart coupon:', error);
     if (cart.appliedCoupon) {
       cart.appliedCoupon = undefined;
       cart.couponDiscount = 0;

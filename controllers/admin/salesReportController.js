@@ -139,10 +139,9 @@ exports.viewSalesReport = async (req, res) => {
       path: "/admin/sales-report",
     });
   } catch (error) {
-    console.error("Error generating sales report:", error);
     res
       .status(500)
-      .render("error", { message: "Error generating sales report", error });
+      .render("admin/error", { message: "Error generating sales report", error });
   }
 };
 
@@ -213,7 +212,6 @@ exports.getSalesReportData = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error getting sales report data:", error);
     res
       .status(500)
       .json({ success: false, message: "Failed to get sales report data" });
@@ -601,7 +599,6 @@ exports.exportSalesReportPDF = async (req, res) => {
 
     doc.end();
   } catch (error) {
-    console.error("Error exporting sales report as PDF:", error);
     res.status(500).json({
       success: false,
       message: "Failed to export sales report as PDF",
@@ -701,7 +698,6 @@ exports.exportSalesReportExcel = async (req, res) => {
     );
     res.send(buffer);
   } catch (error) {
-    console.error("Excel export error:", error);
     res.status(500).json({ success: false, message: "Failed to export Excel" });
   }
 };

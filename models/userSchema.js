@@ -219,25 +219,17 @@ userSchema.pre("save", async function (next) {
 // Method to compare password
 userSchema.methods.comparePassword = async function (candidatePassword) {
   try {
-    console.log('Comparing passwords...');
-    console.log('Provided password:', candidatePassword);
-    console.log('Stored hash:', this.password ? 'Exists' : 'Missing');
-    
     if (!candidatePassword) {
-      console.log('No password provided for comparison');
       return false;
     }
     
     if (!this.password) {
-      console.log('No password hash stored for user');
       return false;
     }
     
     const isMatch = await bcrypt.compare(candidatePassword, this.password);
-    console.log('Password comparison result:', isMatch);
     return isMatch;
   } catch (error) {
-    console.error('Error comparing passwords:', error);
     throw error;
   }
 };

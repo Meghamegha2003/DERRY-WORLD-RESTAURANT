@@ -9,6 +9,7 @@ const Offer = require("../../models/offerSchema");
 const OfferService = require("../../services/offerService");
 const { getBestOffer } = require("../../helpers/offerHelper");
 const Razorpay = require("razorpay");
+const HttpStatus = require('../../utils/httpStatus');
 
 exports.calculateOrderTotals = async (cart) => {
   try {
@@ -53,7 +54,6 @@ exports.calculateOrderTotals = async (cart) => {
     if (cart && typeof cart.save !== 'function') {
       updatedCart = await Cart.findById(cart._id);
       if (!updatedCart) {
-        console.error('Cart not found for ID:', cart._id);
         throw new Error('Cart not found');
       }
     }
@@ -92,7 +92,6 @@ exports.calculateOrderTotals = async (cart) => {
         }
         await updatedCart.save();
       } catch (error) {
-        console.error('Error validating coupon in checkout:', error);
         updatedCart.appliedCoupon = undefined;
         updatedCart.couponDiscount = 0;
         await updatedCart.save();
@@ -111,7 +110,6 @@ exports.calculateOrderTotals = async (cart) => {
       items: processedItems,
     };
   } catch (error) {
-    console.error("Error in calculateOrderTotals:", error);
     throw error;
   }
 };
@@ -125,9 +123,17 @@ exports.createOrder = async (user, cart, address, paymentMethod, total) => {
           throw new Error("Product not found in cart item");
         }
 
-        const offerDetails = await OfferService.getBestOffer(product);
-
         const quantity = Number(item.quantity || 0);
+        
+        if (quantity <= 0) {
+          throw new Error(`Invalid quantity for product ${product.productName || product.name}: ${quantity}. Quantity must be greater than 0.`);
+        }
+        
+        if (product.quantity < quantity) {
+          throw new Error(`Insufficient stock for product ${product.productName || product.name}. Available: ${product.quantity}, Requested: ${quantity}`);
+        }
+
+        const offerDetails = await OfferService.getBestOffer(product);
 
         const itemTotal = Number(
           (offerDetails?.finalPrice || product.regularPrice) * quantity
@@ -218,16 +224,9 @@ exports.createOrder = async (user, cart, address, paymentMethod, total) => {
               product.quantity = Math.max(0, product.quantity - item.quantity);
               await product.save();
             } else {
-              console.error(
-                `Product not found for stock decrement: ${item.product}`
-              );
             }
           }
         } catch (err) {
-          console.error(
-            ` Failed to reduce stock for product ${item.product}:`,
-            err
-          );
         }
       }
     }
@@ -267,7 +266,6 @@ exports.createOrder = async (user, cart, address, paymentMethod, total) => {
       
       
     } catch (error) {
-      console.error('Error clearing cart after order creation:', error);
     }
 
     return order;
@@ -278,7 +276,6 @@ exports.createOrder = async (user, cart, address, paymentMethod, total) => {
 
 exports.processCheckout = async (req, res) => {
   const sessionId = Math.random().toString(36).substring(2, 15);
-  console.log(`[${new Date().toISOString()}] [${sessionId}] Starting checkout process`);
   
   try {
     const userId = req.user._id;
@@ -310,14 +307,18 @@ exports.processCheckout = async (req, res) => {
 
     const invalidItems = [];
     const itemsToRemove = [];
-    console.log(`[${sessionId}] Processing ${cart.items.length} items in cart`);
     
     for (const [index, item] of cart.items.entries()) {
-      console.log(`[${sessionId}] Processing item ${index + 1}:`, {
-        productId: item.product?._id || 'No ID',
-        name: item.product?.name || 'No name',
-        quantity: item.quantity
-      });
+      
+      if (!item.quantity || item.quantity <= 0) {
+        invalidItems.push({
+          name: item.product?.name || "Unknown product",
+          reason: 'Invalid quantity (must be greater than 0)'
+        });
+        itemsToRemove.push(item.product._id);
+        continue;
+      }
+
       const product = await Product.findById(item.product._id).populate(
         "category"
       );
@@ -337,6 +338,10 @@ exports.processCheckout = async (req, res) => {
         shouldRemove = true;
         reason = 'Product is not available';
       }
+      else if (product.quantity < item.quantity) {
+        shouldRemove = true;
+        reason = `Insufficient stock (only ${product.quantity} available, requested ${item.quantity})`;
+      }
 
       if (shouldRemove) {
         invalidItems.push({
@@ -348,7 +353,6 @@ exports.processCheckout = async (req, res) => {
     }
 
     if (invalidItems.length > 0) {
-      console.log(`[${sessionId}] Found ${invalidItems.length} invalid items, removing them automatically`);
       
       try {
         cart.items = cart.items.filter(item => 
@@ -373,7 +377,6 @@ exports.processCheckout = async (req, res) => {
               cart.couponValue = 0;
             }
           } catch (couponError) {
-            console.error('Error validating coupon after removing invalid items:', couponError);
             cart.appliedCoupon = undefined;
             cart.couponDiscount = 0;
             cart.couponCode = null;
@@ -409,8 +412,7 @@ exports.processCheckout = async (req, res) => {
           shouldRefresh: true
         });
       } catch (error) {
-        console.error(`[${sessionId}] Error removing invalid items from cart:`, error);
-        return res.status(400).json({
+        return res.status(HttpStatus.BAD_REQUEST).json({
           success: false,
           message: `The following items are no longer available: ${invalidItems.map(item => item.name).join(", ")}`,
         });
@@ -529,8 +531,7 @@ exports.processCheckout = async (req, res) => {
             key: process.env.RAZORPAY_KEY_ID,
           });
         } catch (error) {
-          console.error("Online payment processing error:", error);
-          return res.status(500).json({
+          return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: error.message || "Failed to process online payment",
           });
@@ -543,14 +544,6 @@ exports.processCheckout = async (req, res) => {
         });
     }
   } catch (error) {
-    console.error(`[${sessionId}] Error in processCheckout:`, {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      code: error.code,
-      errors: error.errors ? JSON.stringify(error.errors) : 'No validation errors'
-    });
-    
     if (error.name === 'ValidationError') {
       return res.status(400).json({
         success: false,
@@ -683,8 +676,7 @@ exports.removeCoupon = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error in removeCoupon:", error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to remove coupon",
     });
@@ -730,8 +722,7 @@ exports.deleteAddress = async (req, res) => {
       message: "Address deleted successfully",
     });
   } catch (error) {
-    console.error("Error in deleteAddress:", error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to delete address",
     });
@@ -803,12 +794,9 @@ exports.verifyPayment = async (req, res) => {
           if (product) {
             product.quantity = Math.max(0, product.quantity - item.quantity);
             await product.save();
-          } else {
-            console.error(`Product not found for stock decrement: ${item.product}`);
           }
         }
       } catch (err) {
-        console.error(`Failed to reduce stock for product ${item.product}:`, err);
       }
     }
 
@@ -840,7 +828,6 @@ exports.verifyPayment = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Payment verification error:', error);
     
     try {
       const { razorpay_order_id } = req.body;
@@ -856,10 +843,9 @@ exports.verifyPayment = async (req, res) => {
         }
       }
     } catch (updateError) {
-      console.error('Error updating failed order:', updateError);
     }
 
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Payment verification failed due to server error'
     });

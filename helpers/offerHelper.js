@@ -5,7 +5,6 @@ const getBestOffer = async (product) => {
         
         
         if (!product || !product._id) {
-            console.error("Invalid product object:", product);
             return {
                 hasOffer: false,
                 regularPrice: product?.regularPrice || 0,
@@ -32,18 +31,6 @@ const getBestOffer = async (product) => {
                 { targetCategories: categoryId }
             ]
         }).sort({ discountValue: -1 });
-        
-        console.log('Found', offers.length, 'offers');
-        offers.forEach((offer, i) => {
-            console.log(`\nOffer ${i + 1}:`);
-            console.log('Name:', offer.name);
-            console.log('Type:', offer.type);
-            console.log('Discount Type:', offer.discountType);
-            console.log('Discount Value:', offer.discountValue);
-            console.log('Max Discount:', offer.maxDiscount);
-            console.log('Target Products:', offer.targetProducts);
-            console.log('Target Categories:', offer.targetCategories);
-        });
 
         if (!offers || offers.length === 0) {
             const finalPrice = salePrice || product.regularPrice;

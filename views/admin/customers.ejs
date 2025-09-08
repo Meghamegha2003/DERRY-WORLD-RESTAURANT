@@ -1,9 +1,36 @@
 <%- include('../partials/admin/header') %>
 
 <!-- Main Content -->
-<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Customer List</h1>
+<main class="col-md-10 ms-sm-auto col-lg-10 px-md-4 mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+    <h1 class="mb-3 mb-md-0">Customer List</h1>
+    <div class="d-flex gap-3">
+      <!-- Search Form -->
+      <form class="d-flex gap-2" id="searchForm" method="GET" action="/admin/customers">
+        <div class="input-group">
+          <input type="text" 
+                 name="search"
+                 id="searchInput" 
+                 class="form-control" 
+                 placeholder="Search customers..." 
+                 value="<%= locals.searchQuery || '' %>"
+                 style="width: 200px;">
+          <select class="form-select" id="searchType" name="searchType" style="width: 150px;">
+            <option value="name" <%= locals.searchType === 'name' ? 'selected' : '' %>>Name</option>
+            <option value="email" <%= locals.searchType === 'email' ? 'selected' : '' %>>Email</option>
+            <option value="phone" <%= locals.searchType === 'phone' ? 'selected' : '' %>>Phone</option>
+          </select>
+          <button class="btn btn-primary" type="submit" id="searchBtn">
+            <i class="bi bi-search"></i> Search
+          </button>
+          <% if (locals.searchQuery) { %>
+            <a href="/admin/customers" class="btn btn-secondary">
+              <i class="bi bi-x-circle"></i> Clear
+            </a>
+          <% } %>
+        </div>
+      </form>
+    </div>
   </div>
   
   <div class="table-responsive">
@@ -48,9 +75,9 @@
             </span>
           </td>
           <td class="text-center">
-            <button onclick="handleCustomerAction(this, '<%=customer._id%>', <%=customer.isActive%>)" 
-                    class="btn btn-sm <%=customer.isActive ? 'btn-danger' : 'btn-success'%>">
-              <%=customer.isActive ? 'Block' : 'Unblock'%>
+            <button onclick="handleCustomerAction(this, '<%= customer._id %>', <%= customer.isActive %>)" 
+                    class="btn btn-sm <%= customer.isActive ? 'btn-danger' : 'btn-success' %>">
+              <%= customer.isActive ? 'Block' : 'Unblock' %>
             </button>
           </td>
         </tr>
@@ -64,7 +91,7 @@
     <nav>
       <ul class="pagination justify-content-center">
         <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
-          <a class="page-link" href="/admin/customers?page=<%= currentPage - 1 %>">Previous</a>
+          <a class="page-link" href="/admin/customers?page=<%= currentPage - 1 %><%= locals.searchQuery ? '&search=' + encodeURIComponent(locals.searchQuery) : '' %><%= locals.searchType ? '&searchType=' + locals.searchType : '' %>">Previous</a>
         </li>
         
         <% 
@@ -79,7 +106,7 @@
         
         <% if (startPage > 1) { %>
           <li class="page-item">
-            <a class="page-link" href="/admin/customers?page=1">1</a>
+            <a class="page-link" href="/admin/customers?page=1<%= locals.searchQuery ? '&search=' + encodeURIComponent(locals.searchQuery) : '' %><%= locals.searchType ? '&searchType=' + locals.searchType : '' %>">1</a>
           </li>
           <% if (startPage > 2) { %>
             <li class="page-item disabled"><span class="page-link">...</span></li>
@@ -88,7 +115,7 @@
         
         <% for (let i = startPage; i <= endPage; i++) { %>
           <li class="page-item <%= currentPage === i ? 'active' : '' %>">
-            <a class="page-link" href="/admin/customers?page=<%= i %>"><%= i %></a>
+            <a class="page-link" href="/admin/customers?page=<%= i %><%= locals.searchQuery ? '&search=' + encodeURIComponent(locals.searchQuery) : '' %><%= locals.searchType ? '&searchType=' + locals.searchType : '' %>"><%= i %></a>
           </li>
         <% } %>
         
@@ -97,12 +124,12 @@
             <li class="page-item disabled"><span class="page-link">...</span></li>
           <% } %>
           <li class="page-item">
-            <a class="page-link" href="/admin/customers?page=<%= totalPages %>"><%= totalPages %></a>
+            <a class="page-link" href="/admin/customers?page=<%= totalPages %><%= locals.searchQuery ? '&search=' + encodeURIComponent(locals.searchQuery) : '' %><%= locals.searchType ? '&searchType=' + locals.searchType : '' %>"><%= totalPages %></a>
           </li>
         <% } %>
         
         <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
-          <a class="page-link" href="/admin/customers?page=<%= currentPage + 1 %>">Next</a>
+          <a class="page-link" href="/admin/customers?page=<%= currentPage + 1 %><%= locals.searchQuery ? '&search=' + encodeURIComponent(locals.searchQuery) : '' %><%= locals.searchType ? '&searchType=' + locals.searchType : '' %>">Next</a>
         </li>
       </ul>
     </nav>
@@ -116,7 +143,33 @@
 
 <!-- Custom Scripts -->
 <script>
-  async function handleCustomerAction(button, customerId, isActive) {
+document.addEventListener('DOMContentLoaded', function() {
+    // Search form handling
+    const searchForm = document.getElementById('searchForm');
+    const searchInput = document.getElementById('searchInput');
+    const searchType = document.getElementById('searchType');
+
+    // Search form submit handler
+    searchForm.addEventListener('submit', function(e) {
+        const searchQuery = searchInput.value.trim();
+        if (!searchQuery) {
+            e.preventDefault();
+            // If search is empty, redirect to clear all filters
+            window.location.href = '/admin/customers';
+        }
+    });
+
+    // Clear search functionality
+    const clearButton = document.querySelector('a[href="/admin/customers"]');
+    if (clearButton) {
+        clearButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.location.href = '/admin/customers';
+        });
+    }
+});
+
+async function handleCustomerAction(button, customerId, isActive) {
     try {
       const action = isActive ? 'block' : 'unblock';
       const result = await Swal.fire({

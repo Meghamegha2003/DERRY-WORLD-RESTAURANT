@@ -1,6 +1,5 @@
 async function handleAdminLogout() {
     try {
-        console.log('[DEBUG] Starting logout process');
         const result = await Swal.fire({
             title: 'Are you sure?',
             text: "You will be logged out",
@@ -13,7 +12,6 @@ async function handleAdminLogout() {
         });
 
         if (result.isConfirmed) {
-            console.log('[DEBUG] User confirmed logout');
             
             const response = await fetch('/admin/logout', {  
                 method: 'POST',
@@ -24,19 +22,13 @@ async function handleAdminLogout() {
                 credentials: 'include'
             });
 
-            console.log('[DEBUG] Logout response:', {
-                status: response.status,
-                statusText: response.statusText
-            });
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                console.error('[DEBUG] Logout error:', errorData);
                 throw new Error(errorData.message || 'Network response was not ok');
             }
 
             const data = await response.json();
-            console.log('[DEBUG] Logout success:', data);
 
             // Show success message and redirect
             await Swal.fire({
@@ -52,7 +44,6 @@ async function handleAdminLogout() {
             window.location.href = '/admin/login';
         }
     } catch (error) {
-        console.error('[DEBUG] Logout error:', error);
         Swal.fire({
             icon: 'error',
             title: 'Error',

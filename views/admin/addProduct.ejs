@@ -215,8 +215,10 @@
         <div class="row g-3">
           <div class="col-md-6">
             <div class="form-floating mb-3">
-              <input type="text" class="form-control" id="productName" name="productName" placeholder="Product Name" required>
+              <input type="text" class="form-control" id="productName" name="productName" placeholder="Product Name" maxlength="20" required>
               <label for="productName">Product Name *</label>
+              <div class="form-text">Maximum 20 characters allowed</div>
+              <div class="invalid-feedback" id="productNameError"></div>
             </div>
           </div>
 
@@ -262,7 +264,7 @@
 
           <div class="col-md-4">
             <div class="form-floating mb-3">
-              <input type="number" class="form-control" id="quantity" name="quantity" placeholder="Quantity" required>
+              <input type="number" class="form-control" id="quantity" name="quantity" placeholder="Quantity" required min="1">
               <label for="quantity">Quantity *</label>
             </div>
           </div>
@@ -405,6 +407,15 @@
       return false;
     }
 
+    if (productName.length > 20) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Invalid Product Name',
+        text: 'Product name cannot exceed 20 characters'
+      });
+      return false;
+    }
+
     // Category validation
     if (!category) {
       Swal.fire({
@@ -454,11 +465,11 @@
     }
 
     // Quantity validation
-    if (isNaN(quantity) || quantity < 0) {
+    if (isNaN(quantity) || quantity <= 0) {
       Swal.fire({
         icon: 'error',
         title: 'Invalid Quantity',
-        text: 'Please enter a valid quantity (0 or greater)'
+        text: 'Please enter a valid quantity (must be greater than 0)'
       });
       return false;
     }
@@ -608,10 +619,31 @@
   // Real-time validation as user types
   document.getElementById('productName').addEventListener('input', function() {
     const value = this.value.trim();
-    if (value.length < 3) {
+    const errorElement = document.getElementById('productNameError');
+    const formText = this.parentElement.querySelector('.form-text');
+    
+    if (value.length === 0) {
+      errorElement.textContent = 'Product name is required';
+      this.classList.add('is-invalid');
+    } else if (value.length < 3) {
+      errorElement.textContent = 'Product name must be at least 3 characters long';
+      this.classList.add('is-invalid');
+    } else if (value.length > 20) {
+      errorElement.textContent = 'Product name cannot exceed 20 characters';
       this.classList.add('is-invalid');
     } else {
+      errorElement.textContent = '';
       this.classList.remove('is-invalid');
+    }
+    
+    // Show character count when approaching limit
+    const remaining = 20 - value.length;
+    if (remaining < 5) {
+      formText.textContent = `${remaining} characters remaining`;
+      formText.style.color = remaining === 0 ? '#dc3545' : '#fd7e14';
+    } else {
+      formText.textContent = 'Maximum 20 characters allowed';
+      formText.style.color = '#6c757d';
     }
   });
 

@@ -90,7 +90,9 @@
         <div class="modal-body">
           <div class="mb-3">
             <label for="categoryName" class="form-label">Category Name</label>
-            <input type="text" class="form-control" id="categoryName" name="name" required>
+            <input type="text" class="form-control" id="categoryName" name="name" maxlength="20" required>
+            <div class="form-text">Maximum 20 characters allowed</div>
+            <div class="invalid-feedback" id="categoryNameError"></div>
           </div>
           <div class="mb-3">
             <label for="categoryDescription" class="form-label">Description</label>
@@ -119,7 +121,9 @@
         <div class="modal-body">
           <div class="mb-3">
             <label for="editCategoryName" class="form-label">Category Name</label>
-            <input type="text" class="form-control" id="editCategoryName" name="name" required>
+            <input type="text" class="form-control" id="editCategoryName" name="name" maxlength="20" required>
+            <div class="form-text">Maximum 20 characters allowed</div>
+            <div class="invalid-feedback" id="editCategoryNameError"></div>
           </div>
           <div class="mb-3">
             <label for="editCategoryDescription" class="form-label">Description</label>
@@ -242,14 +246,41 @@ function openEditModal(categoryId, name, description) {
     new bootstrap.Modal(document.getElementById('editCategoryModal')).show();
 }
 
+// Validate category name length
+function validateCategoryName(name, errorElementId) {
+    const errorElement = document.getElementById(errorElementId);
+    const inputElement = errorElementId === 'categoryNameError' ? 
+        document.getElementById('categoryName') : 
+        document.getElementById('editCategoryName');
+    
+    if (name.length > 20) {
+        errorElement.textContent = 'Category name cannot exceed 20 characters';
+        inputElement.classList.add('is-invalid');
+        return false;
+    } else if (name.length === 0) {
+        errorElement.textContent = 'Category name is required';
+        inputElement.classList.add('is-invalid');
+        return false;
+    } else {
+        errorElement.textContent = '';
+        inputElement.classList.remove('is-invalid');
+        return true;
+    }
+}
+
 // Handle Add Category
 async function handleAddCategory(event) {
     event.preventDefault();
     
     try {
         const formData = new FormData(event.target);
-        const name = formData.get('name');
+        const name = formData.get('name').trim();
         const description = formData.get('description');
+
+        // Validate category name
+        if (!validateCategoryName(name, 'categoryNameError')) {
+            return false;
+        }
 
         // Show loading state
         Swal.fire({
@@ -365,8 +396,13 @@ async function handleEditCategory(event) {
   try {
     const formData = new FormData(event.target);
     const categoryId = document.getElementById('editCategoryId').value;
-    const name = formData.get('name');
+    const name = formData.get('name').trim();
     const description = formData.get('description');
+
+    // Validate category name
+    if (!validateCategoryName(name, 'editCategoryNameError')) {
+      return false;
+    }
 
     // Show loading state
     Swal.fire({
@@ -424,6 +460,65 @@ async function handleEditCategory(event) {
     });
   }
 }
+
+// Add real-time validation event listeners
+document.addEventListener('DOMContentLoaded', function() {
+  // Add category name validation
+  const categoryNameInput = document.getElementById('categoryName');
+  const editCategoryNameInput = document.getElementById('editCategoryName');
+  
+  // Real-time validation for Add Category
+  categoryNameInput.addEventListener('input', function() {
+    const name = this.value.trim();
+    validateCategoryName(name, 'categoryNameError');
+    
+    // Show character count
+    const remaining = 20 - name.length;
+    const formText = this.parentElement.querySelector('.form-text');
+    if (remaining < 5) {
+      formText.textContent = `${remaining} characters remaining`;
+      formText.style.color = remaining === 0 ? '#dc3545' : '#fd7e14';
+    } else {
+      formText.textContent = 'Maximum 20 characters allowed';
+      formText.style.color = '#6c757d';
+    }
+  });
+  
+  // Real-time validation for Edit Category
+  editCategoryNameInput.addEventListener('input', function() {
+    const name = this.value.trim();
+    validateCategoryName(name, 'editCategoryNameError');
+    
+    // Show character count
+    const remaining = 20 - name.length;
+    const formText = this.parentElement.querySelector('.form-text');
+    if (remaining < 5) {
+      formText.textContent = `${remaining} characters remaining`;
+      formText.style.color = remaining === 0 ? '#dc3545' : '#fd7e14';
+    } else {
+      formText.textContent = 'Maximum 20 characters allowed';
+      formText.style.color = '#6c757d';
+    }
+  });
+  
+  // Clear validation when modals are closed
+  document.getElementById('addCategoryModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('categoryName').classList.remove('is-invalid');
+    document.getElementById('categoryNameError').textContent = '';
+    document.getElementById('addCategoryForm').reset();
+    const formText = document.querySelector('#addCategoryModal .form-text');
+    formText.textContent = 'Maximum 20 characters allowed';
+    formText.style.color = '#6c757d';
+  });
+  
+  document.getElementById('editCategoryModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('editCategoryName').classList.remove('is-invalid');
+    document.getElementById('editCategoryNameError').textContent = '';
+    const formText = document.querySelector('#editCategoryModal .form-text');
+    formText.textContent = 'Maximum 20 characters allowed';
+    formText.style.color = '#6c757d';
+  });
+});
 </script>
 
 <%- include('../partials/admin/footer') %>

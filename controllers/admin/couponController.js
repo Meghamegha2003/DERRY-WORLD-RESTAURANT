@@ -21,7 +21,7 @@ exports.viewCoupons = async (req, res) => {
         .json({ success: false, message: "Failed to fetch coupons" });
     }
 
-    res.status(500).render("error", {
+    res.status(500).render("admin/error", {
       message: "Failed to fetch coupons",
       error,
     });

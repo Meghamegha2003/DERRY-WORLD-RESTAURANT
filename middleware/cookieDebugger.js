@@ -9,24 +9,20 @@ const cookieDebugger = (req, res, next) => {
         
         // Log incoming cookies
         if (Object.keys(req.cookies).length > 0) {
-            console.log(`\n🍪 [${req.method} ${req.path}] Incoming cookies:`, req.cookies);
+            // Cookie logging disabled
         }
         
         // Override res.cookie to log outgoing cookies
         const originalCookie = res.cookie;
         res.cookie = function(name, value, options) {
-            console.log(`\n🍪 [${req.method} ${req.path}] Setting cookie:`, {
-                name,
-                value: typeof value === 'string' && value.length > 50 ? value.substring(0, 50) + '...' : value,
-                options
-            });
+            // Cookie logging disabled
             return originalCookie.call(this, name, value, options);
         };
         
         // Override res.clearCookie to log cookie clearing
         const originalClearCookie = res.clearCookie;
         res.clearCookie = function(name, options) {
-            console.log(`\n🍪 [${req.method} ${req.path}] Clearing cookie:`, { name, options });
+            // Cookie logging disabled
             return originalClearCookie.call(this, name, options);
         };
     }

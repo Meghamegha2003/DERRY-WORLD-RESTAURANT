@@ -21,6 +21,15 @@ const ratingSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  userName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  images: [{
+    type: String,
+    trim: true
+  }],
   createdAt: {
     type: Date,
     default: Date.now
@@ -30,7 +39,6 @@ const ratingSchema = new mongoose.Schema({
     default: Date.now
   }
 });
-
 
 ratingSchema.index({ user: 1, product: 1 }, { unique: true });
 

@@ -4,6 +4,7 @@ const OfferService = require('../../services/offerService');
 const User = require('../../models/userSchema');
 const mongoose = require('mongoose');
 const Cart = require('../../models/cartSchema');
+const HttpStatus = require('../../utils/httpStatus');
 
 const ITEMS_PER_PAGE = 12;
 const SORT_OPTIONS = {
@@ -55,7 +56,10 @@ exports.getUniqueProductCount = (cart) => {
 
 exports.renderMenuPage = async (req, res) => {
     try {
-        const { page = 1, search, sort, category, dietaryType, minPrice, maxPrice } = req.query;
+        // Support both GET (query params) and POST (request body) methods
+        const isPostRequest = req.method === 'POST';
+        const filterData = isPostRequest ? req.body : req.query;
+        const { page = 1, search, sort, category, dietaryType, minPrice, maxPrice } = filterData;
         
         const query = exports.buildQuery();
         if (search && typeof search === 'string' && search.trim()) {
@@ -122,11 +126,6 @@ exports.renderMenuPage = async (req, res) => {
         
         const finalProducts = Array.isArray(processedProducts) ? processedProducts : [];
         
-        console.log(`Rendering ${finalProducts.length} products`);
-        if (finalProducts.length === 0) {
-            console.log('No products found with query:', query);
-        }
-
         res.render('user/menu', {
             title: 'Menu',
             products: finalProducts,
@@ -157,8 +156,7 @@ exports.renderMenuPage = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error in renderMenuPage:', error);
-        res.status(500).render('error', {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('error', {
             message: 'Failed to load menu',
             error
         });
@@ -241,8 +239,7 @@ exports.renderCategoryMenu = async (req, res) => {
             activeSort: sort || 'default'
         });
     } catch (error) {
-        console.error('Error in renderCategoryMenu:', error);
-        res.status(500).render('error', {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('error', {
             message: 'Failed to load category menu',
             error
         });
@@ -250,7 +247,6 @@ exports.renderCategoryMenu = async (req, res) => {
 };
 
 
-// Search products
 exports.searchProducts = async (req, res) => {
     try {
         const { query } = req.query;
@@ -303,14 +299,122 @@ exports.searchProducts = async (req, res) => {
             cartCount: userId ? await exports.getUniqueProductCount(await Cart.findOne({ user: userId })) : 0
         });
     } catch (error) {
-        console.error('Error in searchProducts:', error);
-        res.status(500).render('error', { 
-            message: 'Error searching products',
-            error: { status: 500 }
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('error', {
+            message: 'Error loading menu',
+            error: process.env.NODE_ENV === 'development' ? error : {}
         });
     }
 };
 
 exports.filterProducts = async (req, res) => {
     res.status(200).json({ success: true, message: 'Filtering is no longer supported. All items are now shown.' });
+};
+
+exports.filterMenuPage = async (req, res) => {
+    try {
+        const { page = 1, search, sort, category, dietaryType, minPrice, maxPrice } = req.body;
+        
+        const query = exports.buildQuery();
+        if (search && typeof search === 'string' && search.trim()) {
+            query.name = { $regex: '^' + search.trim(), $options: 'i' };
+        }
+        
+        const activeCategories = await Category.find({ isBlocked: false, isListed: true }).lean();
+        const activeCategoryIds = activeCategories.map(cat => cat._id.toString());
+        
+        if (category && category !== 'all' && activeCategoryIds.includes(category)) {
+            query.category = category;
+        } else {
+            query.category = { $in: activeCategoryIds };
+        }
+        
+        if (dietaryType && dietaryType !== 'all' && ['veg','nonveg','vegan'].includes(dietaryType)) {
+            query.dietaryType = dietaryType;
+        }
+        
+        let allProducts = await Product.find(query)
+            .populate('category')
+            .lean();
+            
+        let productsWithOffers = await exports.applyOffersAndFilter(allProducts);
+        const finalPrices = productsWithOffers.map(p => p.finalPrice);
+        const priceRangeMin = finalPrices.length ? Math.min(...finalPrices) : 0;
+        const priceRangeMax = finalPrices.length ? Math.max(...finalPrices) : 0;
+        
+        let minPriceNum = parseFloat(minPrice);
+        let maxPriceNum = parseFloat(maxPrice);
+        if (!isNaN(minPriceNum)) {
+            productsWithOffers = productsWithOffers.filter(p => p.finalPrice >= minPriceNum);
+        }
+        if (!isNaN(maxPriceNum)) {
+            productsWithOffers = productsWithOffers.filter(p => p.finalPrice <= maxPriceNum);
+        }
+        
+        if (sort === 'price-low') {
+            productsWithOffers.sort((a, b) => a.finalPrice - b.finalPrice);
+        } else if (sort === 'price-high') {
+            productsWithOffers.sort((a, b) => b.finalPrice - a.finalPrice);
+        } else if (sort === 'name-asc') {
+            productsWithOffers.sort((a, b) => a.name.localeCompare(b.name));
+        } else if (sort === 'name-desc') {
+            productsWithOffers.sort((a, b) => b.name.localeCompare(a.name));
+        } else {
+            productsWithOffers.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        }
+        
+        const totalProducts = productsWithOffers.length;
+        const startIdx = (page - 1) * ITEMS_PER_PAGE;
+        const paginated = productsWithOffers.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+        const products = paginated;
+        
+        const categories = await exports.getActiveCategories();
+        const processedProducts = await exports.addWishlistStatus(products, req.user?._id);
+        const totalPages = Math.ceil(totalProducts / ITEMS_PER_PAGE);
+        
+        let cartCount = 0;
+        if (req.user) {
+            const cart = await Cart.findOne({ user: req.user._id });
+            cartCount = exports.getUniqueProductCount(cart);
+        }
+        
+        const finalProducts = Array.isArray(processedProducts) ? processedProducts : [];
+        
+
+        res.render('user/menu', {
+            title: 'Menu',
+            products: finalProducts,
+            categories,
+            filters: {
+                search: search || '',
+                page: parseInt(page) || 1,
+                sort: sort || '',
+                category: category || '',
+                dietaryType: dietaryType || '',
+                minPrice: minPrice || '',
+                maxPrice: maxPrice || ''
+            },
+            pagination: {
+                currentPage: parseInt(page) || 1,
+                totalPages: totalPages || 1,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1,
+                nextPage: (parseInt(page) || 1) + 1,
+                prevPage: Math.max(1, (parseInt(page) || 1) - 1)
+            },
+            cartCount,
+            user: req.user || null,
+            activeSort: sort || 'default',
+            priceRange: {
+                min: Math.floor(priceRangeMin || 0),
+                max: Math.ceil(priceRangeMax || 1000)
+            },
+            priceRangeMin: Math.floor(priceRangeMin || 0),
+            priceRangeMax: Math.ceil(priceRangeMax || 1000)
+        });
+    } catch (error) {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('error', {
+            message: 'Failed to load menu',
+            error
+        });
+    }
 };

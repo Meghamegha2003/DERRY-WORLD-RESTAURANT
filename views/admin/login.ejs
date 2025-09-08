@@ -82,7 +82,7 @@
     <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Custom Scripts -->
-    <script src="/js/adminLogin.js"></script>
+    <script src="/js/admin/adminLogin.js"></script>
     <script>
         // Check for error message in URL parameters
         document.addEventListener('DOMContentLoaded', function() {
@@ -90,18 +90,37 @@
             const error = urlParams.get('error');
             
             if (error) {
-                // Show error message if present in URL
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'alert alert-danger';
-                errorDiv.innerHTML = `
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                    ${decodeURIComponent(error)}
-                `;
+                const errorMessage = decodeURIComponent(error);
                 
-                const form = document.getElementById('adminLoginForm');
-                if (form) {
-                    form.parentNode.insertBefore(errorDiv, form);
+                // Check if it's a non-admin user trying to login
+                if (errorMessage.includes('Access denied') || errorMessage.includes('user login page')) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Access Denied',
+                        text: 'This is the admin portal. Regular users cannot access this area. Please use the user login page.',
+                        confirmButtonText: 'Go to User Login',
+                        confirmButtonColor: '#8B4513',
+                        showCancelButton: true,
+                        cancelButtonText: 'Stay Here',
+                        cancelButtonColor: '#6c757d'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = '/login';
+                        }
+                    });
+                } else {
+                    // Show other errors as regular SweetAlert
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Login Failed',
+                        text: errorMessage,
+                        confirmButtonColor: '#8B4513'
+                    });
                 }
+                
+                // Clean up URL
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
             }
         });
     </script>

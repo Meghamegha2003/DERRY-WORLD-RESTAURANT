@@ -63,7 +63,6 @@ const createCloudinaryUploader = (options = {}) => {
             return result.secure_url;
           }
         } catch (error) {
-          console.error('Error uploading to Cloudinary:', error);
           throw new Error(`Failed to upload ${file.originalname}`);
         }
       });
@@ -85,7 +84,6 @@ const createCloudinaryUploader = (options = {}) => {
       
       next();
     } catch (error) {
-      console.error('Cloudinary upload middleware error:', error);
       return res.status(500).json({
         success: false,
         message: error.message || 'Error uploading images'

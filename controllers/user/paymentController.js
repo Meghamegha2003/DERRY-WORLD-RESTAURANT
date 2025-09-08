@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const { Order, ORDER_STATUS } = require('../../models/orderSchema');
+const HttpStatus = require('../../utils/httpStatus');
 const { PAYMENT_STATUS } = require('../../utils/httpStatus');
 const User = require('../../models/userSchema');
 const Cart = require('../../models/cartSchema');
@@ -23,36 +24,30 @@ try {
 
     razorpay = new Razorpay({ key_id, key_secret });
 } catch (error) {
-    console.error('Failed to initialize Razorpay:', error);
     razorpay = null;
 }
 
-// 🔁 Shared function to get order items with offers
 exports.getOrderItems = async (cartItems) => {
     return Promise.all(
         cartItems.map(async item => {
-            // Ensure we have the full product with populated category for accurate offer calculation
             const product = await Product.findById(item.product._id).populate('category');
             if (!product) {
                 throw new Error(`Product ${item.product._id} not found`);
             }
             
-            // Get the best offer for this product
             const bestOffer = await getBestOffer(product);
             
-            // Calculate prices
             const regularPrice = product.regularPrice || 0;
             const finalPrice = bestOffer.finalPrice;
             const offerDiscount = bestOffer.hasOffer ? (regularPrice - finalPrice) * item.quantity : 0;
             
-            // Store offer details with the item
             return {
                 product: product._id,
                 quantity: item.quantity,
-                price: finalPrice, // Final price after all offers
-                regularPrice: regularPrice, // Original price
-                total: finalPrice * item.quantity, // Total after all discounts
-                offerDiscount: parseFloat(offerDiscount.toFixed(2)), // Total discount from offers
+                price: finalPrice,
+                regularPrice: regularPrice,
+                total: finalPrice * item.quantity,
+                offerDiscount: parseFloat(offerDiscount.toFixed(2)),
                 status: ORDER_STATUS.PROCESSING,
                 offerDetails: bestOffer.hasOffer ? {
                     type: bestOffer.offer?.type,
@@ -65,27 +60,13 @@ exports.getOrderItems = async (cartItems) => {
     );
 }
 
-// Using extractAddress from addressHelper.js
-
-// 🧹 Clear cart after order
 exports.clearCart = async (cart, options = {}) => {
     try {
-        console.log('=== STARTING CART CLEAR ===');
-        console.log('Cart before clear:', {
-            _id: cart?._id,
-            user: cart?.user,
-            itemsCount: cart?.items?.length,
-            couponCode: cart?.couponCode,
-            total: cart?.total,
-            subTotal: cart?.subTotal
-        });
 
         if (!cart) {
-            console.log('No cart provided to clear');
             return;
         }
         
-        // Clear all cart items and reset values
         const updateData = {
             $set: {
                 items: [],
@@ -102,7 +83,6 @@ exports.clearCart = async (cart, options = {}) => {
             }
         };
 
-        console.log('Attempting to clear cart with update:', JSON.stringify(updateData, null, 2));
         
         const result = await Cart.findOneAndUpdate(
             { _id: cart._id },
@@ -115,40 +95,13 @@ exports.clearCart = async (cart, options = {}) => {
             }
         );
 
-        console.log('Cart clear result:', {
-            matchedCount: result?.matchedCount,
-            modifiedCount: result?.modifiedCount,
-            result: result
-        });
-
-        // Verify the cart was actually cleared
-        const updatedCart = await Cart.findById(cart._id);
-        console.log('Cart after clear verification:', {
-            _id: updatedCart?._id,
-            itemsCount: updatedCart?.items?.length,
-            couponCode: updatedCart?.couponCode,
-            total: updatedCart?.total,
-            subTotal: updatedCart?.subTotal
-        });
-
-        console.log('=== CART CLEAR COMPLETE ===');
         return result;
     } catch (error) {
-        console.error('Error clearing cart:', error);
-        console.error('Error details:', {
-            message: error.message,
-            stack: error.stack,
-            code: error.code
-        });
         throw error;
     }
 };
 
-// ----------------------------
-// ✅ Razorpay Order Creation
-// ----------------------------
 exports.createRazorpayOrder = async (req, res) => {
-    // In development, we'll skip transactions if not in a replica set
     const useTransaction = process.env.NODE_ENV !== 'development';
     const session = useTransaction ? await mongoose.startSession() : null;
     
@@ -176,17 +129,15 @@ exports.createRazorpayOrder = async (req, res) => {
                 await session.abortTransaction();
                 session.endSession();
             }
-            return res.status(400).json({ success: false, message: 'Your cart is empty' });
+            return res.status(HttpStatus.BAD_REQUEST).json({ success: false, message: 'Your cart is empty' });
         }
 
-        // Get order items with offers applied
         const orderItems = await exports.getOrderItems(cart.items);
         
-        // Calculate order totals properly including coupon discount
         const subtotal = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         const offerDiscount = orderItems.reduce((sum, item) => sum + (item.offerDiscount || 0), 0);
         const couponDiscount = cart.couponDiscount || 0;
-        const deliveryCharge = 0; // Free delivery
+        const deliveryCharge = 0; 
         const total = Math.max(0, subtotal - couponDiscount + deliveryCharge);
         
       
@@ -199,10 +150,9 @@ exports.createRazorpayOrder = async (req, res) => {
                 await session.abortTransaction();
                 session.endSession();
             }
-            return res.status(400).json({ success: false, message: 'Invalid delivery address' });
+            return res.status(HttpStatus.BAD_REQUEST).json({ success: false, message: 'Invalid delivery address' });
         }
 
-        // Prepare order items with proper structure
         const processedOrderItems = orderItems.map(item => ({
             product: item.product,
             quantity: item.quantity,
@@ -214,26 +164,16 @@ exports.createRazorpayOrder = async (req, res) => {
             offerDetails: item.offerDetails
         }));
         
-        // Validate address fields
         if (!address || !address.fullName || !address.addressLine1 || !address.city || !address.state || !address.pincode) {
-            console.error('Incomplete address information:', {
-                fullName: address?.fullName,
-                addressLine1: address?.addressLine1,
-                city: address?.city,
-                state: address?.state,
-                pincode: address?.pincode
-            });
             throw new Error('Incomplete address information');
         }
         
-        // Generate a unique order number with timestamp and random component
         function generateOrderNumber() {
             const timestamp = Date.now();
             const random = Math.floor(Math.random() * 10000);
             return `ORD-${timestamp}-${random}`;
         }
         
-        // Create order in database first
         let order;
         let attempts = 0;
         const maxAttempts = 3;
@@ -280,7 +220,6 @@ exports.createRazorpayOrder = async (req, res) => {
                 
             } catch (error) {
                 if (error.code === 11000 && error.keyPattern && error.keyPattern.orderNumber) {
-                    // Duplicate order number, retry with a new one
                     attempts++;
                     if (attempts >= maxAttempts) {
                         throw new Error('Failed to generate a unique order number after multiple attempts');
@@ -291,49 +230,38 @@ exports.createRazorpayOrder = async (req, res) => {
             }
         }
 
-        // Create Razorpay order
         let razorpayOrder;
         try {
             razorpayOrder = await razorpay.orders.create({
-                amount: Math.round(total * 100), // Convert to paise
+                amount: Math.round(total * 100), 
                 currency: 'INR',
                 receipt: order._id.toString(),
-                payment_capture: 1 // Auto capture payment
+                payment_capture: 1 
             });
 
             if (!razorpayOrder || !razorpayOrder.id) {
                 throw new Error('Failed to create Razorpay order: Invalid response from Razorpay');
             }
 
-            // Update order with Razorpay order ID in both places for backward compatibility
             order.razorpay = order.razorpay || {};
             order.razorpay.status = 'created';
             order.razorpay.orderId = razorpayOrder.id;
             
-            // Also store in payment object for backward compatibility
             order.payment = order.payment || {};
             order.payment.razorpayOrderId = razorpayOrder.id;
             order.payment.status = 'pending';
             
-            // Save the order with Razorpay details
             await order.save(saveOptions);
             
-            console.log('Updated order with Razorpay ID:', {
-                orderId: order._id,
-                razorpayOrderId: razorpayOrder.id
-            });
             
-            // Clear the cart
             await exports.clearCart(cart, saveOptions);
             
-            // Commit the transaction if using one
             if (useTransaction) {
                 await session.commitTransaction();
                 session.endSession();
             }
             
-            // Send success response to client
-            return res.status(200).json({
+            return res.status(HttpStatus.OK).json({
                 success: true,
                 order: {
                     id: razorpayOrder.id,
@@ -345,7 +273,6 @@ exports.createRazorpayOrder = async (req, res) => {
             });
             
         } catch (razorpayError) {
-            console.error('Razorpay order creation failed:', razorpayError);
             
             
             order.razorpay.status = 'failed';
@@ -362,21 +289,20 @@ exports.createRazorpayOrder = async (req, res) => {
             }
             
             
-            return res.status(500).json({
+            return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
                 success: false,
-                message: `Payment processing failed: ${razorpayError.message || 'Unable to create payment order'}`
+                message: `Payment processing failed: ${razorpayError.message || 'Unable to create payment order'}`,
+                code: razorpayError.code,
+                details: process.env.NODE_ENV === 'development' ? razorpayError.stack : undefined
             });
         }
     } catch (error) {
-        console.error('Error creating Razorpay order:', error);
         
        
         if (typeof order !== 'undefined' && order && order._id) {
             try {
                 await Order.findByIdAndDelete(order._id);
-                console.log('Cleaned up order after error:', order._id);
             } catch (cleanupError) {
-                console.error('Error cleaning up order after error:', cleanupError);
             }
         }
         
@@ -386,11 +312,10 @@ exports.createRazorpayOrder = async (req, res) => {
                 await session.abortTransaction();
                 session.endSession();
             } catch (txError) {
-                console.error('Error aborting transaction:', txError);
             }
         }
         
-        res.status(500).json({ 
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
             success: false, 
             message: error.message || 'Failed to create payment order',
             code: error.code,
@@ -402,59 +327,33 @@ exports.createRazorpayOrder = async (req, res) => {
 
 exports.verifyPayment = async (req, res) => {
     try {
-        console.log('=== PAYMENT VERIFICATION STARTED ===');
-        console.log('Payment verification request received:', {
-            body: req.body,
-            headers: req.headers,
-            user: req.user ? req.user._id : 'No user',
-            timestamp: new Date().toISOString()
-        });
 
-        // Support both nested and legacy payload shapes
         const razorpayOrderId = req.body.order || req.body.razorpay_order_id;
         const razorpayPaymentId = req.body.payment?.razorpay_payment_id || req.body.razorpay_payment_id;
         const razorpaySignature = req.body.payment?.razorpay_signature || req.body.razorpay_signature;
         
-        console.log('Extracted payment data:', {
-            razorpayOrderId,
-            razorpayPaymentId,
-            razorpaySignature: razorpaySignature ? '***SIGNATURE_PRESENT***' : 'MISSING'
-        });
         
         if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
-            console.error('Missing payment verification data:', {
-                razorpayOrderId,
-                razorpayPaymentId,
-                razorpaySignature
-            });
-            return res.status(400).json({
+            return res.status(HttpStatus.BAD_REQUEST).json({
                 success: false,
                 message: 'Payment verification data missing',
                 details: { razorpayOrderId, razorpayPaymentId, razorpaySignature }
             });
         }
 
-        // Calculate expected signature
         const expectedSignature = crypto
             .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
             .update(`${razorpayOrderId}|${razorpayPaymentId}`)
             .digest('hex');
 
         if (expectedSignature !== razorpaySignature) {
-            console.error('Invalid signature:', {
-                expected: expectedSignature,
-                received: razorpaySignature,
-                orderId: razorpayOrderId,
-                paymentId: razorpayPaymentId
-            });
-            return res.status(400).json({
+            return res.status(HttpStatus.BAD_REQUEST).json({
                 success: false,
                 message: 'Payment verification failed: Invalid signature',
                 code: 'INVALID_SIGNATURE'
             });
         }
 
-        console.log('Looking up order with Razorpay ID:', razorpayOrderId);
         
         
         const query = {
@@ -473,16 +372,13 @@ exports.verifyPayment = async (req, res) => {
         
        
         if (!existingOrder) {
-            console.log('Order not found by razorpayOrderId, trying Razorpay API...');
             const razorpayOrder = await razorpay.orders.fetch(razorpayOrderId);
             
             
             if (razorpayOrder.receipt) {
-                console.log('Trying to find order by receipt ID:', razorpayOrder.receipt);
                 existingOrder = await Order.findById(razorpayOrder.receipt);
                 
                 if (existingOrder) {
-                    console.log('Found order by receipt ID, updating Razorpay order ID');
                     
                     existingOrder.razorpay = existingOrder.razorpay || {};
                     existingOrder.razorpay.orderId = razorpayOrderId;
@@ -492,7 +388,6 @@ exports.verifyPayment = async (req, res) => {
                 }
             }
             
-            // If still not found, try notes as fallback
             if (!existingOrder && razorpayOrder.notes?.orderId) {
                 existingOrder = await Order.findById(razorpayOrder.notes.orderId);
             }
@@ -503,14 +398,11 @@ exports.verifyPayment = async (req, res) => {
         }
         
         if (existingOrder) {
-            console.log('Found order:', existingOrder._id);
-            console.log('Updating order with payment details...');
             
             if (!existingOrder.payment) {
                 existingOrder.payment = {};
             }
             
-            // Update payment details and order status
             existingOrder.payment = existingOrder.payment || {};
             existingOrder.payment.status = 'Paid';
             existingOrder.payment.razorpayPaymentId = razorpayPaymentId;
@@ -525,18 +417,10 @@ exports.verifyPayment = async (req, res) => {
                 await exports.clearCart(cart);
             }
             
-            // Save the updated order
             await existingOrder.save();
             
-            console.log('Order updated successfully:', {
-                _id: existingOrder._id,
-                payment: existingOrder.payment,
-                receipt: existingOrder.receipt,
-                status: existingOrder.status
-            });
             
-            // Redirect to order details page
-            return res.status(200).json({
+            return res.status(HttpStatus.OK).json({
                 success: true,
                 message: 'Order placed successfully',
                 redirectUrl: `/orders/${existingOrder._id}`,
@@ -548,139 +432,72 @@ exports.verifyPayment = async (req, res) => {
             });
         }
         
-        console.log('Order not found in database, trying fallback methods...');
-        // 2. Try receipt field (might contain Razorpay order ID)
         if (!existingOrder) {
             existingOrder = await Order.findOne({ 'receipt': razorpayOrderId });
-            if (existingOrder) {
-                console.log('Found order by receipt field:', existingOrder._id);
-            }
         }
         
-        // 3. Try partial match on payment.razorpayOrderId
         if (!existingOrder) {
             existingOrder = await Order.findOne({
                 'payment.razorpayOrderId': { $regex: razorpayOrderId, $options: 'i' }
             });
-            if (existingOrder) {
-                console.log('Found order by partial payment.razorpayOrderId match:', existingOrder._id);
-            }
         }
         
-        // 4. Try to fetch from Razorpay and match by notes
         if (!existingOrder) {
             try {
-                console.log('Fetching order from Razorpay...');
                 const razorpayOrder = await razorpay.orders.fetch(razorpayOrderId);
-                console.log('Fetched Razorpay order:', {
-                    id: razorpayOrder.id,
-                    amount: razorpayOrder.amount,
-                    receipt: razorpayOrder.receipt,
-                    status: razorpayOrder.status,
-                    notes: razorpayOrder.notes
-                });
                 
-                // Try to find by order ID in Razorpay notes
                 if (razorpayOrder.notes && razorpayOrder.notes.orderId) {
                     existingOrder = await Order.findById(razorpayOrder.notes.orderId);
-                    if (existingOrder) {
-                        console.log('Found order by Razorpay notes.orderId:', existingOrder._id);
-                    }
                 }
                 
-                // Try to find by receipt number from Razorpay
                 if (!existingOrder && razorpayOrder.receipt) {
-                    console.log('Trying to find order by receipt:', razorpayOrder.receipt);
                     
                     existingOrder = await Order.findOne({ 'receipt': razorpayOrder.receipt });
                     
                     if (!existingOrder && !razorpayOrder.receipt.startsWith('order_')) {
                         existingOrder = await Order.findOne({ 'receipt': `order_${razorpayOrder.receipt}` });
                     }
+                }
                     
-                    // If still not found, try to extract order ID from receipt
-                    if (!existingOrder && razorpayOrder.notes) {
-                        console.log('Checking Razorpay notes for order matching:', razorpayOrder.notes);
-                        
-                        if (razorpayOrder.notes.cartId) {
-                            console.log('Trying to find order by cartId:', razorpayOrder.notes.cartId);
-                            existingOrder = await Order.findOne({ 'cart': razorpayOrder.notes.cartId });
-                            if (existingOrder) {
-                                console.log('Found order by cartId:', existingOrder._id);
-                            }
-                        }
-                        
-                        // Try to find by addressId from Razorpay notes
-                        if (!existingOrder && razorpayOrder.notes.addressId) {
-                            console.log('Trying to find order by addressId:', razorpayOrder.notes.addressId);
-                            try {
-                                existingOrder = await Order.findOne({ 
-                                    'shippingAddress': new mongoose.Types.ObjectId(razorpayOrder.notes.addressId),
-                                    'payment.razorpayOrderId': razorpayOrder.id
-                                });
-                                if (existingOrder) {
-                                    console.log('Found order by addressId and Razorpay ID:', existingOrder._id);
-                                }
-                            } catch (error) {
-                                console.error('Error finding order by addressId:', error.message);
-                            }
-                        }
-                        
-                        // If still not found, try to find by user ID and amount
-                        if (!existingOrder && razorpayOrder.notes.userId && razorpayOrder.amount) {
-                            console.log('Trying to find order by userId and amount:', {
-                                userId: razorpayOrder.notes.userId,
-                                amount: razorpayOrder.amount / 100
+                if (!existingOrder && razorpayOrder.notes) {
+                    
+                    if (razorpayOrder.notes.cartId) {
+                        existingOrder = await Order.findOne({ 'cart': razorpayOrder.notes.cartId });
+                    }
+                    
+                    if (!existingOrder && razorpayOrder.notes.addressId) {
+                        try {
+                            existingOrder = await Order.findOne({ 
+                                'shippingAddress': new mongoose.Types.ObjectId(razorpayOrder.notes.addressId),
+                                'payment.razorpayOrderId': razorpayOrder.id
                             });
-                            existingOrder = await Order.findOne({
-                                'user': new mongoose.Types.ObjectId(razorpayOrder.notes.userId),
-                                'total': razorpayOrder.amount / 100,
-                                'payment.status': 'pending',
-                                'status': 'pending'
-                            }).sort({ createdAt: -1 }); 
-                            
-                            if (existingOrder) {
-                                console.log('Found pending order by user ID and amount:', existingOrder._id);
-                            }
+                        } catch (error) {
                         }
                     }
                     
-                    if (existingOrder) {
-                        console.log('Found order by receipt/notes:', existingOrder._id);
-                        existingOrder.payment = existingOrder.payment || {};
-                        existingOrder.payment.razorpayOrderId = razorpayOrder.id;
-                        await existingOrder.save();
-                        console.log('Updated order with Razorpay ID for future reference');
+                    if (!existingOrder && razorpayOrder.notes.userId && razorpayOrder.amount) {
+                        existingOrder = await Order.findOne({
+                            'user': new mongoose.Types.ObjectId(razorpayOrder.notes.userId),
+                            'total': razorpayOrder.amount / 100,
+                            'payment.status': 'pending',
+                            'status': 'pending'
+                        }).sort({ createdAt: -1 }); 
+                        
                     }
                 }
                 
-                // If we found an order, update it with the Razorpay order ID for future reference
                 if (existingOrder) {
                     existingOrder.payment = existingOrder.payment || {};
                     existingOrder.payment.razorpayOrderId = razorpayOrderId;
                     await existingOrder.save();
-                    console.log('Updated order with Razorpay ID for future reference');
                 }
                 
             } catch (error) {
-                console.error('Error fetching Razorpay order:', error.message);
-                if (error.response) {
-                    console.error('Razorpay API error:', error.response.data);
-                }
             }
         }
 
-        // If order still not found, log detailed error
         if (!existingOrder) {
-            const errorMessage = `Order not found for Razorpay order ID: ${razorpayOrderId}. User: ${req.user?._id || 'Not authenticated'}`;
-            console.error(errorMessage, {
-                razorpayOrderId,
-                razorpayPaymentId,
-                user: req.user?._id,
-                time: new Date().toISOString()
-            });
-            
-            return res.status(404).json({
+            return res.status(HttpStatus.NOT_FOUND).json({
                 success: false,
                 message: 'Order not found. Please contact support with this reference: ' + razorpayOrderId,
                 code: 'ORDER_NOT_FOUND',
@@ -691,12 +508,6 @@ exports.verifyPayment = async (req, res) => {
             });
         }
         
-        console.log('Found order:', {
-            orderId: existingOrder._id,
-            status: existingOrder.status,
-            amount: existingOrder.amount,
-            user: existingOrder.user
-        });
 
         existingOrder.paymentStatus = PAYMENT_STATUS.PAID;
         // existingOrder.orderStatus is kept at Pending; admin must update to Processing
@@ -717,14 +528,13 @@ exports.verifyPayment = async (req, res) => {
             { expiresIn: '1h' }
         );
 
-        res.status(200).json({
+        res.status(HttpStatus.OK).json({
             success: true,
             message: 'Payment verified and order updated',
             orderId: existingOrder._id
         });
     } catch (error) {
-        console.error('Payment verification error:', error);
-        res.status(500).json({ success: false, message: error.message || 'Payment verification failed' });
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message || 'Payment verification failed' });
     }
 };
 
@@ -752,7 +562,7 @@ exports.processWalletPayment = async (req, res) => {
                 await session.abortTransaction();
                 session.endSession();
             }
-            return res.status(404).json({ success: false, message: 'User not found' });
+            return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'User not found' });
         }
 
         // Find user's cart
@@ -767,7 +577,7 @@ exports.processWalletPayment = async (req, res) => {
                 await session.abortTransaction();
                 session.endSession();
             }
-            return res.status(400).json({ success: false, message: 'Your cart is empty' });
+            return res.status(HttpStatus.BAD_REQUEST).json({ success: false, message: 'Your cart is empty' });
         }
 
         const address = user.addresses.id(addressId);
@@ -776,7 +586,7 @@ exports.processWalletPayment = async (req, res) => {
                 await session.abortTransaction();
                 session.endSession();
             }
-            return res.status(404).json({ success: false, message: 'Shipping address not found' });
+            return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'Shipping address not found' });
         }
 
         // First get order items with best offers applied
@@ -789,15 +599,6 @@ exports.processWalletPayment = async (req, res) => {
         const total = Math.max(0, subtotal - couponDiscount + deliveryCharge);
 
        
-        console.log('Cart Items:', cart.items.map(item => ({
-            name: item.product?.name,
-            quantity: item.quantity,
-            regularPrice: item.product?.regularPrice,
-            salePrice: item.product?.salesPrice,
-            finalPrice: item.product?.offerDetails?.finalPrice,
-            hasOffer: item.product?.offerDetails?.hasOffer,
-            offerDiscount: item.product?.offerDetails?.offerDiscount
-        })));
 
         // Calculate final amount after all discounts and offers
         const finalAmount = Math.max(0, total); 
@@ -821,7 +622,7 @@ exports.processWalletPayment = async (req, res) => {
                 await session.abortTransaction();
                 session.endSession();
             }
-            return res.status(400).json({
+            return res.status(HttpStatus.BAD_REQUEST).json({
                 success: false, 
                 message: `Insufficient wallet balance. Your balance is ₹${wallet.balance.toFixed(2)} but the order total is ₹${finalAmount.toFixed(2)}`,
                 currentBalance: wallet.balance,
@@ -937,7 +738,7 @@ exports.processWalletPayment = async (req, res) => {
 
              await exports.clearCart(cart);
 
-            return res.status(200).json({
+            return res.status(HttpStatus.OK).json({
                 success: true,
                 message: 'Payment processed successfully',
                 order: {
@@ -949,16 +750,14 @@ exports.processWalletPayment = async (req, res) => {
                 redirectUrl: `/orders/${savedOrder._id}`
             });
         } catch (error) {
-            console.error('Wallet payment error:', error);
-            return res.status(500).json({
+            return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
                 success: false,
                 message: error.message || 'Failed to process wallet payment',
                 error: process.env.NODE_ENV === 'development' ? error.stack : undefined
             });
         }
     } catch (error) {
-        console.error('Unexpected error in wallet payment:', error);
-        return res.status(500).json({
+        return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: 'An unexpected error occurred while processing your payment',
             error: process.env.NODE_ENV === 'development' ? error.stack : undefined
@@ -972,7 +771,7 @@ exports.handlePaymentFailure = async (req, res) => {
         const { orderId, reason } = req.body;
         const order = await Order.findById(orderId);
 
-        if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+        if (!order) return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'Order not found' });
 
         order.paymentStatus = PAYMENT_STATUS.FAILED;
         order.razorpay.status = 'failed';
@@ -981,10 +780,9 @@ exports.handlePaymentFailure = async (req, res) => {
         order.razorpay.lastAttemptedAt = new Date();
 
         await order.save();
-        res.status(200).json({ success: true });
+        res.status(HttpStatus.OK).json({ success: true });
     } catch (error) {
-        console.error('handlePaymentFailure error:', error);
-        res.status(500).json({ success: false, message: 'Failed to update payment failure' });
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: 'Failed to update payment failure' });
     }
 };
 
@@ -992,7 +790,7 @@ exports.logPaymentFailure = async (req, res) => {
   try {
     const { orderId } = req.body;
     const order = await Order.findById(orderId);
-    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+    if (!order) return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: "Order not found" });
 
     if (order.paymentStatus !== 'Paid') {
       order.paymentStatus = 'Failed';
@@ -1005,8 +803,7 @@ exports.logPaymentFailure = async (req, res) => {
 
     return res.json({ success: true });
   } catch (err) {
-    console.error("Failed to log Razorpay dismiss:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: "Server error" });
   }
 };
 
@@ -1014,7 +811,7 @@ exports.retryRazorpayPayment = async (req, res) => {
   try {
     const orderId = req.params.orderId;
     const order = await Order.findById(orderId);
-    if (!order) return res.status(404).send("Order not found");
+    if (!order) return res.status(HttpStatus.NOT_FOUND).send("Order not found");
 
     const razorpayOrder = await razorpay.orders.create({
       amount: order.totalAmount * 100,
@@ -1032,8 +829,6 @@ exports.retryRazorpayPayment = async (req, res) => {
 
     res.redirect(`/retry-payment/${order._id}`);
   } catch (err) {
-    console.error("Retry Razorpay error:", err);
-    res.status(500).send("Internal Server Error");
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).send("Internal Server Error");
   }
 };
-

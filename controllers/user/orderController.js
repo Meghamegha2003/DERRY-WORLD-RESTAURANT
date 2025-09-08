@@ -8,7 +8,8 @@ const User = require("../../models/userSchema");
 const Product = require("../../models/productSchema");
 const Wallet = require("../../models/walletSchema");
 const { getBestOffer } = require("../../helpers/offerHelper");
-const { processOrderRefund, processItemRefund } = require("../../services/refundService");
+const { processOrderRefund, processItemRefund } = require('../../services/refundService');
+const HttpStatus = require('../../utils/httpStatus');
 const { calculateItemCouponRefund } = require("../../helpers/couponHelper");
 const Coupon = require("../../models/couponSchema");
 const PDFDocument = require("pdfkit");
@@ -126,7 +127,7 @@ exports.getUserOrders = async (req, res) => {
                 orderObj.appliedCoupon.minPurchase = couponFromDB.minPurchase;
               }
             } catch (error) {
-              console.error('Error fetching coupon details for orders list:', error);
+              // Error fetching coupon details for orders list
             }
           }
           
@@ -198,8 +199,7 @@ exports.getUserOrders = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("[ERROR] Error fetching orders:", error);
-    res.status(500).render("error", {
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).render("error", {
       message: "Error fetching orders",
       error: process.env.NODE_ENV === "development" ? error : {},
       user: req.user,
@@ -245,6 +245,20 @@ exports.getOrderDetails = async (req, res) => {
     const cartCount = user?.cart?.length || 0;
 
     const processedOrder = order.toObject();
+    
+    // Get rating information for each product
+    const Rating = require('../../models/ratingSchema');
+    const userRatings = await Rating.find({
+      user: req.user._id,
+      product: { $in: processedOrder.items.map(item => item.product._id) }
+    });
+    
+    // Create a map for quick lookup
+    const ratingMap = {};
+    userRatings.forEach(rating => {
+      ratingMap[rating.product.toString()] = rating;
+    });
+
     processedOrder.items = await Promise.all(
       processedOrder.items.map(async (item) => {
         if (!item.product) {
@@ -254,6 +268,7 @@ exports.getOrderDetails = async (req, res) => {
             price: 0,
             total: 0,
             offerDetails: null,
+            userRating: null,
           };
         }
 
@@ -266,6 +281,9 @@ exports.getOrderDetails = async (req, res) => {
             ? offerDetails.finalPrice
             : item.product.salesPrice || regularPrice;
 
+        // Get user's rating for this product
+        const userRating = ratingMap[item.product._id.toString()] || null;
+
         return {
           ...item,
           regularPrice: regularPrice,
@@ -276,6 +294,7 @@ exports.getOrderDetails = async (req, res) => {
             type:
               offerDetails && offerDetails.hasOffer ? offerDetails.type : null,
           },
+          userRating: userRating,
         };
       })
     );
@@ -309,7 +328,7 @@ exports.getOrderDetails = async (req, res) => {
             processedOrder.appliedCoupon.minPurchase = couponFromDB.minPurchase;
           }
         } catch (error) {
-          console.error('Error fetching coupon details:', error);
+          // Error fetching coupon details
         }
       }
       
@@ -366,8 +385,7 @@ exports.getOrderDetails = async (req, res) => {
       messages: res.locals.messages || {},
     });
   } catch (error) {
-    console.error("[ERROR] Error getting order details:", error);
-    res.status(500).render("error", {
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).render("error", {
       message: "Error retrieving order details",
       error: process.env.NODE_ENV === "development" ? error : {},
       user: req.user,
@@ -449,16 +467,12 @@ exports.cancelOrder = async (req, res) => {
           throw new Error(refundResult.message);
         }
         
-        console.log(`[CANCEL_ORDER] Refund processed successfully:`, refundResult);
         
       } catch (error) {
-        console.error('[CANCEL_ORDER] Refund processing failed:', error);
         throw new Error(`Order cancelled, but there was an issue with the refund: ${error.message}`);
       }
     } else {
-      console.log(
-        `[CANCEL_ORDER] No refund needed. Payment method: ${updatedOrder.paymentMethod}, Status: ${updatedOrder.paymentStatus}`
-      );
+      // No refund needed
     }
 
     res.json({
@@ -469,8 +483,7 @@ exports.cancelOrder = async (req, res) => {
           : "Order cancelled successfully",
     });
   } catch (error) {
-    console.error("Error cancelling order:", error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to cancel order",
     });
@@ -535,14 +548,11 @@ exports.cancelOrderItem = async (req, res) => {
             { new: true }
           );
           if (!updateResult) {
-            console.error(
-              "[CANCEL_ITEM] Product not found or update failed for ObjectId:",
-              objectId
-            );
+            // Product not found or update failed
           }
         }
       } catch (err) {
-        console.error("[CANCEL_ITEM] Error updating product quantity:", err);
+        // Error updating product quantity
       }
     }
 
@@ -555,23 +565,9 @@ exports.cancelOrderItem = async (req, res) => {
 
     // Update coupon calculations using new system AFTER marking as cancelled
     const { updateOrderCouponCalculations } = require('../../helpers/couponHelper');
-    console.log('[CANCEL_ITEM] Before coupon calculation:', {
-      orderId: order._id,
-      totalCoupon: order.totalCoupon,
-      balanceCoupon: order.balanceCoupon,
-      deductRefundCoupon: order.deductRefundCoupon,
-      appliedCoupon: order.appliedCoupon?.code
-    });
     
     await updateOrderCouponCalculations(order);
     
-    console.log('[CANCEL_ITEM] After coupon calculation:', {
-      orderId: order._id,
-      totalCoupon: order.totalCoupon,
-      balanceCoupon: order.balanceCoupon,
-      deductRefundCoupon: order.deductRefundCoupon,
-      appliedCoupon: order.appliedCoupon?.code
-    });
 
     // Process refund for non-COD orders
     if (
@@ -583,14 +579,10 @@ exports.cancelOrderItem = async (req, res) => {
         const refundResult = await processItemRefund(order, item, 'Cancellation');
         
         if (!refundResult.success) {
-          console.error('[CANCEL_ITEM] Refund processing failed:', refundResult.message);
           // Continue with cancellation even if refund fails
-        } else {
-          console.log(`[CANCEL_ITEM] Item refund processed successfully:`, refundResult);
         }
         
       } catch (error) {
-        console.error('[CANCEL_ITEM] Error processing item refund:', error);
         // Continue with cancellation even if refund fails
       }
     }
@@ -641,8 +633,7 @@ exports.cancelOrderItem = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Error cancelling order item:", error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to cancel item. Please try again.",
     });
@@ -742,14 +733,12 @@ exports.requestItemReturn = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Error requesting item return:", error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to submit return request",
     });
   }
 };
-
 
 // Admin: Approve return request
 exports.approveReturn = async (req, res) => {
@@ -800,18 +789,14 @@ exports.approveReturn = async (req, res) => {
         const refundResult = await processItemRefund(order, item, 'Return');
         
         if (!refundResult.success) {
-          console.error('[APPROVE_RETURN] Refund processing failed:', refundResult.message);
-          return res.status(500).json({ 
+          return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
             success: false, 
             message: `Return approved but refund failed: ${refundResult.message}` 
           });
         }
         
-        console.log(`[APPROVE_RETURN] Return refund processed successfully:`, refundResult);
-        
       } catch (error) {
-        console.error('[APPROVE_RETURN] Error processing return refund:', error);
-        return res.status(500).json({ 
+        return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
           success: false, 
           message: `Return approved but refund processing failed: ${error.message}` 
         });
@@ -827,17 +812,12 @@ exports.approveReturn = async (req, res) => {
         await Product.findByIdAndUpdate(item.product._id, { $inc: { quantity: item.quantity } });
     }
 
-    // The coupon discount is already updated in the refund service
-    // No need to recalculate here as it's handled in processItemRefund
-    
+      
     await order.save();
-    console.log('[APPROVE_RETURN] Return processed successfully');
-
     res.json({ success: true, message: "Return approved and refund processed." });
 
   } catch (error) {
-    console.error("[APPROVE_RETURN] Error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: "Server error" });
   }
 };
 
@@ -892,8 +872,7 @@ exports.rejectReturn = async (req, res) => {
     res.json({ success: true, message: "Return rejected." });
 
   } catch (error) {
-    console.error("[REJECT_RETURN] Error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: "Server error" });
   }
 };
 
@@ -903,22 +882,8 @@ exports.submitRating = async (req, res) => {
     const { productId, rating, orderId, review, images } = req.body;
     const userId = req.user._id;
 
-    // Debug logging
-    console.log('Received rating data:', {
-      productId,
-      rating,
-      orderId,
-      review,
-      images,
-      userId
-    });
 
     if (!productId || !rating || !orderId) {
-      console.log('Missing fields validation failed:', {
-        hasProductId: !!productId,
-        hasRating: !!rating,
-        hasOrderId: !!orderId
-      });
       return res.status(400).json({
         success: false,
         message: "Missing required fields",
@@ -950,31 +915,18 @@ exports.submitRating = async (req, res) => {
       });
     }
 
-    if (orderItem.rating) {
+    // Check if user already rated this product using Rating schema
+    const Rating = require('../../models/ratingSchema');
+    const existingRating = await Rating.findOne({
+      user: userId,
+      product: productId
+    });
+
+    if (existingRating) {
       return res.status(400).json({
         success: false,
         message: "Product already rated",
       });
-    }
-
-    const updatedOrder = await Order.findOneAndUpdate(
-      {
-        _id: orderId,
-        "items.product": productId,
-      },
-      {
-        $set: {
-          "items.$.rating": Number(rating),
-          "items.$.ratedAt": new Date(),
-          "items.$.review": review || "",
-          "items.$.reviewImages": images || [],
-        },
-      },
-      { new: true }
-    );
-
-    if (!updatedOrder) {
-      throw new Error("Failed to update order rating");
     }
 
     // Get user name for the rating
@@ -982,36 +934,28 @@ exports.submitRating = async (req, res) => {
     const user = await User.findById(userId).select('name');
     const userName = user ? user.name : 'Anonymous';
 
-    const product = await Product.findByIdAndUpdate(
-      productId,
-      {
-        $push: {
-          ratings: {
-            user: userId,
-            userId: userId,
-            userName: userName,
-            rating: Number(rating),
-            review: review || "",
-            images: images || [],
-            date: new Date(),
-          },
-        },
-      },
-      { new: true }
-    );
+    // Create new rating in separate Rating schema
+    const newRating = new Rating({
+      user: userId,
+      product: productId,
+      rating: Number(rating),
+      review: review || "",
+      userName: userName,
+      images: images || []
+    });
 
-    if (!product) {
-      throw new Error("Failed to update product rating");
-    }
+    await newRating.save();
 
-    const avgRating =
-      product.ratings.reduce((sum, r) => sum + r.rating, 0) /
-      product.ratings.length;
+    // Update product's average rating and total ratings
+    const Product = require('../../models/productSchema');
+    const allRatings = await Rating.find({ product: productId });
+    
+    const avgRating = allRatings.reduce((sum, r) => sum + r.rating, 0) / allRatings.length;
 
     await Product.findByIdAndUpdate(productId, {
       $set: {
         averageRating: avgRating,
-        totalRatings: product.ratings.length,
+        totalRatings: allRatings.length,
       },
     });
 
@@ -1020,8 +964,7 @@ exports.submitRating = async (req, res) => {
       message: "Rating submitted successfully",
     });
   } catch (error) {
-    console.error("[ERROR] Failed to submit rating:", error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: error.message || "Failed to submit rating",
     });
@@ -1037,8 +980,7 @@ exports.requestReturn = async (req, res) => {
 
     // Validate reason
     if (!reason) {
-      console.warn("Return attempt without reason");
-      return res.status(400).json({
+      return res.status(HttpStatus.BAD_REQUEST).json({
         success: false,
         message: "Please provide a reason for return",
       });
@@ -1046,8 +988,7 @@ exports.requestReturn = async (req, res) => {
 
     // Validate orderId
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
-      console.warn(`Invalid order ID: ${orderId}`);
-      return res.status(400).json({
+      return res.status(HttpStatus.BAD_REQUEST).json({
         success: false,
         message: "Invalid order ID",
       });
@@ -1059,8 +1000,7 @@ exports.requestReturn = async (req, res) => {
     });
 
     if (!order) {
-      console.warn(`Order not found: ${orderId} for user ${userId}`);
-      return res.status(404).json({
+      return res.status(HttpStatus.NOT_FOUND).json({
         success: false,
         message: "Order not found",
       });
@@ -1073,8 +1013,7 @@ exports.requestReturn = async (req, res) => {
       ""
     ).toLowerCase();
     if (currentStatus !== ORDER_STATUS.DELIVERED.toLowerCase()) {
-      console.warn(`Cannot return order in status: ${currentStatus}`);
-      return res.status(400).json({
+      return res.status(HttpStatus.BAD_REQUEST).json({
         success: false,
         message: `Order cannot be returned. Current status: ${currentStatus}`,
       });
@@ -1084,10 +1023,7 @@ exports.requestReturn = async (req, res) => {
     const returnPeriod = 7 * 24 * 60 * 60 * 1000; 
 
     if (!deliveryDate) {
-      console.warn(
-        `Order not delivered yet or delivery date missing for order: ${orderId}`
-      );
-      return res.status(400).json({
+      return res.status(HttpStatus.BAD_REQUEST).json({
         success: false,
         message:
           "Cannot request return - order has not been delivered yet or delivery date is missing",
@@ -1095,11 +1031,10 @@ exports.requestReturn = async (req, res) => {
     }
 
     if (Date.now() - deliveryDate.getTime() > returnPeriod) {
-      console.warn(`Return period expired for order: ${orderId}`);
       const daysSinceDelivery = Math.ceil(
         (Date.now() - deliveryDate.getTime()) / (24 * 60 * 60 * 1000)
       );
-      return res.status(400).json({
+      return res.status(HttpStatus.BAD_REQUEST).json({
         success: false,
         message: `Return period has expired. Returns must be requested within 7 days of delivery. Your order was delivered ${daysSinceDelivery} days ago.`,
       });
@@ -1142,8 +1077,6 @@ exports.requestReturn = async (req, res) => {
       orderId: order._id,
     });
   } catch (error) {
-    console.error("Error requesting return:", error);
-
     if (error.name === "ValidationError") {
       return res.status(400).json({
         success: false,
@@ -1190,8 +1123,7 @@ exports.showRetryPaymentPage = async (req, res) => {
       razorpayKey: process.env.RAZORPAY_KEY,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).render("error", { message: "Server Error" });
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).render("error", { message: "Server Error" });
   }
 };
 
@@ -1220,8 +1152,7 @@ exports.initiateRetryPayment = async (req, res) => {
 
     return res.json({ success: true, order: razorpayOrder });
   } catch (error) {
-    console.error("Retry Payment Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: "Server error" });
   }
 };
 
@@ -1388,7 +1319,6 @@ exports.downloadInvoice = async (req, res) => {
 
     doc.end();
   } catch (error) {
-    console.error("Invoice download error:", error);
-    res.status(500).send("Failed to generate invoice");
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).send("Failed to generate invoice");
   }
 };

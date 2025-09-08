@@ -3,6 +3,7 @@ const User = require('../../models/userSchema');
 const OfferService = require('../../services/offerService');
 const Cart = require('../../models/cartSchema');
 const Offer = require('../../models/offerSchema');
+const HttpStatus = require('../../utils/httpStatus');
 
 const getUniqueProductCount = (cart) => {
   if (!cart || !cart.items) return 0;
@@ -12,7 +13,7 @@ const getUniqueProductCount = (cart) => {
 exports.renderWishlist = async (req, res) => {
     try {
         if (!req.user) {
-            return res.status(401).json({
+            return res.status(HttpStatus.UNAUTHORIZED).json({
                 success: false,
                 message: 'Please login to view wishlist'
             });
@@ -65,7 +66,6 @@ exports.renderWishlist = async (req, res) => {
                     addedAt: item.addedAt
                 };
             } catch (error) {
-                console.error('Error processing wishlist item:', error);
                 return null;
             }
         });
@@ -112,9 +112,8 @@ exports.renderWishlist = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error fetching wishlist:', error);
         const errorMessage = error.message || 'Error fetching wishlist';
-        res.status(500).render('error', {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('error', {
             message: errorMessage,
             error
         });
@@ -124,7 +123,7 @@ exports.renderWishlist = async (req, res) => {
 exports.toggleWishlist = async (req, res) => {
     try {
         if (!req.user) {
-            return res.status(401).json({
+            return res.status(HttpStatus.UNAUTHORIZED).json({
                 success: false,
                 message: 'Please login to manage wishlist'
             });
@@ -203,8 +202,7 @@ exports.toggleWishlist = async (req, res) => {
             action: !existingItem ? 'added' : 'removed'
         });
     } catch (error) {
-        console.error('Error toggling wishlist:', error);
-        res.status(500).json({
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: error.message || 'Error updating wishlist'
         });
@@ -214,7 +212,7 @@ exports.toggleWishlist = async (req, res) => {
 exports.removeFromWishlist = async (req, res) => {
     try {
         if (!req.user) {
-            return res.status(401).json({
+            return res.status(HttpStatus.UNAUTHORIZED).json({
                 success: false,
                 message: 'Please login to manage wishlist'
             });
@@ -257,8 +255,7 @@ exports.removeFromWishlist = async (req, res) => {
             message: 'Product removed from wishlist'
         });
     } catch (error) {
-        console.error('Error removing from wishlist:', error);
-        res.status(500).json({
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: error.message || 'Error removing from wishlist'
         });

@@ -1,20 +1,20 @@
+const HttpStatus = require('../../utils/httpStatus');
 const Product = require('../../models/productSchema');
 const Category = require('../../models/categorySchema');
 const OfferService = require('../../services/offerService');
 const Cart = require('../../models/cartSchema');
+const Rating = require('../../models/ratingSchema');
 
 exports.getCartCount = async (userId) => {
     try {
         const cart = await Cart.findOne({ user: userId });
         if (!cart || !cart.items) return 0;
-        // Count unique products, not total quantities
         return new Set(
             cart.items
                 .filter(item => item && item.product)
                 .map(item => item.product.toString())
         ).size;
     } catch (error) {
-        console.error('Error getting cart count:', error);
         return 0;
     }
 };
@@ -23,7 +23,6 @@ exports.getCartCount = async (userId) => {
 exports.calculateOffersForProducts = async (products) => {
     return await Promise.all(products.map(async (product) => {
         const productObj = product.toObject();
-        // Ensure we pass the salesPrice to the offer calculation
         const salesPrice = product.salesPrice;
         
         productObj.offerDetails = await OfferService.getProductWithOffer(product._id);
@@ -60,7 +59,6 @@ exports.getAllProducts = async (req, res) => {
             
         });
     } catch (error) {
-        console.error('Error fetching products:', error);
         res.setMessage('error', 'Failed to fetch products');
         res.redirect('/');
     }
@@ -78,7 +76,7 @@ exports.getProductDetails = async (req, res) => {
         
         if (!product) {
             if (req.xhr || req.headers.accept?.includes('application/json')) {
-                return res.status(404).json({ success: false, message: 'Product not found' });
+                return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'Product not found' });
             }
             res.setMessage('error', 'Product not found');
             return res.redirect('/products');
@@ -92,41 +90,38 @@ exports.getProductDetails = async (req, res) => {
         };
         productObj.inStock = productObj.quantity > 0;
 
-        // Calculate rating breakdown for Flipkart-style display
+        const allRatings = await Rating.find({ product: productId }).sort({ createdAt: -1 });
+        
         const ratingBreakdown = {
             5: 0, 4: 0, 3: 0, 2: 0, 1: 0
         };
         
-        if (product.ratings && product.ratings.length > 0) {
-            product.ratings.forEach(rating => {
+        if (allRatings && allRatings.length > 0) {
+            allRatings.forEach(rating => {
                 ratingBreakdown[rating.rating]++;
             });
         }
 
-        // Calculate percentages
-        const totalRatings = product.ratings ? product.ratings.length : 0;
+        const totalRatings = allRatings ? allRatings.length : 0;
         const ratingPercentages = {};
         for (let i = 1; i <= 5; i++) {
             ratingPercentages[i] = totalRatings > 0 ? Math.round((ratingBreakdown[i] / totalRatings) * 100) : 0;
         }
 
-        // Get paginated reviews
-        const paginatedRatings = product.ratings ? 
-            product.ratings
-                .sort((a, b) => new Date(b.date) - new Date(a.date))
-                .slice(skip, skip + limit) : [];
+        const paginatedRatings = allRatings.slice(skip, skip + limit);
 
-        // Use ratings directly since userName is now stored in the schema
         const populatedRatings = paginatedRatings.map(rating => {
-            const ratingObj = rating.toObject();
             return {
-                ...ratingObj,
-                userName: ratingObj.userName || 'Anonymous',
-                images: ratingObj.images || []
+                _id: rating._id,
+                rating: rating.rating,
+                review: rating.review,
+                userName: rating.userName || 'Anonymous',
+                images: rating.images || [],
+                createdAt: rating.createdAt,
+                date: rating.createdAt
             };
         });
 
-        // Pagination info
         const totalPages = Math.ceil(totalRatings / limit);
         const reviewsPagination = {
             currentPage: page,
@@ -195,9 +190,8 @@ exports.getProductDetails = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error getting product details:', error);
         if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(500).json({ 
+            return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
                 success: false, 
                 message: 'Error loading product details' 
             });
@@ -231,8 +225,7 @@ exports.calculateProductPrice = async (req, res) => {
             
         });
     } catch (error) {
-        console.error('Error calculating product price:', error);
-        res.status(500).json({
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: 'Failed to calculate price'
         });
@@ -246,71 +239,64 @@ exports.rateProduct = async (req, res) => {
         const { rating, review } = req.body;
         const userId = req.user._id;
 
-
         if (!rating || rating < 1 || rating > 5) {
-            return res.status(400).json({
+            return res.status(HttpStatus.BAD_REQUEST).json({
                 success: false,
                 message: 'Invalid rating value'
             });
         }
 
-
         const product = await Product.findById(productId);
         if (!product) {
-            return res.status(404).json({
+            return res.status(HttpStatus.NOT_FOUND).json({
                 success: false,
                 message: 'Product not found'
             });
         }
 
+        const existingRating = await Rating.findOne({
+            user: userId,
+            product: productId
+        });
 
-        const existingRatingIndex = product.ratings.findIndex(r => 
-            r.userId.toString() === userId.toString()
-        );
-
-        // Get user name for the rating
         const User = require('../../models/userSchema');
         const user = await User.findById(userId).select('name');
         const userName = user ? user.name : 'Anonymous';
 
-        if (existingRatingIndex > -1) {
-
-            product.ratings[existingRatingIndex] = {
-                user: userId,
-                userId,
-                userName: userName,
-                rating,
-                review,
-                date: new Date(),
-                images: []
-            };
+        if (existingRating) {
+            existingRating.rating = Number(rating);
+            existingRating.review = review || "";
+            existingRating.userName = userName;
+            await existingRating.save();
         } else {
-
-            product.ratings.push({
+            const newRating = new Rating({
                 user: userId,
-                userId,
+                product: productId,
+                rating: Number(rating),
+                review: review || "",
                 userName: userName,
-                rating,
-                review,
-                date: new Date(),
                 images: []
             });
+            await newRating.save();
         }
 
+        const allRatings = await Rating.find({ product: productId });
+        const avgRating = allRatings.reduce((sum, r) => sum + r.rating, 0) / allRatings.length;
 
-        const totalRating = product.ratings.reduce((sum, r) => sum + r.rating, 0);
-        product.averageRating = totalRating / product.ratings.length;
-
-        await product.save();
+        await Product.findByIdAndUpdate(productId, {
+            $set: {
+                averageRating: avgRating,
+                totalRatings: allRatings.length,
+            },
+        });
 
         res.json({
             success: true,
             message: 'Rating submitted successfully',
-            averageRating: product.averageRating
+            averageRating: avgRating
         });
     } catch (error) {
-        console.error('Error rating product:', error);
-        res.status(500).json({
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: 'Failed to submit rating'
         });
@@ -322,7 +308,7 @@ exports.getFoodStatus = async (req, res) => {
     try {
         const productId = req.params.id;
         const product = await Product.findById(productId).populate('category');
-        if (!product) return res.status(404).json({ success: false });
+        if (!product) return res.status(HttpStatus.NOT_FOUND).json({ success: false });
         const offerDetails = await OfferService.getBestOffer(product);
         let inCart = false;
         if (req.user && req.user._id) {
@@ -346,6 +332,6 @@ exports.getFoodStatus = async (req, res) => {
             blocked
         });
     } catch (err) {
-        res.status(500).json({ success: false });
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ success: false });
     }
 };

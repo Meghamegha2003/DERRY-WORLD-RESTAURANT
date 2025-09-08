@@ -5,7 +5,6 @@ const parseMultipartData = (req, res, next) => {
     return next();
   }
 
-  console.log('Parsing multipart data, content-type:', req.headers['content-type']);
   
   const bb = busboy({ headers: req.headers });
   const files = [];
@@ -13,7 +12,6 @@ const parseMultipartData = (req, res, next) => {
 
   bb.on('file', (fieldname, file, info) => {
     const { filename, encoding, mimeType } = info;
-    console.log('File detected:', { fieldname, filename, mimeType });
     const chunks = [];
 
     file.on('data', (data) => {
@@ -22,7 +20,6 @@ const parseMultipartData = (req, res, next) => {
 
     file.on('end', () => {
       const buffer = Buffer.concat(chunks);
-      console.log('File processed:', { filename, size: buffer.length });
       files.push({
         fieldname,
         originalname: filename,
@@ -47,14 +44,12 @@ const parseMultipartData = (req, res, next) => {
   });
 
   bb.on('finish', () => {
-    console.log('Busboy finished parsing:', { filesCount: files.length, fieldsCount: Object.keys(fields).length });
     req.files = files;
     req.body = fields;
     next();
   });
 
   bb.on('error', (err) => {
-    console.error('Busboy error:', err);
     res.status(400).json({
       success: false,
       message: 'Error parsing form data'

@@ -48,14 +48,14 @@ const handleLoginError = (req, res, message, redirectUrl = '/login', errorType =
   }
   
   if (req.xhr || req.headers.accept?.includes('application/json')) {
-    return res.status(401).json({
+    return res.status(HttpStatus.UNAUTHORIZED).json({
       success: false,
       message: message,
       errorType: errorType === 'admin_login_attempt' ? 'error' : errorType
     });
   }
   
-  return res.status(401).render('user/login', {
+  return res.status(HttpStatus.UNAUTHORIZED).render('user/login', {
     title: 'Login',
     path: '/login',
     error: message,
@@ -66,21 +66,18 @@ const handleLoginError = (req, res, message, redirectUrl = '/login', errorType =
 const getCartCount = async (userId) => {
   try {
     const cart = await Cart.findOne({ user: userId });
-    // Count unique products, not total quantities
     return cart?.items ? new Set(
       cart.items
         .filter(item => item && item.product)
         .map(item => item.product.toString())
     ).size : 0;
   } catch (error) {
-    console.error("Error in getCartCount:", error);
     return 0;
   }
 };
 
 exports.renderLoginPage = async (req, res) => {
   try {
-    // Clear any existing user token
     res.clearCookie('userToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -95,7 +92,6 @@ exports.renderLoginPage = async (req, res) => {
       errorType: req.query.errorType || null
     });
   } catch (error) {
-    console.error('Error rendering login page:', error);
     res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('error', {
       message: 'Something went wrong',
       error: {},
@@ -107,14 +103,11 @@ exports.renderLoginPage = async (req, res) => {
 exports.loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log('Login attempt for email:', email);
 
     const user = await User.findOne({ email: email.toLowerCase() });
-    console.log('User found:', user ? 'Yes' : 'No');
     
     if (!user) {
-      console.log('No user found with email:', email);
-      return res.status(401).json({
+      return res.status(HttpStatus.UNAUTHORIZED).json({
         success: false,
         message: 'Invalid email or password'
       });
@@ -122,8 +115,7 @@ exports.loginUser = async (req, res) => {
 
     // Check for admin login attempt
     if (user.roles.includes("admin")) {
-      console.log('Admin login attempt from user side');
-      return res.status(401).json({
+      return res.status(HttpStatus.UNAUTHORIZED).json({
         success: false,
         message: 'Admin accounts must use the admin login page.'
       });
@@ -131,7 +123,6 @@ exports.loginUser = async (req, res) => {
 
     // Check if account is active
     if (!user.isActive) {
-      console.log('Login attempt for inactive user:', email);
       res.clearCookie("userToken", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -144,13 +135,10 @@ exports.loginUser = async (req, res) => {
     }
 
     // Verify password
-    console.log('Comparing password for user:', email);
     const isMatch = await user.comparePassword(password);
-    console.log('Password match:', isMatch);
     
     if (!isMatch) {
-      console.log('Invalid password for user:', email);
-      return res.status(401).json({
+      return res.status(HttpStatus.UNAUTHORIZED).json({
         success: false,
         message: 'Invalid email or password'
       });
@@ -169,8 +157,6 @@ exports.loginUser = async (req, res) => {
       sameSite: 'lax'
     });
     
-    console.log('Token set in cookie for user:', user.email);
-    console.log('Token value:', token);
 
     // Return success response
     return res.json({
@@ -180,8 +166,7 @@ exports.loginUser = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Error in loginUser:", error);
-    return res.status(500).json({
+    return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'An error occurred during login. Please try again.'
     });
@@ -236,7 +221,6 @@ exports.renderRegisterPage = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error rendering register page:', error);
     res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('user/register', {
       message: '',
       successMessage: '',
@@ -353,19 +337,23 @@ exports.registerUser = async (req, res) => {
             { expiresIn: '30m' }
         );
 
-        // Use the new cookie configuration helper
-        const { getOTPCookieConfig } = require('../../utils/cookieConfig');
-        const cookieOptions = getOTPCookieConfig(req);
+        // Set OTP token in cookie with production-safe configuration
+        const isProduction = process.env.NODE_ENV === 'production';
+        const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
         
-        // Set OTP token in cookie and also send it in the response
+        const cookieOptions = {
+            httpOnly: true,
+            secure: isProduction ? isSecure : false,
+            maxAge: 30 * 60 * 1000, // 30 minutes
+            path: '/',
+            sameSite: isProduction ? 'none' : 'lax'
+        };
+        
         res.cookie('otpToken', otpToken, cookieOptions);
 
         // Also include the token in the redirect URL as a fallback
         const redirectUrl = `/verify-otp?token=${encodeURIComponent(otpToken)}`;
         
-        // Log OTP to console for development
-        console.log('OTP for', email.toLowerCase() + ':', otp);
-        console.log('OTP Token created at:', new Date().toISOString());
         
         // Send OTP email
         await sendOtpEmail(email.toLowerCase(), otp);
@@ -373,12 +361,10 @@ exports.registerUser = async (req, res) => {
         // Redirect with token in URL as fallback
         res.redirect(redirectUrl);
     } catch (error) {
-        console.error('Error in registration process:', error);
         return res.redirect(`/register?error=${encodeURIComponent('Registration failed. Please try again.')}`);
     }
 
   } catch (error) {
-    console.error('Registration error:', error.message);
     return res.redirect(`/register?error=${encodeURIComponent('Registration failed. Please try again.')}`);
   }
 };
@@ -390,7 +376,7 @@ exports.resendOTP = async (req, res) => {
     if (!otpToken) {
       const errorMsg = 'Verification session expired. Please register again.';
       if (req.accepts('json')) {
-        return res.status(400).json({ 
+        return res.status(HttpStatus.BAD_REQUEST).json({ 
           success: false, 
           message: errorMsg
         });
@@ -405,7 +391,7 @@ exports.resendOTP = async (req, res) => {
     } catch (error) {
       res.clearCookie('otpToken');
       if (req.accepts('json')) {
-        return res.status(400).json({ 
+        return res.status(HttpStatus.BAD_REQUEST).json({ 
           success: false, 
           message: 'Verification session expired. Please register again.' 
         });
@@ -424,22 +410,35 @@ exports.resendOTP = async (req, res) => {
       createdAt: new Date()
     });
     
-    console.log(`New OTP for ${decoded.email}: ${otp} (Expires at: ${expiresAt})`);
 
-    await exports.sendOTPEmail(decoded.email, otp);
+    await sendOtpEmail(decoded.email, otp);
 
     const newToken = jwt.sign(
       { 
-        email: decoded.email, 
-        purpose: 'otp_verification'
+        name: decoded.name,
+        email: decoded.email,
+        phone: decoded.phone,
+        password: decoded.password,
+        referralCode: decoded.referralCode,
+        referredBy: decoded.referredBy,
+        purpose: 'otp_verification',
+        timestamp: Date.now()
       },
       process.env.JWT_SECRET,
       { expiresIn: '30m' }
     );
 
-    // Use the new cookie configuration helper for resend
-    const { getOTPCookieConfig } = require('../../utils/cookieConfig');
-    const resendCookieOptions = getOTPCookieConfig(req);
+    // Set cookie with production-safe configuration for resend
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
+    
+    const resendCookieOptions = {
+        httpOnly: true,
+        secure: isProduction ? isSecure : false,
+        maxAge: 30 * 60 * 1000, // 30 minutes
+        path: '/',
+        sameSite: isProduction ? 'none' : 'lax'
+    };
     
     res.cookie('otpToken', newToken, resendCookieOptions);
 
@@ -456,11 +455,10 @@ exports.resendOTP = async (req, res) => {
     return res.redirect(`/verify-otp?token=${encodeURIComponent(newToken)}&message=${encodeURIComponent('New OTP sent successfully to your email')}`);
 
   } catch (error) {
-    console.error('Resend OTP error:', error);
     const errorMsg = error.message || 'Failed to resend OTP. Please try again.';
     
     if (req.accepts('json')) {
-      return res.status(500).json({ 
+      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
         success: false, 
         message: errorMsg
       });
@@ -476,69 +474,40 @@ exports.resendOTP = async (req, res) => {
 
 exports.renderVerifyOtpPage = async (req, res) => {
   try {
-    // ========== VERIFY OTP PAGE DEBUG LOGGING ==========
-    console.log('\n=== VERIFY OTP PAGE RENDER DEBUG ===');
-    console.log('Timestamp:', new Date().toISOString());
-    console.log('Request IP:', req.ip || req.connection.remoteAddress);
-    console.log('User-Agent:', req.get('User-Agent'));
-    console.log('Host Header:', req.get('Host'));
-    console.log('Protocol:', req.protocol);
-    console.log('Secure:', req.secure);
-    console.log('Environment:', process.env.NODE_ENV);
-    
-    // Log all cookies received
-    console.log('\n--- COOKIES ON VERIFY PAGE ---');
-    console.log('All cookies:', JSON.stringify(req.cookies, null, 2));
-    console.log('Cookie header raw:', req.get('Cookie'));
-    
-    // Log query parameters
-    console.log('\n--- QUERY PARAMETERS ---');
-    console.log('Query:', JSON.stringify(req.query, null, 2));
-    
     const tokenFromUrl = req.query.token;
     const tokenFromCookie = req.cookies.otpToken;
     
-    console.log('\n--- TOKEN SOURCES ON PAGE RENDER ---');
-    console.log('Token from URL:', tokenFromUrl ? 'EXISTS (length: ' + tokenFromUrl.length + ')' : 'NULL');
-    console.log('Token from cookie:', tokenFromCookie ? 'EXISTS (length: ' + tokenFromCookie.length + ')' : 'NULL');
-    
     const otpToken = tokenFromUrl || tokenFromCookie;
-    console.log('Final token selected:', otpToken ? 'EXISTS (length: ' + otpToken.length + ')' : 'NULL');
     
     if (!otpToken) {
-      console.log('❌ No OTP token found, redirecting to register');
-      console.log('=== VERIFY OTP PAGE RENDER DEBUG END ===\n');
       return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
     }
     
     let decoded;
     try {
-      console.log('\n--- JWT VERIFICATION ON PAGE RENDER ---');
       decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
-      console.log('✅ JWT verification successful on page render');
-      console.log('Decoded email:', decoded.email);
-      console.log('Token purpose:', decoded.purpose);
       
       if (decoded.purpose !== 'otp_verification') throw new Error('Invalid token purpose');
       
       if (tokenFromUrl && !tokenFromCookie) {
-        console.log('Setting cookie from URL token...');
-        const { getOTPCookieConfig } = require('../../utils/cookieConfig');
-        const pageRenderCookieOptions = getOTPCookieConfig(req);
-        console.log('Page render cookie options:', JSON.stringify(pageRenderCookieOptions, null, 2));
+        const isProduction = process.env.NODE_ENV === 'production';
+        const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
+        
+        const pageRenderCookieOptions = {
+            httpOnly: true,
+            secure: isProduction ? isSecure : false,
+            maxAge: 30 * 60 * 1000, // 30 minutes
+            path: '/',
+            sameSite: isProduction ? 'none' : 'lax'
+        };
         
         res.cookie('otpToken', otpToken, pageRenderCookieOptions);
-        console.log('Cookie set from URL token');
       }
     } catch (error) {
-      console.error('❌ Token verification failed on page render:', error.message);
-      console.error('Error type:', error.name);
       res.clearCookie('otpToken');
-      console.log('=== VERIFY OTP PAGE RENDER DEBUG END ===\n');
       return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
     }
     
-    console.log('=== VERIFY OTP PAGE RENDER DEBUG END ===\n');
 
     res.render('user/verify-otp', {
       title: 'Verify OTP',
@@ -548,61 +517,26 @@ exports.renderVerifyOtpPage = async (req, res) => {
       message: req.query.message || null
     });
   } catch (error) {
-    console.error('Error rendering verify OTP page:', error);
     res.redirect('/register?error=' + encodeURIComponent('Something went wrong. Please try again.'));
   }
 };
 
 exports.verifyOTP = async (req, res) => {
     try {
-        // ========== COMPREHENSIVE DEBUG LOGGING START ==========
-        console.log('\n=== OTP VERIFICATION DEBUG START ===');
-        console.log('Timestamp:', new Date().toISOString());
-        console.log('Request IP:', req.ip || req.connection.remoteAddress);
-        console.log('User-Agent:', req.get('User-Agent'));
-        console.log('Host Header:', req.get('Host'));
-        console.log('Protocol:', req.protocol);
-        console.log('Secure:', req.secure);
-        console.log('Environment:', process.env.NODE_ENV);
-        
-        // Log all cookies received
-        console.log('\n--- COOKIES RECEIVED ---');
-        console.log('All cookies:', JSON.stringify(req.cookies, null, 2));
-        console.log('Cookie header raw:', req.get('Cookie'));
-        
-        // Log request body
-        console.log('\n--- REQUEST BODY ---');
-        console.log('Body:', JSON.stringify(req.body, null, 2));
-        console.log('Content-Type:', req.get('Content-Type'));
-        
-        // Log query parameters
-        console.log('\n--- QUERY PARAMETERS ---');
-        console.log('Query:', JSON.stringify(req.query, null, 2));
-        
         const { otp, token: tokenFromBody } = req.body;
         
-        // Log token sources
-        console.log('\n--- TOKEN SOURCES ---');
-        console.log('Token from body:', tokenFromBody ? 'EXISTS (length: ' + tokenFromBody.length + ')' : 'NULL');
-        console.log('Token from query:', req.query.token ? 'EXISTS (length: ' + req.query.token.length + ')' : 'NULL');
-        console.log('Token from cookie:', req.cookies.otpToken ? 'EXISTS (length: ' + req.cookies.otpToken.length + ')' : 'NULL');
-        
         const otpToken = tokenFromBody || req.query.token || req.cookies.otpToken;
-        console.log('Final token selected:', otpToken ? 'EXISTS (length: ' + otpToken.length + ')' : 'NULL');
-        
-        // ========== COMPREHENSIVE DEBUG LOGGING END ==========
         
         if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
             const errorMsg = 'Please enter a valid 6-digit OTP';
-            console.log('❌ OTP validation failed:', { otp, length: otp?.length });
             
             if (req.accepts('json')) {
-                return res.status(400).json({ 
+                return res.status(HttpStatus.BAD_REQUEST).json({ 
                     success: false, 
                     message: errorMsg 
                 });
             }
-            return res.status(400).render('user/verify-otp', {
+            return res.status(HttpStatus.BAD_REQUEST).render('user/verify-otp', {
                 title: 'Verify OTP',
                 error: errorMsg,
                 token: otpToken
@@ -611,10 +545,9 @@ exports.verifyOTP = async (req, res) => {
         
         if (!otpToken) {
             const errorMsg = 'Verification session expired. Please register again.';
-            console.error('❌ No OTP token found in any source (body/query/cookie)');
             
             if (req.accepts('json')) {
-                return res.status(400).json({ 
+                return res.status(HttpStatus.BAD_REQUEST).json({ 
                     success: false, 
                     message: errorMsg 
                 });
@@ -624,29 +557,18 @@ exports.verifyOTP = async (req, res) => {
         
         let decoded;
         try {
-            console.log('\n--- JWT TOKEN VERIFICATION ---');
-            console.log('Attempting to verify JWT token...');
-            
             decoded = jwt.verify(otpToken, process.env.JWT_SECRET, { ignoreExpiration: false });
-            
-            console.log('✅ JWT verification successful');
-            console.log('Decoded payload:', JSON.stringify(decoded, null, 2));
-            console.log('Token issued at:', new Date(decoded.iat * 1000).toISOString());
-            console.log('Token expires at:', new Date(decoded.exp * 1000).toISOString());
-            console.log('Current time:', new Date().toISOString());
-            console.log('Token age (minutes):', Math.floor((Date.now() - (decoded.iat * 1000)) / 60000));
             
             if (decoded.purpose !== 'otp_verification') {
                 const errorMsg = 'Invalid verification request. Please try again.';
-                console.error('❌ Invalid token purpose:', decoded.purpose, 'Expected: otp_verification');
                 
                 if (req.accepts('json')) {
-                    return res.status(400).json({ 
+                    return res.status(HttpStatus.BAD_REQUEST).json({ 
                         success: false, 
                         message: errorMsg 
                     });
                 }
-                return res.status(400).render('user/verify-otp', {
+                return res.status(HttpStatus.BAD_REQUEST).render('user/verify-otp', {
                     title: 'Verify OTP',
                     error: errorMsg,
                     token: otpToken
@@ -654,16 +576,17 @@ exports.verifyOTP = async (req, res) => {
             }
             
         } catch (error) {
-            console.error('❌ JWT verification failed:', error.message);
-            console.error('Error type:', error.name);
-            console.error('Token that failed:', otpToken?.substring(0, 50) + '...');
-            
             const errorMsg = 'Verification session expired. Please register again.';
             
-            res.clearCookie('otpToken', { path: '/verify-otp' });
+            res.clearCookie('otpToken', {
+                path: '/',
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+            });
             
             if (req.accepts('json')) {
-                return res.status(400).json({ 
+                return res.status(HttpStatus.BAD_REQUEST).json({ 
                     success: false, 
                     message: errorMsg 
                 });
@@ -671,69 +594,23 @@ exports.verifyOTP = async (req, res) => {
             return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
         }
         
-        // Enhanced debugging for OTP lookup
-        console.log('\n--- DATABASE OTP LOOKUP ---');
-        console.log('Looking up OTP for email:', decoded.email);
-        console.log('OTP to match:', otp);
-        console.log('Current server time:', new Date().toISOString());
-        
         const otpRecord = await OTP.findOne({
             email: { $regex: new RegExp(`^${decoded.email}$`, 'i') },
             otp: otp,
             expiresAt: { $gt: new Date() }
         });
         
-        console.log('OTP record found:', !!otpRecord);
-        if (otpRecord) {
-            console.log('✅ Valid OTP found in database');
-            console.log('OTP details:', {
-                email: otpRecord.email,
-                otp: otpRecord.otp,
-                createdAt: otpRecord.createdAt,
-                expiresAt: otpRecord.expiresAt,
-                timeUntilExpiry: Math.floor((otpRecord.expiresAt - new Date()) / 60000) + ' minutes'
-            });
-        }
-        
-        // If not found, check what OTP records exist for this email
-        if (!otpRecord) {
-            console.log('❌ No valid OTP found, checking all records for this email...');
-            
-            const allOtpRecords = await OTP.find({ 
-                email: { $regex: new RegExp(`^${decoded.email}$`, 'i') } 
-            });
-            
-            console.log('All OTP records for', decoded.email + ':', allOtpRecords.map(r => ({
-                otp: r.otp,
-                createdAt: r.createdAt,
-                expiresAt: r.expiresAt,
-                expired: r.expiresAt <= new Date(),
-                minutesUntilExpiry: Math.floor((r.expiresAt - new Date()) / 60000)
-            })));
-            
-            // Check if there are any OTPs with different values
-            const otpsWithSameEmail = allOtpRecords.filter(r => r.expiresAt > new Date());
-            if (otpsWithSameEmail.length > 0) {
-                console.log('⚠️  Found valid OTPs for this email but with different values:');
-                otpsWithSameEmail.forEach(r => {
-                    console.log(`   - OTP: ${r.otp}, Created: ${r.createdAt}, Expires: ${r.expiresAt}`);
-                });
-            }
-        }
-        
-        console.log('=== OTP VERIFICATION DEBUG END ===\n');
-        
         if (!otpRecord) {
             const errorMsg = 'Invalid or expired OTP. Please try again.';
             
             if (req.accepts('json')) {
-                return res.status(400).json({ 
+                return res.status(HttpStatus.BAD_REQUEST).json({ 
                     success: false, 
                     message: errorMsg 
                 });
             }
             
-            return res.status(400).render('user/verify-otp', {
+            return res.status(HttpStatus.BAD_REQUEST).render('user/verify-otp', {
                 title: 'Verify OTP',
                 error: errorMsg,
                 token: otpToken,
@@ -759,22 +636,24 @@ exports.verifyOTP = async (req, res) => {
         
         await newUser.save();
         
-        console.log('New user created:', newUser.email);
         
         if (userData.referredBy) {
           try {
             await processReferralReward(userData.referredBy, newUser._id);
-            console.log('Referral reward processed successfully');
           } catch (referralError) {
-            console.error('Referral reward processing failed:', referralError);
           }
         }
         
-        res.clearCookie('otpToken', { path: '/verify-otp' });
+        res.clearCookie('otpToken', {
+            path: '/',
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+        });
         
         exports.sendWelcomeEmail(userData.email, userData.name)
           .catch(emailError => {
-            console.error('Failed to send welcome email:', emailError);
+            // Email sending failed, but continue with registration
           });
         
         if (req.accepts('json')) {
@@ -788,11 +667,10 @@ exports.verifyOTP = async (req, res) => {
         return res.redirect('/login?message=' + encodeURIComponent('Registration successful! Please log in.'));
         
       } catch (error) {
-        console.error('Error creating user:', error);
         const errorMsg = 'Failed to create user. Please try again.';
         
         if (req.accepts('json')) {
-          return res.status(500).json({ 
+          return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
             success: false, 
             message: errorMsg 
           });
@@ -801,12 +679,16 @@ exports.verifyOTP = async (req, res) => {
         return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
       }
     } else {
-      res.clearCookie('otpToken');
+      res.clearCookie('otpToken', {
+          path: '/',
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+      });
       return res.redirect('/login?message=' + encodeURIComponent('Verification successful. Please login to continue.'));
     }
 
   } catch (error) {
-    console.error('OTP verification error:', error);
     return res.redirect('/verify-otp?error=' + encodeURIComponent('Verification failed. Please try again.'));
   }
 };
@@ -828,7 +710,7 @@ exports.handleForgotPassword = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) {
       if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(404).json({ success: false, message: 'No account found with that email address.' });
+        return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'No account found with that email address.' });
       }
       return res.render('user/forgot-password', {
         message: 'No account found with that email address.',
@@ -863,7 +745,7 @@ exports.handleForgotPassword = async (req, res) => {
     });
 
     if (req.xhr || req.headers.accept?.includes('application/json')) {
-      return res.status(200).json({ success: true, message: 'Password reset link has been sent to your email.' });
+      return res.status(HttpStatus.OK).json({ success: true, message: 'Password reset link has been sent to your email.' });
     }
     res.render('user/forgot-password', {
       message: '',
@@ -874,9 +756,8 @@ exports.handleForgotPassword = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error in handleForgotPassword:', error);
     if (req.xhr || req.headers.accept?.includes('application/json')) {
-      return res.status(500).json({ success: false, message: 'An error occurred while processing your request.' });
+      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: 'An error occurred while processing your request.' });
     }
     res.render('user/forgot-password', {
       message: '',
@@ -937,7 +818,6 @@ exports.googleCallback = async (req, res) => {
 
     res.redirect('/');
   } catch (error) {
-    console.error('Google callback error:', error);
     res.setMessage('error', 'Failed to authenticate with Google');
     res.redirect('/login');
   }
@@ -1001,8 +881,7 @@ exports.updateUserProfile = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error updating profile:', error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Failed to update profile'
     });
@@ -1084,7 +963,6 @@ exports.renderHomePage = async (req, res) => {
       filters: { category: selectedCategoryId }
     });
   } catch (error) {
-    console.error('Error rendering home page:', error);
     res.setMessage('error', 'Failed to load home page');
     res.redirect('/menu');
   }
@@ -1105,7 +983,6 @@ exports.renderAboutPage = async (req, res) => {
       messages: res.locals.messages
     });
   } catch (error) {
-    console.error('Error rendering about page:', error);
     res.setMessage('error', 'Failed to load about page');
     res.redirect('/');
   }
@@ -1125,8 +1002,7 @@ exports.renderContactPage = async (req, res) => {
             cartCount: cartCount
         });
     } catch (error) {
-        console.error('[ERROR] Error rendering contact page:', error);
-        res.status(500).render('error', { 
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('error', { 
             message: 'Error loading contact page',
             error: process.env.NODE_ENV === 'development' ? error : {},
             cartCount: 0,
@@ -1148,8 +1024,7 @@ exports.getAddresses = async (req, res) => {
       title: 'My Addresses'
     });
   } catch (error) {
-    console.error('Error fetching addresses:', error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Error fetching addresses'
     });
@@ -1246,8 +1121,7 @@ exports.addAddress = async (req, res) => {
       address: addedAddress || newAddress
     });
   } catch (error) {
-    console.error('Error adding address:', error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: error.message || 'Error adding address',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -1360,8 +1234,7 @@ exports.updateAddress = async (req, res) => {
       address: updatedAddress
     });
   } catch (error) {
-    console.error('Error updating address:', error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: error.message || 'Error updating address',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -1410,8 +1283,7 @@ exports.deleteAddress = async (req, res) => {
       message: 'Address deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting address:', error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: error.message || 'Error deleting address',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -1509,7 +1381,6 @@ exports.renderResetPassword = async (req, res) => {
       path: '/reset-password'
     });
   } catch (error) {
-    console.error('Error in renderResetPassword:', error);
     res.render('user/reset-password', {
       message: 'An error occurred. Please try again.',
       validToken: false,
@@ -1571,8 +1442,7 @@ exports.handleResetPassword = async (req, res) => {
       message: 'Password has been reset successfully'
     });
   } catch (error) {
-    console.error('Error in handleResetPassword:', error);
-    return res.status(500).json({
+    return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'An error occurred while resetting password',
       error: error
@@ -1596,8 +1466,7 @@ exports.renderProfilePage = async (req, res) => {
       path: '/profile'
     });
   } catch (error) {
-    console.error('Error fetching profile:', error);
-    res.status(500).render('error', {
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('error', {
       message: 'Error fetching profile',
       error: process.env.NODE_ENV === 'development' ? error : {},
       cartCount: 0
@@ -1644,7 +1513,7 @@ exports.changePassword = async (req, res) => {
     // Check current password
     const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({
+      return res.status(HttpStatus.UNAUTHORIZED).json({
         success: false,
         message: 'Current password is incorrect'
       });
@@ -1691,22 +1560,12 @@ exports.changePassword = async (req, res) => {
       });
     }
     if (error.message.includes('Cannot read properties of undefined (reading options)')) {
-      console.error('Error changing password:', error);
-      return res.status(500).json({
+      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: 'Failed to change password due to internal error. Please contact support.'
       });
     } else {
-      console.error('Error changing password:', error);
-      if (error && error.stack) {
-        console.error('Error stack:', error.stack);
-      }
-      if (error && error.errors) {
-        Object.keys(error.errors).forEach(function(key) {
-          console.error('Validation error for', key, ':', error.errors[key]);
-        });
-      }
-      return res.status(500).json({
+      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: 'Error changing password',
         error: error && error.message ? error.message : error
@@ -1748,8 +1607,7 @@ exports.verifyReferralCode = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Referral verification error:', error);
-    res.status(500).json({
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       error: 'Failed to verify referral code'
     });
@@ -1788,11 +1646,8 @@ exports.sendWelcomeEmail = async (email, name) => {
       `,
     });
 
-    console.log('Welcome email sent to %s', email);
-    console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
     return true;
   } catch (error) {
-    console.error('Error sending welcome email:', error);
     return false;
   }
 };
@@ -1839,8 +1694,6 @@ exports.generateAndSaveOtp = async (email) => {
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
   
-    console.log(`[DEBUG] OTP: ${otp}`);
-   
     const newOTP = new OTP({
       email,
       otp,
@@ -1869,7 +1722,6 @@ exports.getCartCount = async (userId) => {
         .map(item => item.product.toString())
     ).size;
   } catch (error) {
-    console.error('Error getting cart count:', error);
     return 0;
   }
 };
@@ -1882,7 +1734,7 @@ exports.forgotPassword = async (req, res) => {
        
         if (!email) {
             if (req.xhr || req.headers.accept?.includes('application/json')) {
-                return res.status(400).json({
+                return res.status(HttpStatus.BAD_REQUEST).json({
                     success: false,
                     message: 'Please provide your email address'
                 });
@@ -1951,7 +1803,7 @@ exports.forgotPassword = async (req, res) => {
     } catch (error) {
         
         if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(500).json({
+            return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
                 success: false,
                 message: 'An error occurred while processing your request'
             });
@@ -1969,7 +1821,7 @@ exports.resetPassword = async (req, res) => {
 
         if (!password || password.length < 6) {
             if (req.xhr || req.headers.accept?.includes('application/json')) {
-                return res.status(400).json({
+                return res.status(HttpStatus.BAD_REQUEST).json({
                     success: false,
                     message: 'Please provide a valid password (minimum 6 characters)'
                 });
@@ -1991,7 +1843,7 @@ exports.resetPassword = async (req, res) => {
         if (!user) {
             
             if (req.xhr || req.headers.accept?.includes('application/json')) {
-                return res.status(400).json({
+                return res.status(HttpStatus.BAD_REQUEST).json({
                     success: false,
                     message: 'Password reset link is invalid or has expired'
                 });
@@ -2042,7 +1894,7 @@ exports.resetPassword = async (req, res) => {
     } catch (error) {
       
         if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(500).json({
+            return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
                 success: false,
                 message: 'An error occurred while resetting your password'
             });
@@ -2065,21 +1917,21 @@ exports.handleContactForm = async (req, res) => {
         const { name, email, phone, message } = req.body;
 
         if (!name || !email || !phone || !message) {
-            return res.status(400).json({
+            return res.status(HttpStatus.BAD_REQUEST).json({
                 success: false,
                 message: 'Please fill in all required fields'
             });
         }
 
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            return res.status(400).json({
+            return res.status(HttpStatus.BAD_REQUEST).json({
                 success: false,
                 message: 'Please enter a valid email address'
             });
         }
 
         if (!/^\d{10}$/.test(phone)) {
-            return res.status(400).json({
+            return res.status(HttpStatus.BAD_REQUEST).json({
                 success: false,
                 message: 'Please enter a valid 10-digit phone number'
             });
@@ -2090,8 +1942,7 @@ exports.handleContactForm = async (req, res) => {
             message: 'Thank you for your message. We will get back to you soon!'
         });
     } catch (error) {
-        console.error('[ERROR] Contact form error:', error);
-        res.status(500).json({
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: 'An error occurred. Please try again.'
         });

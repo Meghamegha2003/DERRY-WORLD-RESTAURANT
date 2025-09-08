@@ -112,7 +112,6 @@ const auth = async (req, res, next) => {
 
         next();
     } catch (error) {
-        console.error('Auth error:', error);
         // Check if this is an AJAX request or regular browser navigation
         if (req.xhr || req.headers.accept?.includes('application/json')) {
             res.status(500).json({
@@ -158,7 +157,6 @@ const adminAuth = async (req, res, next) => {
         req.user = result.user;
         next();
     } catch (error) {
-        console.error('Admin auth error:', error);
         res.redirect('/admin/login');
     }
 };
@@ -194,7 +192,6 @@ const preventAuthPages = async (req, res, next) => {
         
         next();
     } catch (error) {
-        console.error('Prevent auth pages error:', error);
         next();
     }
 };
@@ -225,7 +222,6 @@ const optionalAuth = async (req, res, next) => {
         }
         next();
     } catch (error) {
-        console.error('Optional auth error:', error);
         next();
     }
 };
@@ -258,7 +254,6 @@ const checkUserBlocked = async (req, res, next) => {
         }
         next();
     } catch (error) {
-        console.error('Check user blocked error:', error);
         next();
     }
 };

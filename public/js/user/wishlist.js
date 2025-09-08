@@ -78,7 +78,6 @@ async function toggleWishlist(productId, button) {
             wishlistCountElement.textContent = newState ? currentCount + 1 : currentCount - 1;
         }
     } catch (error) {
-        console.error('Wishlist error:', error);
         
         // Show error notification
         const Toast = Swal.mixin({
@@ -236,7 +235,6 @@ async function removeFromWishlist(productId, button) {
             }
         }
     } catch (error) {
-        console.error('Wishlist error:', error);
         
         // Show error notification
         const Toast = Swal.mixin({

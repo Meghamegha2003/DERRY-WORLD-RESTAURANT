@@ -22,7 +22,7 @@ module.exports = {
             try {
                 res.locals.flash = JSON.parse(flash);
             } catch (e) {
-                console.error('Error parsing flash message:', e);
+                // Error parsing flash message - ignore
             }
             res.clearCookie('flash');
         }

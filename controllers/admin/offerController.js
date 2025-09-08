@@ -38,7 +38,7 @@ exports.viewOffers = async (req, res) => {
             });
         }
 
-        res.status(500).render('error', {
+        res.status(500).render('admin/error', {
             message: 'Failed to fetch offers',
             error
         });

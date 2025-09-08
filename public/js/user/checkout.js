@@ -1,5 +1,4 @@
 // Checkout.js - Clean implementation without duplicates
-console.log('Checkout.js loaded - Version 6.0 - Clean unified implementation');
 
 // Global variables
 let selectedPaymentMethod = '';
@@ -7,13 +6,11 @@ let selectedAddressId = '';
 
 // Utility functions
 function updateCartUI() {
-    console.log('updateCartUI called');
     return Promise.resolve();
 }
 
 // Handle address selection
 function selectAddress(addressId) {
-    console.log('selectAddress called with:', addressId);
     try {
         // Remove selected class from all address cards
         document.querySelectorAll('.address-card').forEach(card => {
@@ -25,16 +22,14 @@ function selectAddress(addressId) {
         if (selectedCard) {
             selectedCard.classList.add('selected');
             selectedAddressId = addressId;
-            console.log('Address selected:', addressId);
         }
     } catch (error) {
-        console.error('Error selecting address:', error);
+        // Error selecting address - ignore
     }
 }
 
 // Handle payment method selection
 function selectPaymentMethod(method) {
-    console.log('selectPaymentMethod called with:', method);
     try {
         selectedPaymentMethod = method;
         document.querySelectorAll('.payment-method-card').forEach(card => {
@@ -44,9 +39,8 @@ function selectPaymentMethod(method) {
         if (methodCard) {
             methodCard.classList.add('selected');
         }
-        console.log('Payment method selected:', method);
     } catch (error) {
-        console.error('Error selecting payment method:', error);
+        // Error selecting payment method - ignore
     }
 }
 
@@ -64,7 +58,6 @@ async function showError(title, message) {
 
 // Handle order placement - Unified implementation
 async function placeOrder() {
-    console.log('placeOrder called - unified implementation');
     try {
         // Validate address and payment method
         if (!selectedAddressId) {
@@ -103,10 +96,6 @@ async function placeOrder() {
             }
         });
 
-        console.log('Processing order with:', { 
-            addressId: selectedAddressId, 
-            paymentMethod: selectedPaymentMethod 
-        });
 
         // Use single endpoint for all payment methods
         const response = await fetch('/checkout/process', {
@@ -130,7 +119,6 @@ async function placeOrder() {
         }
 
         if (result.success) {
-            console.log('Order placed successfully');
             
             // Handle Razorpay payment if online method and order details returned
             if (selectedPaymentMethod === 'online' && result.order && result.order.id) {
@@ -167,7 +155,6 @@ async function placeOrder() {
                                 throw new Error(verifyResult.message || 'Payment verification failed');
                             }
                         } catch (error) {
-                            console.error('Payment verification failed:', error);
                             await showError('Payment Failed', error.message || 'Failed to verify payment');
                         }
                     },
@@ -201,7 +188,6 @@ async function placeOrder() {
             throw new Error(result.message || 'Failed to process order');
         }
     } catch (error) {
-        console.error('Error in placeOrder:', error);
         await showError('Order Failed', error.message || 'Failed to process your order');
     }
 }
@@ -219,7 +205,7 @@ async function showSuccessAndRedirect(orderId) {
             credentials: 'same-origin'
         });
     } catch (clearError) {
-        console.warn('Error clearing cart:', clearError);
+        // Error clearing cart - ignore
     }
     
     // Clear local storage
@@ -251,12 +237,6 @@ window.selectAddress = selectAddress;
 window.selectPaymentMethod = selectPaymentMethod;
 window.placeOrder = placeOrder;
 
-console.log('All checkout functions exposed to global scope:', {
-    updateCartUI: typeof window.updateCartUI,
-    selectAddress: typeof window.selectAddress,
-    selectPaymentMethod: typeof window.selectPaymentMethod,
-    placeOrder: typeof window.placeOrder
-});
 
 // Initialize event handlers
 function initializeEventHandlers() {
@@ -293,7 +273,6 @@ function initializeEventHandlers() {
 
 // Handle payment failure
 function handlePaymentFailure(error) {
-    console.error('Payment failed:', error);
     fetch('/payment/failure', {
         method: 'POST',
         credentials: 'same-origin',

@@ -23,27 +23,6 @@ class OfferService {
                 validUntil: { $gte: now }
             });
 
-            // Debug log: show all offers for this product (active or not)
-            const allRawOffers = await Offer.find({
-                $or: [
-                    { targetProducts: product._id },
-                    { targetCategories: categoryId }
-                ]
-            });
-            if (!productOffers.length && !categoryOffers.length) {
-                for (const offer of allRawOffers) {
-                    if (!offer.isActive) {
-                        console.log(`[OFFER DEBUG] Offer ${offer._id} is not active.`);
-                    } else if (now < offer.validFrom) {
-                        console.log(`[OFFER DEBUG] Offer ${offer._id} is not yet valid (validFrom: ${offer.validFrom}).`);
-                    } else if (now > offer.validUntil) {
-                        console.log(`[OFFER DEBUG] Offer ${offer._id} has expired (validUntil: ${offer.validUntil}).`);
-                    } else {
-                        console.log(`[OFFER DEBUG] Offer ${offer._id} did not match for unknown reason.`);
-                    }
-                }
-            }
-
             // Combine all applicable offers
             const allOffers = [...productOffers, ...categoryOffers];
 
@@ -92,7 +71,6 @@ class OfferService {
                 finalPrice
             };
         } catch (error) {
-            console.error('Error getting best offer:', error);
             return {
                 regularPrice: product.regularPrice,
                 salesPrice: product.salesPrice,
@@ -118,7 +96,6 @@ class OfferService {
                 offerDetails
             };
         } catch (error) {
-            console.error('Error getting product with offer:', error);
             throw error;
         }
     }
@@ -146,7 +123,6 @@ class OfferService {
 
             return true;
         } catch (error) {
-            console.error('Error updating product prices:', error);
             throw error;
         }
     }

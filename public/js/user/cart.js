@@ -21,7 +21,7 @@ window.addToCart = function(productId, quantity = 1) {
         fetch('/cart/remove-coupon', {
             method: 'POST',
             credentials: 'same-origin'
-        }).catch(console.error);
+        }).catch(() => {});
     }
     fetch(`/cart/add/${productId}`, {
         method: 'POST',
@@ -142,7 +142,6 @@ window.removeFromCart = function(productId) {
 };
 
 window.updateQuantityInline = async function(productId, action, currentQuantity) {
-    console.log('updateQuantityInline called:', { productId, action, currentQuantity });
     
     // Validate action and quantity limits
     if (action === 'increase' && currentQuantity >= 5) {
@@ -167,8 +166,6 @@ window.updateQuantityInline = async function(productId, action, currentQuantity)
         ? `/cart/increment/${productId}` 
         : `/cart/decrement/${productId}`;
         
-    console.log('Making request to:', endpoint);
-        
     try {
         // Show loading state
         const quantityInput = document.querySelector(`[data-product-id="${productId}"] .quantity-input`);
@@ -186,16 +183,13 @@ window.updateQuantityInline = async function(productId, action, currentQuantity)
             credentials: 'same-origin'
         });
         
-        console.log('Response status:', response.status);
         
         if (!response.ok) {
             const errData = await response.json();
-            console.error('API Error:', errData);
             throw new Error(errData.message || 'Failed to update cart');
         }
         
         const data = await response.json();
-        console.log('API Response:', data);
         
         if (data.success) {
             // Update quantity display
@@ -221,7 +215,6 @@ window.updateQuantityInline = async function(productId, action, currentQuantity)
             throw new Error(data.message || 'Failed to update quantity');
         }
     } catch (error) {
-        console.error('Update quantity error:', error);
         
         // Restore original value on error
         const quantityInput = document.querySelector(`[data-product-id="${productId}"] .quantity-input`);
@@ -395,7 +388,6 @@ window.applyCoupon = function(code) {
         }
     })
     .catch(error => {
-        console.error('Error applying coupon:', error);
         Swal.fire({
             icon: 'error',
             title: 'Oops...',
@@ -433,7 +425,6 @@ window.removeCoupon = function() {
         }
     })
     .catch(error => {
-        console.error('Error removing coupon:', error);
         Swal.fire({
             icon: 'error',
             title: 'Oops...',
@@ -498,12 +489,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 currentQuantity = quantityInput ? parseInt(quantityInput.value) : 1;
             }
             
-            console.log('Quantity button clicked:', { productId, action, currentQuantity });
             
             if (productId && action && !isNaN(currentQuantity)) {
                 window.updateQuantityInline(productId, action, currentQuantity);
-            } else {
-                console.error('Missing required data:', { productId, action, currentQuantity });
             }
         }
     });

@@ -35,7 +35,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         throw new Error(data.message);
                     }
                 } catch (error) {
-                    console.error('Error toggling wishlist:', error);
                     Swal.fire({
                         icon: 'error',
                         title: 'Oops...',

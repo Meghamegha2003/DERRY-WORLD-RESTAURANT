@@ -28,7 +28,6 @@ exports.viewProducts = async (req, res) => {
       path:"/admin/products"
     });
   } catch (error) {
-    console.error(error);
     res.status(500).send('Error retrieving products');
   }
 };
@@ -44,16 +43,12 @@ exports.loadAddProductPage = async (req, res) => {
       productImage: [] 
     });  
   } catch (err) {
-    console.error('Error loading add product page:', err);
     res.status(500).send('Server Error');
   }
 };
 
 exports.addProduct = async (req, res) => {
   try {
-    console.log('Add Product Request Body:', req.body);
-    console.log('Add Product Files:', req.files ? req.files.length : 0);
-    console.log('Cloudinary Uploads:', req.cloudinaryUploads ? req.cloudinaryUploads.length : 0);
 
     const { 
       productName, 
@@ -69,6 +64,15 @@ exports.addProduct = async (req, res) => {
       return res.status(400).json({ 
         success: false,
         message: 'All fields are required' 
+      });
+    }
+
+    // Validate quantity
+    const quantityValue = parseInt(quantity);
+    if (isNaN(quantityValue) || quantityValue <= 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Quantity must be a positive number greater than 0' 
       });
     }
 
@@ -130,7 +134,6 @@ exports.addProduct = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error in addProduct:', error);
     res.status(500).json({ 
       success: false,
       message: error.message || 'Failed to add product',
@@ -158,16 +161,12 @@ exports.loadEditProductPage = async (req, res) => {
       productImage: product.productImage || []
     });
   } catch (err) {
-    console.error('Error loading edit product page:', err);
     res.status(500).send('Server Error');
   }
 };
 
 exports.updateProduct = async (req, res) => {
   try {
-    console.log('Update Product Request Body:', req.body);
-    console.log('Update Product Files:', req.files ? req.files.length : 0);
-    console.log('Cloudinary Uploads:', req.cloudinaryUploads ? req.cloudinaryUploads.length : 0);
     
     const productId = req.params.id;
     const { 
@@ -179,6 +178,15 @@ exports.updateProduct = async (req, res) => {
       description,
       dietaryType
     } = req.body;
+
+    // Validate quantity
+    const quantityValue = parseInt(quantity);
+    if (isNaN(quantityValue) || quantityValue <= 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Quantity must be a positive number greater than 0' 
+      });
+    }
 
     if (parseFloat(salesPrice) >= parseFloat(regularPrice)) {
       return res.status(400).json({ 
@@ -232,7 +240,6 @@ exports.updateProduct = async (req, res) => {
     // Remove null/empty values and ensure we have at least one image
     productImages = productImages.filter(img => img && img.trim() !== '');
     
-    console.log('Final product images array:', productImages);
     
     if (productImages.length === 0) {
       return res.status(400).json({
@@ -273,7 +280,6 @@ exports.updateProduct = async (req, res) => {
       product: updatedProduct
     });
   } catch (err) {
-    console.error('Error updating product:', err);
     res.status(500).json({
       success: false,
       message: err.message || 'Error updating product'
@@ -296,7 +302,6 @@ exports.getProductDetails = async (req, res) => {
 
     res.json(product);
   } catch (error) {
-    console.error('Error getting product details:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Failed to get product details' 
@@ -329,7 +334,6 @@ exports.deleteProductImage = async (req, res) => {
           
           await deleteFromCloudinary(fullPublicId);
         } catch (deleteError) {
-          console.error('Error deleting from Cloudinary:', deleteError);
         }
       }
 
@@ -341,7 +345,6 @@ exports.deleteProductImage = async (req, res) => {
       res.status(400).json({ success: false, message: 'Invalid image index' });
     }
   } catch (error) {
-    console.error('Error deleting product image:', error);
     res.status(500).json({ success: false, message: 'Failed to delete image' });
   }
 };
@@ -374,7 +377,6 @@ exports.toggleProductBlock = async (req, res) => {
       isBlocked: product.isBlocked 
     });
   } catch (error) {
-    console.error('Error toggling product block status:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Failed to toggle product block status' 
@@ -408,7 +410,6 @@ exports.checkProductName = async (req, res) => {
       success: true
     });
   } catch (error) {
-    console.error('Error checking product name:', error);
     res.status(500).json({
       success: false,
       message: 'Error checking product name'

@@ -1,5 +1,4 @@
 // Admin coupons JS loaded
-console.log('admin coupons.js loaded');
 
 // Stub for coupon code uniqueness check
 async function checkCouponCodeExists(code, excludeId = null) {
@@ -96,8 +95,6 @@ async function editCoupon(couponId) {
                     if (id === 'code') {
                         element.setAttribute('data-original-code', value);
                     }
-                } else {
-                    console.warn(`Field not found: ${id}`);
                 }
             });
 
@@ -107,7 +104,6 @@ async function editCoupon(couponId) {
             throw new Error(result.message || 'Failed to fetch coupon details');
         }
     } catch (error) {
-        console.error('Error editing coupon:', error);
         Swal.fire({
             title: 'Error!',
             text: error.message || 'Failed to fetch coupon details',

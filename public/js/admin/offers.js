@@ -200,7 +200,6 @@ async function openEditModal(offerId) {
         const modal = new bootstrap.Modal(document.getElementById('editOfferModal'));
         modal.show();
     } catch (error) {
-        console.error('Error opening edit modal:', error);
         showError(error.message || 'Failed to load offer details');
     }
 }
@@ -212,8 +211,6 @@ async function saveOffer(event) {
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
     
-    // Debug: Log form data to console
-    console.log("Form Data:", data);
     
     // Validate form
     if (!validateOfferForm(data)) return;
@@ -230,7 +227,6 @@ async function saveOffer(event) {
             data.targetId = data.targetCategory;
         }
         
-        console.log("Submitting data:", data);
         
         const response = await fetch('/admin/offers', {
             method: 'POST',
@@ -270,7 +266,6 @@ async function saveOffer(event) {
             location.reload();
         });
     } catch (error) {
-        console.error('Error saving offer:', error);
         showError(error.message || 'Failed to save offer');
     }
 }
@@ -299,8 +294,6 @@ async function updateOffer(event) {
     if (data.startDate) data.startDate = new Date(data.startDate).toISOString();
     if (data.endDate) data.endDate = new Date(data.endDate).toISOString();
 
-    // Log the data being sent for debugging
-    console.log('Updating offer with data:', data);
 
     // Validate form
     if (!validateOfferForm(data)) return;
@@ -343,7 +336,6 @@ async function updateOffer(event) {
             location.reload();
         });
     } catch (error) {
-        console.error('Error updating offer:', error);
         showError(error.message || 'Failed to update offer');
     }
 }
@@ -445,7 +437,6 @@ async function toggleOfferStatus(offerId, currentStatus) {
             window.location.reload();
         });
     } catch (error) {
-        console.error('Error toggling offer status:', error);
         showError(error.message || 'Failed to toggle offer status');
     }
 }
@@ -477,7 +468,6 @@ async function loadProducts() {
             productSelect.appendChild(option);
         });
     } catch (error) {
-        console.error('Error loading products:', error);
         showError('Failed to load products: ' + error.message);
     }
 }
@@ -509,7 +499,6 @@ async function loadCategories() {
             categorySelect.appendChild(option);
         });
     } catch (error) {
-        console.error('Error loading categories:', error);
         showError('Failed to load categories: ' + error.message);
     }
 }

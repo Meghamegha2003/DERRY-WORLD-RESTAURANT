@@ -42,7 +42,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     throw new Error(data.message || 'Login failed');
                 }
             } catch (error) {
-                console.error('Login error:', error);
                 
                 // Show error message
                 await Swal.fire({

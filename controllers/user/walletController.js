@@ -1,14 +1,13 @@
+const HttpStatus = require('../../utils/httpStatus');
 const User = require('../../models/userSchema');
 const Wallet = require('../../models/walletSchema');
 const Cart = require('../../models/cartSchema');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 
-// Initialize Razorpay
 let razorpay;
 try {
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-        console.error('Razorpay credentials are missing in environment variables');
         throw new Error('Razorpay credentials are missing');
     }
     razorpay = new Razorpay({
@@ -16,16 +15,14 @@ try {
         key_secret: process.env.RAZORPAY_KEY_SECRET
     });
 } catch (error) {
-    console.error('Failed to initialize Razorpay:', error);
 }
 
-// Initialize add money to wallet via Razorpay
 exports.initializeAddMoney = async function(req, res) {
     try {
         const { amount } = req.body;
         
         if (!amount || isNaN(amount) || amount < 1) {
-            return res.status(400).json({
+            return res.status(HttpStatus.BAD_REQUEST).json({
                 success: false,
                 message: 'Please enter a valid amount (minimum ₹1)'
             });
@@ -40,45 +37,34 @@ exports.initializeAddMoney = async function(req, res) {
 
         const order = await razorpay.orders.create(options);
         
-        res.status(200).json({
+        res.status(HttpStatus.OK).json({
             success: true,
             order,
             key_id: process.env.RAZORPAY_KEY_ID
         });
 
     } catch (error) {
-        console.error('Error initializing wallet top-up:', error);
-        res.status(500).json({
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: 'Failed to initialize wallet top-up. Please try again.'
         });
     }
 };
 
-// Verify and add money to wallet after successful payment
 exports.verifyAndAddMoney = async function(req, res) {
     try {
         const { razorpay_payment_id, razorpay_order_id, razorpay_signature, amount } = req.body;
         
-        // Validate required fields
         if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature || !amount) {
-            console.error('Missing required parameters:', {
-                hasPaymentId: !!razorpay_payment_id,
-                hasOrderId: !!razorpay_order_id,
-                hasSignature: !!razorpay_signature,
-                hasAmount: !!amount
-            });
-            return res.status(400).json({
+            return res.status(HttpStatus.BAD_REQUEST).json({
                 success: false,
                 message: 'Missing required payment information'
             });
         }
         
-        // Validate and parse amount
         const amountValue = parseFloat(amount);
         if (isNaN(amountValue) || amountValue <= 0) {
-            console.error('Invalid amount provided:', amount);
-            return res.status(400).json({
+            return res.status(HttpStatus.BAD_REQUEST).json({
                 success: false,
                 message: 'Invalid amount provided'
             });
@@ -86,14 +72,12 @@ exports.verifyAndAddMoney = async function(req, res) {
         
         const userId = req.user._id;
         if (!userId) {
-            console.error('User ID not found in request');
-            return res.status(401).json({
+            return res.status(HttpStatus.UNAUTHORIZED).json({
                 success: false,
                 message: 'User not authenticated'
             });
         }
 
-        // Verify payment signature
         const text = razorpay_order_id + '|' + razorpay_payment_id;
         const generatedSignature = crypto
             .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -101,15 +85,7 @@ exports.verifyAndAddMoney = async function(req, res) {
             .digest('hex');
 
         if (generatedSignature !== razorpay_signature) {
-            console.error('Signature verification failed', {
-                expected: generatedSignature,
-                received: razorpay_signature,
-                order_id: razorpay_order_id,
-                payment_id: razorpay_payment_id,
-                text: text,
-                key_used: process.env.RAZORPAY_KEY_SECRET ? 'Key exists' : 'Key missing'
-            });
-            return res.status(400).json({
+            return res.status(HttpStatus.BAD_REQUEST).json({
                 success: false,
                 message: 'Payment verification failed: Invalid signature',
                 debug: process.env.NODE_ENV === 'development' ? {
@@ -130,7 +106,6 @@ exports.verifyAndAddMoney = async function(req, res) {
             });
         }
 
-        // Add money to wallet
         wallet.balance = (wallet.balance || 0) + amountValue;
         
         // Add transaction
@@ -148,36 +123,32 @@ exports.verifyAndAddMoney = async function(req, res) {
 
         await wallet.save();
 
-        // Update user's wallet reference if not set
         const user = await User.findById(userId);
         if (!user.wallet) {
             user.wallet = wallet._id;
             await user.save();
         }
 
-        res.status(200).json({
+        res.status(HttpStatus.OK).json({
             success: true,
             message: 'Money added to wallet successfully',
             balance: wallet.balance
         });
 
     } catch (error) {
-        console.error('Error adding money to wallet:', error);
-        res.status(500).json({
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: 'Failed to add money to wallet. Please contact support.'
         });
     }
 };
 
-// Get wallet details
 exports.getWallet = async function(req, res) {
     try {
         const userId = req.user._id;
         const page = parseInt(req.query.page) || 1;
         const limit = 10; // Number of transactions per page
         
-        // Find or create wallet for the user
         let wallet = await Wallet.findOne({ user: userId });
             
         if (!wallet) {
@@ -188,7 +159,6 @@ exports.getWallet = async function(req, res) {
             });
         }
         
-        // Get user's cart count for the header (count unique products, not quantities)
         const cart = await Cart.findOne({ user: userId });
         const cartCount = cart?.items ? new Set(
             cart.items
@@ -196,7 +166,6 @@ exports.getWallet = async function(req, res) {
                 .map(item => item.product.toString())
         ).size : 0;
         
-        // Add referral information
         const referral = {
             referrerBonus: 100, 
             referredBonus: 50,  
@@ -205,13 +174,11 @@ exports.getWallet = async function(req, res) {
             earnings: wallet ? wallet.referralEarnings || 0 : 0
         };
 
-        // Get total number of transactions
         const totalTransactions = wallet.transactions.length;
         const totalPages = Math.ceil(totalTransactions / limit);
         const startIndex = (page - 1) * limit;
         const endIndex = Math.min(page * limit, totalTransactions);
         
-        // Get paginated transactions (sorted by date descending - newest first)
         const transactions = wallet.transactions
             .slice()
             .sort((a, b) => {
@@ -221,12 +188,9 @@ exports.getWallet = async function(req, res) {
             })
             .slice(startIndex, endIndex);
         
-        // Format transactions for the view
         const txList = transactions.map(tx => {
-            // Ensure we have a proper date
             const txDate = tx.date || tx.createdAt || new Date();
             
-            // Format the transaction description based on type
             let description = tx.description || '';
             if (tx.orderId) {
                 const orderId = tx.orderId.toString().slice(-8).toUpperCase();
@@ -283,26 +247,22 @@ exports.getWallet = async function(req, res) {
         });
         
     } catch (error) {
-        console.error('Error fetching wallet:', error);
         req.flash('error', 'Failed to load wallet. Please try again.');
         res.redirect('/user/dashboard');
     }
 };
 
-// Generate unique referral code
 exports.generateReferralCode = function(userId) {
     const prefix = userId.toString().substring(0, 6);
     const randomChars = Math.random().toString(36).substring(2, 6).toUpperCase();
     return `${prefix}${randomChars}`;
 };
 
-// Process referral reward
 exports.processReferralReward = async function(referrerId, referredId) {
     try {
         const referrerBonus = 100; // ₹100 for referrer
         const referredBonus = 50;  // ₹50 for new user
 
-        // Add bonus to referrer's wallet
         const referrerWallet = await Wallet.findOne({ user: referrerId });
         if (!referrerWallet) {
             await new Wallet({
@@ -340,7 +300,6 @@ exports.processReferralReward = async function(referrerId, referredId) {
             await referrerWallet.save();
         }
 
-        // Add bonus to referred user's wallet
         const referredWallet = await Wallet.findOne({ user: referredId });
         if (!referredWallet) {
             await new Wallet({
@@ -385,21 +344,19 @@ exports.processReferralReward = async function(referrerId, referredId) {
             await user.save();
         }
 
-        res.status(200).json({
+        res.status(HttpStatus.OK).json({
             success: true,
             message: 'Payment verified and money added to wallet successfully'
         });
 
     } catch (error) {
-        console.error('Error verifying payment:', error);
-        res.status(500).json({
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: 'Failed to verify payment. Please contact support if money was deducted.'
         });
     }
 };
 
-// Get wallet transactions
 exports.getTransactions = async function(req, res) {
     try {
         const userId = req.user._id;
@@ -422,8 +379,7 @@ exports.getTransactions = async function(req, res) {
         });
 
     } catch (error) {
-        console.error('Error fetching wallet transactions:', error);
-        res.status(500).json({
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: 'Failed to fetch wallet transactions'
         });
