@@ -215,21 +215,8 @@ exports.createOrder = async (user, cart, address, paymentMethod, total) => {
 
     await order.save();
     
-    if (paymentMethod === "cod" || paymentMethod === "wallet") {
-      for (const item of orderItems) {
-        try {
-          if (item.quantity > 0) {
-            const product = await Product.findById(item.product);
-            if (product) {
-              product.quantity = Math.max(0, product.quantity - item.quantity);
-              await product.save();
-            } else {
-            }
-          }
-        } catch (err) {
-        }
-      }
-    }
+    // Stock is already reserved for all payment methods during validation
+    // No additional stock reduction needed here
 
     try {
       const couponInfo = cart.appliedCoupon ? { ...cart.appliedCoupon } : null;
@@ -308,6 +295,9 @@ exports.processCheckout = async (req, res) => {
     const invalidItems = [];
     const itemsToRemove = [];
     
+    // Track stock reservations for potential rollback
+    const stockReservations = [];
+    
     for (const [index, item] of cart.items.entries()) {
       
       if (!item.quantity || item.quantity <= 0) {
@@ -338,9 +328,33 @@ exports.processCheckout = async (req, res) => {
         shouldRemove = true;
         reason = 'Product is not available';
       }
-      else if (product.quantity < item.quantity) {
-        shouldRemove = true;
-        reason = `Insufficient stock (only ${product.quantity} available, requested ${item.quantity})`;
+      else {
+        // Attempt atomic stock reservation using findOneAndUpdate
+        const updatedProduct = await Product.findOneAndUpdate(
+          { 
+            _id: item.product._id,
+            quantity: { $gte: item.quantity } // Only update if sufficient stock
+          },
+          { 
+            $inc: { quantity: -item.quantity } // Atomically reduce stock
+          },
+          { 
+            new: true // Return updated document
+          }
+        );
+        
+        if (!updatedProduct) {
+          // Stock reservation failed - insufficient stock
+          shouldRemove = true;
+          reason = `Insufficient stock available for immediate purchase`;
+        } else {
+          // Stock successfully reserved
+          stockReservations.push({
+            productId: item.product._id,
+            quantity: item.quantity,
+            originalQuantity: updatedProduct.quantity + item.quantity
+          });
+        }
       }
 
       if (shouldRemove) {
@@ -353,6 +367,17 @@ exports.processCheckout = async (req, res) => {
     }
 
     if (invalidItems.length > 0) {
+      // Rollback any successful stock reservations since we have invalid items
+      for (const reservation of stockReservations) {
+        try {
+          await Product.findByIdAndUpdate(
+            reservation.productId,
+            { $inc: { quantity: reservation.quantity } } // Restore reserved stock
+          );
+        } catch (rollbackError) {
+          console.error('Stock rollback error:', rollbackError);
+        }
+      }
       
       try {
         cart.items = cart.items.filter(item => 
@@ -516,7 +541,8 @@ exports.processCheckout = async (req, res) => {
             orderId: razorpayOrder.id,
             status: 'created'
           };
-          onlineOrder.paymentStatus = 'Pending'; 
+          onlineOrder.paymentStatus = 'Pending';
+          onlineOrder.stockReservations = stockReservations; // Store for potential rollback
           await onlineOrder.save();
 
           return res.json({
@@ -762,6 +788,21 @@ exports.verifyPayment = async (req, res) => {
         failedOrder.razorpay.failureReason = 'Signature verification failed';
         failedOrder.razorpay.attemptCount += 1;
         failedOrder.razorpay.lastAttemptedAt = new Date();
+        
+        // Rollback stock reservations for failed payment
+        if (failedOrder.stockReservations && failedOrder.stockReservations.length > 0) {
+          for (const reservation of failedOrder.stockReservations) {
+            try {
+              await Product.findByIdAndUpdate(
+                reservation.productId,
+                { $inc: { quantity: reservation.quantity } } // Restore reserved stock
+              );
+            } catch (rollbackError) {
+              console.error('Stock rollback error for failed payment:', rollbackError);
+            }
+          }
+        }
+        
         await failedOrder.save();
       }
       
@@ -787,17 +828,12 @@ exports.verifyPayment = async (req, res) => {
     order.razorpay.lastAttemptedAt = new Date();
     await order.save();
 
-    for (const item of order.items) {
-      try {
-        if (item.quantity > 0) {
-          const product = await Product.findById(item.product);
-          if (product) {
-            product.quantity = Math.max(0, product.quantity - item.quantity);
-            await product.save();
-          }
-        }
-      } catch (err) {
-      }
+    // Stock is already reserved during checkout process
+    // No additional stock reduction needed for successful payments
+    // Clear stock reservations from order since payment is successful
+    if (order.stockReservations) {
+      order.stockReservations = undefined;
+      await order.save();
     }
 
     const userId = req.user._id;
