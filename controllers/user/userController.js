@@ -150,12 +150,11 @@ exports.loginUser = async (req, res) => {
 
     // Set the token in cookie
     const isProduction = process.env.NODE_ENV === 'production';
-    const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
     
     res.cookie("userToken", token, {
       httpOnly: true,
-      secure: isProduction && isSecure,
-      sameSite: isProduction ? 'none' : 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/'
     });
@@ -182,7 +181,7 @@ exports.logoutUser = (req, res) => {
   res.clearCookie("userToken", {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
+    sameSite: isProduction ? 'strict' : 'lax',
     path: "/"
   });
 
@@ -809,12 +808,11 @@ exports.googleCallback = async (req, res) => {
     const token = generateToken(user, cartCount);
 
     const isProduction = process.env.NODE_ENV === 'production';
-    const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
     
     res.cookie('userToken', token, {
       httpOnly: true,
-      secure: isProduction && isSecure,
-      sameSite: isProduction ? 'none' : 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/'
     });

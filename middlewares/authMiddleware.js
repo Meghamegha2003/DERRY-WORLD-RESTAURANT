@@ -55,7 +55,7 @@ const clearToken = (res, type) => {
         httpOnly: true,
         secure: isProduction,
         path: '/',
-        sameSite: isProduction ? 'none' : 'lax'
+        sameSite: isProduction ? 'strict' : 'lax'
     });
 };
 

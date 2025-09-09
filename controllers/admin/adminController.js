@@ -121,12 +121,11 @@ exports.loginAdmin = async (req, res) => {
       { expiresIn: "24h" }
     );
     const isProduction = process.env.NODE_ENV === 'production';
-    const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
     
     res.cookie("adminToken", token, {
       httpOnly: true,
-      secure: isProduction && isSecure,
-      sameSite: isProduction ? 'none' : 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
       maxAge: 24 * 60 * 60 * 1000,
       path: '/'
     });
@@ -152,7 +151,7 @@ exports.adminLogout = (req, res) => {
     res.clearCookie("adminToken", {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
+      sameSite: isProduction ? 'strict' : 'lax',
       path: '/'
     });
 
