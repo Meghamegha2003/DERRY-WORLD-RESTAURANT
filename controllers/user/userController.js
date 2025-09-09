@@ -341,15 +341,13 @@ exports.registerUser = async (req, res) => {
         const isProduction = process.env.NODE_ENV === 'production';
         const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
         
-        const cookieOptions = {
+        res.cookie('otpToken', otpToken, {
             httpOnly: true,
-            secure: isProduction ? isSecure : false,
+            secure: isSecure,
             maxAge: 30 * 60 * 1000, // 30 minutes
-            path: '/',
-            sameSite: isProduction ? 'none' : 'lax'
-        };
-        
-        res.cookie('otpToken', otpToken, cookieOptions);
+            sameSite: isProduction ? 'strict' : 'lax',
+            path: '/'
+        });
 
         // Also include the token in the redirect URL as a fallback
         const redirectUrl = `/verify-otp?token=${encodeURIComponent(otpToken)}`;
@@ -432,15 +430,13 @@ exports.resendOTP = async (req, res) => {
     const isProduction = process.env.NODE_ENV === 'production';
     const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
     
-    const resendCookieOptions = {
+    res.cookie('otpToken', newToken, {
         httpOnly: true,
-        secure: isProduction ? isSecure : false,
+        secure: isSecure,
         maxAge: 30 * 60 * 1000, // 30 minutes
-        path: '/',
-        sameSite: isProduction ? 'none' : 'lax'
-    };
-    
-    res.cookie('otpToken', newToken, resendCookieOptions);
+        sameSite: isProduction ? 'strict' : 'lax',
+        path: '/'
+    });
 
     const responseData = {
       success: true, 
@@ -493,15 +489,13 @@ exports.renderVerifyOtpPage = async (req, res) => {
         const isProduction = process.env.NODE_ENV === 'production';
         const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
         
-        const pageRenderCookieOptions = {
+        res.cookie('otpToken', otpToken, {
             httpOnly: true,
-            secure: isProduction ? isSecure : false,
+            secure: isSecure,
             maxAge: 30 * 60 * 1000, // 30 minutes
-            path: '/',
-            sameSite: isProduction ? 'none' : 'lax'
-        };
-        
-        res.cookie('otpToken', otpToken, pageRenderCookieOptions);
+            sameSite: isProduction ? 'strict' : 'lax',
+            path: '/'
+        });
       }
     } catch (error) {
       res.clearCookie('otpToken');
