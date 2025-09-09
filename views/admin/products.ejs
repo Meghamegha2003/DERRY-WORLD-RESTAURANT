@@ -218,7 +218,6 @@
         throw new Error(data.message || 'Failed to update product status');
       }
     } catch (error) {
-      console.error('Error:', error);
       await Swal.fire({
         icon: 'error',
         title: 'Error',

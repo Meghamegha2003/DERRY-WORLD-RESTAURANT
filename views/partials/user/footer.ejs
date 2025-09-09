@@ -11,7 +11,8 @@
   "
 >
   <div class="container">
-    <div class="row">
+    <!-- Desktop/Tablet Footer Content -->
+    <div class="row desktop-footer">
       <div class="col-md-4 footer-col">
         <div class="footer_contact">
           <h4>Contact Us</h4>
@@ -26,7 +27,7 @@
             >
             <a href="mailto:demo@gmail.com"
               ><i class="fa fa-envelope" aria-hidden="true"></i>
-              <span>DERYY@gmail.com</span></a
+              <span>DERRY@gmail.com</span></a
             >
           </div>
         </div>
@@ -39,33 +40,206 @@
             gateway to authentic dishes from every corner of the world.
           </p>
           <div class="footer_social">
-  <a href="#"><i class="fab fa-facebook-f"></i></a>
-  <a href="#"><i class="fab fa-twitter"></i></a>
-  <a href="https://www.linkedin.com/feed/"><i class="fab fa-linkedin-in"></i></a>
-  <a href="https://www.instagram.com/"><i class="fab fa-instagram"></i></a>
-  <a href="#"><i class="fab fa-pinterest-p"></i></a>
-</div>
-
+            <a href="#"><i class="fab fa-facebook-f"></i></a>
+            <a href="#"><i class="fab fa-twitter"></i></a>
+            <a href="https://www.linkedin.com/feed/"><i class="fab fa-linkedin-in"></i></a>
+            <a href="https://www.instagram.com/"><i class="fab fa-instagram"></i></a>
+            <a href="#"><i class="fab fa-pinterest-p"></i></a>
+          </div>
         </div>
       </div>
       <div class="col-md-4 footer-col">
-        <h4>Opening Hours</h4>
-        <p>Everyday</p>
-        <p>10.00 Am - 10.00 Pm</p>
+        <div class="footer_hours">
+          <h4>Opening Hours</h4>
+          <p>Everyday</p>
+          <p>10.00 Am - 10.00 Pm</p>
+        </div>
       </div>
     </div>
+
+    <!-- Mobile Footer Content (Simplified) -->
+    <div class="mobile-footer">
+      <div class="text-center">
+        <div class="footer-logo-mobile">
+          <a href="#" class="footer-logo">Derry World</a>
+        </div>
+        <div class="footer_social mobile-social">
+          <a href="#"><i class="fab fa-facebook-f"></i></a>
+          <a href="#"><i class="fab fa-twitter"></i></a>
+          <a href="https://www.linkedin.com/feed/"><i class="fab fa-linkedin-in"></i></a>
+          <a href="https://www.instagram.com/"><i class="fab fa-instagram"></i></a>
+        </div>
+      </div>
+    </div>
+
     <div class="footer-info" style="text-align: center; margin-top: 20px">
-      <p>
-        &copy; <span id="displayYear">2025</span> All Rights Reserved By
-        <a href="https://html.design/" style="color: #ffbe33"
-          >MEGHA GOPALAKRISHNAN</a
-        ><br />
-        &copy; <span id="displayYear">2025</span> Distributed By
-        <a href="https://themewagon.com/" target="_blank" style="color: #ffbe33"
-          >DERRY WORLD</a
-        >
+      <p style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        &copy; <span id="displayYear">2025</span> All Rights Reserved By <a href="https://html.design/" style="color: #ffbe33">MEGHA GOPALAKRISHNAN</a> | &copy; <span id="displayYear">2025</span> Distributed By <a href="https://themewagon.com/" target="_blank" style="color: #ffbe33">DERRY WORLD</a>
       </p>
     </div>
   </div>
 </footer>
+<!-- Responsive Footer Styles -->
+<style>
+  /* Desktop Footer - Show by default */
+  .desktop-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 0;
+  }
+  
+  .footer-col {
+    flex: 1;
+    text-align: center;
+  }
+  
+  /* Mobile Footer - Hide by default */
+  .mobile-footer {
+    display: none;
+  }
+  
+  /* Footer Hours Styling */
+  .footer_hours {
+    text-align: center;
+  }
+  
+  .footer_hours h4 {
+    color: #ffbe33;
+    margin-bottom: 15px;
+    font-size: 26px;
+    font-weight: bold;
+  }
+  
+  .footer_hours p {
+    margin: 6px 0;
+    color: #fff;
+    font-size: 18px;
+  }
+  
+  /* Contact section styling for single line */
+  .footer_contact h4 {
+    color: #ffbe33;
+    margin-bottom: 15px;
+    font-size: 26px;
+    font-weight: bold;
+  }
+  
+  .contact_link_box {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .contact_link_box a {
+    color: #fff;
+    text-decoration: none;
+    font-size: 18px;
+  }
+  
+  .contact_link_box a i {
+    margin-right: 12px;
+    color: #ffbe33;
+    font-size: 18px;
+  }
+  
+  /* Footer detail styling */
+  .footer_detail .footer-logo {
+    color: #ffbe33;
+    font-size: 32px;
+    font-weight: bold;
+    text-decoration: none;
+    display: block;
+    margin-bottom: 15px;
+  }
+  
+  .footer_detail p {
+    font-size: 18px;
+    line-height: 1.6;
+    margin-bottom: 15px;
+  }
+  
+  .footer_social {
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+  }
+  
+  .footer_social a {
+    color: #ffbe33;
+    font-size: 24px;
+  }
+  
+  /* Mobile Styles */
+  @media (max-width: 768px) {
+    /* Hide desktop footer on mobile */
+    .desktop-footer {
+      display: none;
+    }
+    
+    /* Show mobile footer on mobile */
+    .mobile-footer {
+      display: block;
+      padding: 20px 0;
+    }
+    
+    .footer-logo-mobile {
+      margin-bottom: 15px;
+    }
+    
+    .footer-logo-mobile .footer-logo {
+      font-size: 24px;
+      font-weight: bold;
+      color: #ffbe33;
+      text-decoration: none;
+    }
+    
+    .mobile-social {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 10px;
+    }
+    
+    .mobile-social a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 35px;
+      height: 35px;
+      background-color: #ffbe33;
+      color: #222;
+      border-radius: 50%;
+      text-decoration: none;
+      transition: all 0.3s ease;
+    }
+    
+    .mobile-social a:hover {
+      background-color: #e5a82c;
+      transform: translateY(-2px);
+    }
+    
+    .footer-info {
+      margin-top: 15px !important;
+    }
+    
+    .footer-info p {
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: nowrap !important;
+    }
+  }
+  
+  /* Tablet adjustments */
+  @media (min-width: 769px) and (max-width: 991px) {
+    .footer-col {
+      margin-bottom: 30px;
+    }
+    
+    .footer_detail p {
+      font-size: 14px;
+    }
+  }
+</style>
+
 <!-- Only include scripts here if not already included globally -->

@@ -321,7 +321,6 @@ async function handleAddCategory(event) {
             throw new Error(data.message || 'Failed to add category');
         }
     } catch (error) {
-        console.error('Error:', error);
         Swal.fire({
             icon: 'error',
             title: 'Oops...',
@@ -451,7 +450,6 @@ async function handleEditCategory(event) {
       throw new Error(data.message || 'Failed to update category');
     }
   } catch (error) {
-    console.error('Error:', error);
     Swal.fire({
       icon: 'error',
       title: 'Error!',

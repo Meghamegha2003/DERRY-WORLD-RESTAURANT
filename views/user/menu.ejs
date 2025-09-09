@@ -178,6 +178,110 @@
         padding-right: 1.5em;
         background-image: none !important;
     }
+
+    /* Mobile Filter Toggle Button */
+    .mobile-filter-toggle {
+        display: none;
+        margin-bottom: 20px;
+    }
+
+    .filter-toggle-btn {
+        background: #ffbe33;
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .filter-toggle-btn:hover {
+        background: #e5a82c;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .filter-toggle-btn i {
+        font-size: 18px;
+    }
+
+    /* Mobile Responsive Styles */
+    @media (max-width: 768px) {
+        .mobile-filter-toggle {
+            display: block;
+        }
+
+        .filters-sidebar {
+            position: fixed;
+            top: 0;
+            left: -100%;
+            width: 300px;
+            height: 100vh;
+            background: white;
+            z-index: 1000;
+            overflow-y: auto;
+            transition: left 0.3s ease;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+
+        .filters-sidebar.active {
+            left: 0;
+        }
+
+        .menu-content {
+            position: relative;
+        }
+
+        /* Overlay */
+        .filter-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .filter-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Close button for mobile filter */
+        .mobile-filter-close {
+            display: block;
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #666;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .mobile-filter-close:hover {
+            color: #ffbe33;
+        }
+    }
+
+    @media (min-width: 769px) {
+        .mobile-filter-close {
+            display: none;
+        }
+    }
 </style>
 
 <section class="menu-section">
@@ -188,8 +292,21 @@
     </div>
 
     <div class="menu-content">
+      <!-- Mobile Filter Toggle Button -->
+      <div class="mobile-filter-toggle">
+        <button type="button" class="filter-toggle-btn" onclick="toggleMobileFilters()">
+          <i class="fas fa-bars"></i>
+          <span>Filters</span>
+        </button>
+      </div>
+
       <!-- Filters Sidebar -->
       <form class="filters-sidebar" method="post" action="/menu" id="menuFilterForm">
+        <!-- Mobile Close Button -->
+        <button type="button" class="mobile-filter-close" onclick="toggleMobileFilters()">
+          <i class="fas fa-times"></i>
+        </button>
+        
         <!-- Search -->
         <div class="filter-section">
           <h3>Search</h3>
@@ -433,6 +550,9 @@
     </div>
   </div>
 </section>
+
+<!-- Filter Overlay for Mobile -->
+<div class="filter-overlay" id="filterOverlay" onclick="toggleMobileFilters()"></div>
  
 <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/14.7.0/nouislider.min.js"></script>
 <script src="/public/js/menu.js"></script>
@@ -456,6 +576,36 @@ function submitPageForm(pageNumber) {
     // Submit the form
     form.submit();
 }
+
+// Mobile Filter Toggle Function
+function toggleMobileFilters() {
+    const sidebar = document.querySelector('.filters-sidebar');
+    const overlay = document.getElementById('filterOverlay');
+    
+    sidebar.classList.toggle('active');
+    overlay.classList.toggle('active');
+    
+    // Prevent body scroll when filter is open
+    if (sidebar.classList.contains('active')) {
+        document.body.style.overflow = 'hidden';
+    } else {
+        document.body.style.overflow = '';
+    }
+}
+
+// Close filters when clicking outside or pressing escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const sidebar = document.querySelector('.filters-sidebar');
+        const overlay = document.getElementById('filterOverlay');
+        
+        if (sidebar.classList.contains('active')) {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    }
+});
 
 async function toggleWishlist(productId, button) {
     try {
@@ -506,7 +656,6 @@ async function toggleWishlist(productId, button) {
             throw new Error(data.message || 'Failed to update wishlist');
         }
     } catch (error) {
-        console.error('Error:', error);
         Swal.fire({
             icon: 'error',
             title: 'Oops...',

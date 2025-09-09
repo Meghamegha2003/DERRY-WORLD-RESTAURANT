@@ -9,6 +9,7 @@ router.get('/:id', couponController.getCouponById);
 router.post('/', adminAuth, couponController.createCoupon);
 router.put('/:id', adminAuth, couponController.updateCoupon);
 router.patch('/:id/toggle', adminAuth, couponController.toggleCouponStatus);
+router.delete('/:id', adminAuth, couponController.deleteCoupon);
 router.get('/check-code', adminAuth, couponController.checkCouponCode);
 
 module.exports = router;

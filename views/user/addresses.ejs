@@ -209,7 +209,6 @@
                 }
             }
         } catch (error) {
-            console.error('Error updating address:', error);
             await Swal.fire({
                 icon: 'error',
                 title: 'Error',
@@ -218,8 +217,7 @@
         }
     }
 
-    // Initialize when document is ready
-    // Function to initialize event handlers
+   
     function initializeEventHandlers() {
         
         // Add address button click handler
@@ -284,7 +282,6 @@
                         }
                     }
                 } catch (error) {
-                    console.error('Error deleting address:', error);
                     await Swal.fire({
                         icon: 'error',
                         title: 'Error',

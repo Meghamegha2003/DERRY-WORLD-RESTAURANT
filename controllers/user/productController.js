@@ -174,6 +174,11 @@ exports.getProductDetails = async (req, res) => {
         }
 
 
+        // Add total ratings and average rating to product object
+        productObj.totalRatings = totalRatings;
+        productObj.allRatings = allRatings;
+        productObj.ratings = populatedRatings; // This will be the paginated ratings for display
+
         res.render('user/foodDetails', {
             title: product.name,
             product: productObj,
@@ -186,7 +191,8 @@ exports.getProductDetails = async (req, res) => {
             ratingBreakdown,
             ratingPercentages,
             paginatedRatings: populatedRatings,
-            reviewsPagination
+            reviewsPagination,
+            totalRatings: totalRatings
         });
 
     } catch (error) {

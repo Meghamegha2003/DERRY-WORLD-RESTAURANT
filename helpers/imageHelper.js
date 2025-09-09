@@ -13,7 +13,6 @@ const saveBase64Image = async (base64Image, fileName, folderPath) => {
     fs.writeFileSync(filePath, imageBuffer);
     return `/${fileName}`;
   } catch (error) {
-    console.error("Error saving base64 image:", error);
     throw new Error("Failed to save image");
   }
 };

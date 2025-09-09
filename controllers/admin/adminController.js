@@ -290,16 +290,28 @@ exports.getDashboardData = async (req, res) => {
     ]);
     const income = incomeResult[0]?.total || 0;
 
-    const expenseResult = await Order.aggregate([
+    // Calculate individual item refunds from wallet transactions
+    const Wallet = require("../../models/walletSchema");
+    const expenseResult = await Wallet.aggregate([
+      { $unwind: "$transactions" },
       {
         $match: {
-          orderStatus: "Return Approved",
-          createdAt: { $gte: startDate, $lte: endDate },
-        },
+          "transactions.type": "refund",
+          "transactions.date": { $gte: startDate, $lte: endDate },
+          "transactions.description": { 
+            $regex: /(refund|cancelled|returned)/i 
+          }
+        }
       },
-      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+      {
+        $group: {
+          _id: null,
+          totalRefunds: { $sum: "$transactions.amount" },
+          refundCount: { $sum: 1 }
+        }
+      }
     ]);
-    const expense = expenseResult[0]?.total || 0;
+    const expense = expenseResult[0]?.totalRefunds || 0;
 
     const revenueData = await Order.aggregate([
       {

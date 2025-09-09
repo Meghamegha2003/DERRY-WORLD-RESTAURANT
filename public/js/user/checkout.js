@@ -227,8 +227,8 @@ async function showSuccessAndRedirect(orderId) {
         confirmButtonColor: '#ffbe33'
     });
     
-    // Redirect to orders page
-    window.location.href = '/orders?orderPlaced=true';
+    // Redirect to order details page
+    window.location.href = `/orders/${orderId}`;
 }
 
 // Expose functions to global scope

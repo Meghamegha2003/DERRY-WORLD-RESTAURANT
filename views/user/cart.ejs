@@ -294,29 +294,6 @@
             color: #3498db !important;
         }
 
-        .text-primary {
-            color: #9b59b6 !important;
-        }
-
-        @media (max-width: 768px) {
-            .cart-container {
-                padding: 20px 0;
-            }
-
-            .product-img {
-                height: 100px;
-            }
-
-            .cart-summary {
-                margin-top: 30px;
-                position: static;
-            }
-        }
-
-        .coupon-section {
-            margin-bottom: 20px;
-        }
-
         .applied-coupon {
             margin-bottom: 15px;
         }
@@ -1575,7 +1552,6 @@
                     }
                 }
             } catch (error) {
-                console.error('Error removing coupon:', error);
                 Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to remove coupon' });
             }
         }
@@ -1621,7 +1597,6 @@
 
         // Quantity update function
         async function updateQuantity(productId, action, currentQuantity) {
-            console.log('updateQuantity called:', { productId, action, currentQuantity });
             
             const endpoint = action === 'increase' ? '/cart/increment' : '/cart/decrement';
             
@@ -1657,7 +1632,6 @@
                     Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Failed to update quantity' });
                 }
             } catch (error) {
-                console.error('Error updating quantity:', error);
                 Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to update quantity' });
             }
         }
@@ -1693,7 +1667,6 @@
         }
 
         function updateCartTotals(cartData) {
-            console.log('updateCartTotals called with:', cartData);
             
             // Handle different response formats
             const totals = cartData.totals || cartData;
@@ -1701,7 +1674,6 @@
             const couponDiscount = totals.couponDiscount || cartData.couponDiscount || 0;
             const total = totals.total || cartData.total;
             
-            console.log('Extracted values:', { subtotal, couponDiscount, total });
             
             // Update subtotal
             const subtotalElement = document.getElementById('subtotal');
@@ -1763,7 +1735,6 @@
                 }
             }
             
-            console.log('Cart totals updated successfully');
         }
         
         // Event listeners

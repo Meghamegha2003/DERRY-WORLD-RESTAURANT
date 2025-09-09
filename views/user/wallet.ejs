@@ -214,25 +214,6 @@
                                                             <div class="fw-bold">
                                                                 <%= isCredit ? '+' : '' %>₹<%= Math.abs(actualRefundAmount).toFixed(2) %>
                                                             </div>
-                                                            <% if (itemAmount > 0) { %>
-                                                                <div class="small text-muted mt-1">
-                                                                    <div class="d-flex justify-content-between">
-                                                                        <span>Item Amount:</span>
-                                                                        <span>₹<%= itemAmount.toFixed(2) %></span>
-                                                                    </div>
-                                                                    <% if (couponDeduction > 0) { %>
-                                                                        <div class="d-flex justify-content-between text-primary">
-                                                                            <span>Coupon Deduction (<%= couponPercentage.toFixed(1) %>%):</span>
-                                                                            <span>-₹<%= couponDeduction.toFixed(2) %></span>
-                                                                        </div>
-                                                                    <% } %>
-                                                                    <hr class="my-1">
-                                                                    <div class="d-flex justify-content-between fw-bold">
-                                                                        <span>Total Refunded:</span>
-                                                                        <span>₹<%= Math.abs(actualRefundAmount).toFixed(2) %></span>
-                                                                    </div>
-                                                                </div>
-                                                            <% } %>
                                                         </div>
                                                     <% } else { %>
                                                         <!-- Regular transaction display -->
@@ -267,7 +248,7 @@
                                 </table>
 
                                 <!-- Pagination with Ellipsis -->
-                                <% if (wallet.transactions.totalPages > 1) { %>
+                                <% if (wallet.transactions.total >= 5) { %>
                                     <% 
                                         const totalPages = wallet.transactions.totalPages;
                                         const currentPage = wallet.transactions.currentPage;

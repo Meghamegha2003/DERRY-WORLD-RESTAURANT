@@ -1,4 +1,4 @@
-function handleAdminLogout() {
+function handleUserLogout() {
   Swal.fire({
     title: 'Logout?',
     text: "Are you sure you want to log out?",
@@ -9,24 +9,8 @@ function handleAdminLogout() {
     confirmButtonText: 'Yes, logout'
   }).then((result) => {
     if (result.isConfirmed) {
-      fetch('/admin/logout', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          window.location.href = '/admin/login';
-        } else {
-          Swal.fire('Error', data.message || 'Logout failed', 'error');
-        }
-      })
-      .catch(error => {
-        Swal.fire('Error', 'Something went wrong. Please try again.', 'error');
-      });
+      // User logout uses GET method and redirects directly
+      window.location.href = '/logout';
     }
   });
 }

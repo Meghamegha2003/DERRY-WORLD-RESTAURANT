@@ -41,7 +41,6 @@ router.get('/available', auth, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error fetching available coupons:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to fetch available coupons'
@@ -133,7 +132,6 @@ router.post('/apply', auth, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error applying coupon:', error);
         res.status(500).json({
             success: false,
             message: error.message || 'Failed to apply coupon'
@@ -190,7 +188,6 @@ router.post('/remove', auth, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error removing coupon:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to remove coupon'

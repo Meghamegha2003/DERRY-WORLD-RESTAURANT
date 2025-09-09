@@ -28,6 +28,42 @@
         width: 95%;
       }
 
+      /* Responsive Design */
+      @media (max-width: 768px) {
+        .login-container {
+          padding: 30px 20px;
+          margin: 20px auto;
+          width: 90%;
+        }
+        
+        .btn-login, .btn-register, .btn-google {
+          padding: 12px;
+          font-size: 14px;
+        }
+        
+        h2 {
+          font-size: 1.5rem;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .login-container {
+          padding: 20px 15px;
+          margin: 10px auto;
+          width: 95%;
+        }
+        
+        .form-control {
+          font-size: 14px;
+        }
+        
+        .btn-login, .btn-register, .btn-google {
+          padding: 10px;
+          font-size: 13px;
+          height: 45px;
+        }
+      }
+
       .login-container h2 {
         color: #000;
         margin-bottom: 20px;
@@ -75,29 +111,31 @@
 
       .btn-google {
         background-color: #fff;
-        border: 1px solid #dadce0;
-        border-radius: 4px;
-        padding: 12px 24px;
-        font-size: 16px;
+        color: #000;
+        border: 1px solid #ddd;
+        padding: 15px;
         font-weight: 500;
-        color: #3c4043;
+        transition: all 0.3s ease;
+        width: 100%;
+        text-decoration: none;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 12px;
-        transition: all 0.2s ease;
-        width: 100%;
-        max-width: 450px;
-        margin: 15px auto;
-        text-decoration: none;
+        border-radius: 5px;
         height: 50px;
       }
 
       .btn-google:hover {
         background-color: #f8f9fa;
-        border-color: #dadce0;
-        box-shadow: 0 1px 3px rgba(60,64,67,0.3);
-        color: #202124;
+        border-color: #ddd;
+        text-decoration: none;
+        color: #000;
+      }
+
+      .btn-google img {
+        width: 18px;
+        height: 18px;
+        margin-right: 10px;
       }
 
       .divider {
@@ -201,7 +239,9 @@
                            class="form-control" 
                            id="password" 
                            name="password" 
-                           minlength="6"
+                           minlength="8"
+                           pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
+                           title="Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)"
                            required>
                     <button type="button" 
                             class="password-toggle" 
@@ -210,6 +250,9 @@
                       <i id="passwordToggle" class="fas fa-eye"></i>
                     </button>
                   </div>
+                  <small class="form-text text-muted">
+                    Password must contain: 8+ characters, uppercase letter, lowercase letter, number, and special character (@$!%*?&)
+                  </small>
                 </div>
                 <div class="form-group mb-3">
                   <label for="confirmPassword">Confirm Password</label>
@@ -218,7 +261,7 @@
                            class="form-control" 
                            id="confirmPassword" 
                            name="confirmPassword" 
-                           minlength="6"
+                           minlength="8"
                            required>
                     <button type="button" 
                             class="password-toggle" 
@@ -248,7 +291,7 @@
               </div>
 
               <a href="/auth/google" class="btn btn-google">
-                <img src="https://www.google.com/favicon.ico" alt="Google">
+                <img src="https://www.google.com/favicon.ico" alt="Google" />
                 Sign up with Google
               </a>
 
@@ -327,6 +370,17 @@
           icon: 'error',
           title: 'Invalid Phone',
           text: 'Phone number must be exactly 10 digits'
+        });
+        return false;
+      }
+
+      // Strong password validation
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+      if (!passwordRegex.test(password)) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Weak Password',
+          text: 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)'
         });
         return false;
       }

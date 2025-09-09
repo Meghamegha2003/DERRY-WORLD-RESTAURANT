@@ -63,6 +63,18 @@ exports.createCoupon = async (req, res) => {
         .json({ success: false, message: "Missing required fields" });
     }
 
+    // Validate maxDiscount for percentage coupons
+    if (discountType === 'percentage' && maxDiscount !== null && maxDiscount !== undefined) {
+      if (maxDiscount <= 0) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Maximum discount must be greater than 0" });
+      }
+    }
+
+    // For fixed discount coupons, maxDiscount should be null
+    const processedMaxDiscount = discountType === 'percentage' ? maxDiscount : null;
+
     const existingCoupon = await Coupon.findOne({ code: code.toUpperCase() });
     if (existingCoupon) {
       return res
@@ -76,7 +88,7 @@ exports.createCoupon = async (req, res) => {
       discountType,
       discountValue,
       minPurchase,
-      maxDiscount,
+      maxDiscount: processedMaxDiscount,
       validFrom,
       validUntil,
       usageLimit,
@@ -117,6 +129,18 @@ exports.updateCoupon = async (req, res) => {
         .json({ success: false, message: "Missing required fields" });
     }
 
+    // Validate maxDiscount for percentage coupons
+    if (discountType === 'percentage' && maxDiscount !== null && maxDiscount !== undefined) {
+      if (maxDiscount <= 0) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Maximum discount must be greater than 0" });
+      }
+    }
+
+    // For fixed discount coupons, maxDiscount should be null
+    const processedMaxDiscount = discountType === 'percentage' ? maxDiscount : null;
+
     const coupon = await Coupon.findById(req.params.id);
     if (!coupon) {
       return res
@@ -138,7 +162,7 @@ exports.updateCoupon = async (req, res) => {
     coupon.discountType = discountType;
     coupon.discountValue = discountValue;
     coupon.minPurchase = minPurchase;
-    coupon.maxDiscount = maxDiscount;
+    coupon.maxDiscount = processedMaxDiscount;
     coupon.validFrom = validFrom;
     coupon.validUntil = validUntil;
     coupon.usageLimit = usageLimit;
@@ -228,5 +252,37 @@ exports.checkCouponCode = async (req, res) => {
     res
       .status(500)
       .json({ success: false, message: "Failed to check coupon code" });
+  }
+};
+
+exports.deleteCoupon = async (req, res) => {
+  try {
+    const coupon = await Coupon.findById(req.params.id);
+    if (!coupon) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Coupon not found" });
+    }
+
+    // Optional: Check if coupon has been used (commented out for testing)
+    // if (coupon.usedCount > 0) {
+    //   return res
+    //     .status(400)
+    //     .json({ 
+    //       success: false, 
+    //       message: "Cannot delete coupon that has been used by customers" 
+    //     });
+    // }
+
+    await Coupon.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: "Coupon deleted successfully",
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to delete coupon" });
   }
 };

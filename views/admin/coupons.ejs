@@ -71,20 +71,33 @@
                             <% 
                                 const isDisabled = now > validUntilDate || coupon.usedCount >= coupon.usageLimit;
                                 const buttonClass = coupon.isActive ? 'btn-danger' : 'btn-success';
+                                const usedCount = parseInt(coupon.usedCount) || 0;
+                                // Allow deletion of all coupons for testing - change this logic as needed
+                                const canDelete = true; // Change to 'usedCount === 0' to prevent deletion of used coupons
                             %>
-                            <button onclick="toggleCouponStatus('<%= coupon._id %>', <%= coupon.isActive %>)" 
-                                    class="btn btn-sm <%= buttonClass %>" 
-                                    <%= isDisabled ? 'disabled' : '' %>>
-                                <i class="bi bi-power"></i> <%= coupon.isActive ? 'Disable' : 'Enable' %>
-                            </button>
-                           
+                            <div class="btn-group" role="group">
+                                <button onclick="toggleCouponStatus('<%= coupon._id %>', <%= coupon.isActive %>)" 
+                                        class="btn btn-sm <%= buttonClass %>" 
+                                        <%= isDisabled ? 'disabled' : '' %>>
+                                    <i class="bi bi-power"></i> <%= coupon.isActive ? 'Disable' : 'Enable' %>
+                                </button>
+                                
+                               
+                            </div>
                         </td>
-                        <td> 
-                            <button class="btn btn-sm btn-warning ms-1"
-                            onclick="editCoupon('<%= JSON.stringify(coupon) %>')">
-                            <i class="bi bi-pencil"></i> Edit
-                    </button>
-                </td>
+                        <td>
+                             <button class="btn btn-sm btn-warning"
+                                        onclick="editCoupon('<%= JSON.stringify(coupon) %>')">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </button>
+                                
+                                <button class="btn btn-sm btn-danger" 
+                                        onclick="deleteCoupon('<%= coupon._id %>', '<%= coupon.code %>')"
+                                        <% if (!canDelete) { %>disabled<% } %>
+                                        title="<% if (!canDelete) { %>Cannot delete coupon that has been used<% } else { %>Delete coupon<% } %>">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                        </td>
                     </tr>
                 <% }); %>
             </tbody>
@@ -136,6 +149,13 @@
                                    required min="1" step="0.01">
                             <div class="invalid-feedback">Please enter a valid minimum purchase amount (minimum ₹1)</div>
                             <small class="text-muted">Minimum order value required to use this coupon</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="maxDiscount" class="form-label">Maximum Discount Amount</label>
+                            <input type="number" class="form-control" id="maxDiscount" name="maxDiscount" 
+                                   min="1" step="0.01">
+                            <div class="invalid-feedback">Please enter a valid maximum discount amount (minimum ₹1)</div>
+                            <small class="text-muted">Maximum discount amount (optional, only for percentage coupons)</small>
                         </div>
                         <div class="col-md-6">
                             <label for="usageLimit" class="form-label">Usage Limit *</label>
@@ -212,6 +232,12 @@
                             <small class="text-muted">Minimum order value required to use this coupon</small>
                         </div>
                         <div class="col-md-6">
+                            <label for="maxDiscount" class="form-label">Maximum Discount Amount</label>
+                            <input type="number" class="form-control" name="maxDiscount" min="1" step="0.01">
+                            <div class="invalid-feedback">Please enter a valid maximum discount amount (minimum ₹1)</div>
+                            <small class="text-muted">Maximum discount amount (optional, only for percentage coupons)</small>
+                        </div>
+                        <div class="col-md-6">
                             <label for="usageLimit" class="form-label">Usage Limit *</label>
                             <input type="number" class="form-control" name="usageLimit" required min="1" max="10000">
                             <div class="invalid-feedback">Please enter a valid usage limit (1-10,000)</div>
@@ -270,6 +296,7 @@
             form.querySelector('select[name="discountType"]').value = coupon.discountType;
             form.querySelector('input[name="discountValue"]').value = coupon.discountValue;
             form.querySelector('input[name="minPurchase"]').value = coupon.minPurchase;
+            form.querySelector('input[name="maxDiscount"]').value = coupon.maxDiscount || '';
             form.querySelector('input[name="usageLimit"]').value = coupon.usageLimit;
 
             // Format dates for date inputs
@@ -292,7 +319,6 @@
             const editModal = new bootstrap.Modal(document.getElementById('editCouponModal'));
             editModal.show();
         } catch (error) {
-            console.error('Error preparing edit form:', error);
             Swal.fire({
                 title: 'Error!',
                 text: 'Failed to load coupon data',
@@ -378,6 +404,7 @@
                             discountType: data.discountType,
                             discountValue: Number(data.discountValue),
                             minPurchase: Number(data.minPurchase),
+                            maxDiscount: data.maxDiscount ? Number(data.maxDiscount) : null,
                             usageLimit: Number(data.usageLimit),
                             validFrom: data.validFrom,
                             validUntil: data.validUntil,
@@ -412,7 +439,6 @@
                     window.location.reload();
 
                 } catch (error) {
-                    console.error('Error:', error);
                     Swal.fire({
                         title: 'Error!',
                         text: error.message || 'Failed to update coupon',
@@ -423,6 +449,76 @@
             });
         }
     });
+
+    // Handle delete coupon
+    async function deleteCoupon(couponId, couponCode) {
+        try {
+            // Show confirmation dialog
+            const result = await Swal.fire({
+                title: 'Delete Coupon?',
+                text: `Are you sure you want to delete coupon "${couponCode}"? This action cannot be undone.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, delete it!',
+                cancelButtonText: 'Cancel'
+            });
+
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            // Show loading state
+            Swal.fire({
+                title: 'Deleting Coupon...',
+                text: 'Please wait',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            const response = await fetch(`/admin/coupons/${couponId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.redirected || response.url.includes('/admin/login')) {
+                window.location.href = '/admin/login';
+                return;
+            }
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.message || 'Failed to delete coupon');
+            }
+
+            // Show success message
+            await Swal.fire({
+                title: 'Deleted!',
+                text: 'Coupon has been deleted successfully',
+                icon: 'success',
+                timer: 1500,
+                timerProgressBar: true,
+                showConfirmButton: false
+            });
+
+            // Refresh page
+            window.location.reload();
+
+        } catch (error) {
+            Swal.fire({
+                title: 'Error!',
+                text: error.message || 'Failed to delete coupon',
+                icon: 'error',
+                confirmButtonColor: '#dc3545'
+            });
+        }
+    }
 
     // Handle toggle coupon status
     async function toggleCouponStatus(couponId, currentStatus) {
@@ -503,7 +599,6 @@
             window.location.reload();
 
         } catch (error) {
-            console.error('Error:', error);
             Swal.fire({
                 title: 'Error!',
                 text: error.message || 'Failed to update coupon status',
@@ -752,7 +847,6 @@
                 const data = await response.json();
                 return data.exists;
             } catch (error) {
-                console.error('Error checking coupon code:', error);
                 return false;
             }
         }
@@ -827,6 +921,7 @@
                             discountType: data.discountType,
                             discountValue: Number(data.discountValue),
                             minPurchase: Number(data.minPurchase),
+                            maxDiscount: data.maxDiscount ? Number(data.maxDiscount) : null,
                             usageLimit: Number(data.usageLimit),
                             validFrom: data.validFrom,
                             validUntil: data.validUntil,
@@ -861,7 +956,6 @@
                     window.location.reload();
 
                 } catch (error) {
-                    console.error('Error:', error);
                     Swal.fire({
                         title: 'Error!',
                         text: error.message || 'Failed to create coupon',

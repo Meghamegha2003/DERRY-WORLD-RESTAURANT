@@ -138,6 +138,7 @@ app.use('/upload', uploadRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
+const PORT = process.env.PORT || 3000;
 mongoose.connect(process.env.MONGODB_URI)
-.then(()=>app.listen(3000,()=>{console.log(`server run on http://localhost:3000/`); module.exports = app;}))
+.then(()=>app.listen(PORT,()=>{console.log(`server run on http://localhost:${PORT}/`); module.exports = app;}))
 .catch((err)=>console.error(err))

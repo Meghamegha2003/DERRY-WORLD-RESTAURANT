@@ -387,7 +387,6 @@
       const data = await response.json();
       return !data.exists;
     } catch (error) {
-      console.error('Error checking product name:', error);
       return false;
     }
   }
@@ -827,14 +826,12 @@
             const blob = await base64Response.blob();
             const file = new File([blob], `product_image_${index + 1}.jpg`, { type: 'image/jpeg' });
             formData.append('images', file);
-            console.log(`Added new image ${index + 1} to form data:`, file.name, file.size);
           } catch (error) {
             console.error(`Error processing image ${index + 1}:`, error);
           }
         } else {
           // Existing image URL
           formData.append('existingImages[]', imageData);
-          console.log(`Added existing image ${index + 1}:`, imageData);
         }
       }
     });
@@ -842,7 +839,6 @@
     try {
       await Promise.all(imagePromises);
       
-      console.log('Sending form data with', formData.getAll('images').length, 'new images and', formData.getAll('existingImages[]').length, 'existing images');
 
       const response = await fetch(this.action, {
         method: 'POST',

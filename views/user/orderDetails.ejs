@@ -52,7 +52,275 @@
 
         @media (max-width: 992px) {
             .order-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr !important;
+            }
+            
+            .order-details-container {
+                margin: 20px auto 40px auto !important;
+                padding: 15px !important;
+                max-width: 95% !important;
+            }
+            
+            .page-title {
+                flex-direction: column !important;
+                gap: 15px !important;
+                text-align: center !important;
+                margin-top: 20px !important;
+            }
+            
+            .page-title h1 {
+                font-size: 28px !important;
+                margin-bottom: 5px !important;
+            }
+            
+            .navigation-btn {
+                margin-right: 0 !important;
+                order: -1 !important;
+                align-self: flex-start !important;
+            }
+        }
+
+        @media screen and (max-width: 768px) {
+            body .order-details-container {
+                margin: 15px auto 30px auto !important;
+                padding: 10px !important;
+                border-radius: 8px !important;
+                max-width: 95% !important;
+            }
+            
+            body .page-title {
+                margin-top: 15px !important;
+                margin-bottom: 15px !important;
+                flex-direction: column !important;
+                text-align: center !important;
+            }
+            
+            body .page-title h1 {
+                font-size: 24px !important;
+            }
+            
+            body .order-id {
+                font-size: 16px !important;
+            }
+            
+            body .order-grid {
+                gap: 15px !important;
+                margin-top: 20px !important;
+                margin-bottom: 20px !important;
+                grid-template-columns: 1fr !important;
+            }
+            
+            body .card-header {
+                padding: 12px 15px !important;
+            }
+            
+            body .card-header h2 {
+                font-size: 18px !important;
+                margin: 8px !important;
+            }
+            
+            body .card-content {
+                padding: 15px !important;
+            }
+            
+            body .order-item {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                padding: 15px !important;
+                gap: 15px !important;
+                display: flex !important;
+            }
+            
+            body .item-image {
+                width: 100% !important;
+                max-width: 120px !important;
+                height: 120px !important;
+                margin-right: 0 !important;
+                margin-bottom: 10px !important;
+                align-self: center !important;
+                object-fit: cover !important;
+            }
+            
+            body .item-details {
+                width: 100% !important;
+                text-align: center !important;
+                flex: 1 !important;
+            }
+            
+            body .item-name {
+                font-size: 16px !important;
+                margin-bottom: 8px !important;
+            }
+            
+            body .price-info {
+                justify-content: center !important;
+                margin-bottom: 10px !important;
+                display: flex !important;
+            }
+            
+            body .action-buttons {
+                justify-content: center !important;
+                flex-wrap: wrap !important;
+                gap: 8px !important;
+                display: flex !important;
+                width: 100% !important;
+            }
+            
+            body .btn-sm {
+                padding: 8px 12px !important;
+                font-size: 13px !important;
+            }
+            
+            body .refund-breakdown {
+                margin-top: 15px !important;
+                padding: 12px !important;
+            }
+            
+            body .order-summary {
+                padding: 20px 15px !important;
+            }
+            
+            body .price-details {
+                padding: 15px !important;
+                margin-top: 15px !important;
+            }
+            
+            body .price-details h3 {
+                font-size: 16px !important;
+                margin-bottom: 12px !important;
+            }
+            
+            body .price-row {
+                padding: 10px 0 !important;
+                font-size: 14px !important;
+            }
+            
+            body .price-row.total {
+                font-size: 16px !important;
+            }
+            
+            body .price-row-details {
+                margin-left: 0 !important;
+                text-align: center !important;
+                padding: 5px 0 !important;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .order-details-container {
+                margin: 10px auto 20px auto;
+                padding: 8px;
+            }
+            
+            .page-title h1 {
+                font-size: 20px;
+            }
+            
+            .order-id {
+                font-size: 14px;
+            }
+            
+            .card-header {
+                padding: 10px 12px;
+            }
+            
+            .card-header h2 {
+                font-size: 16px;
+                margin: 4px;
+            }
+            
+            .card-content {
+                padding: 12px;
+            }
+            
+            .order-item {
+                padding: 12px;
+                gap: 12px;
+            }
+            
+            .item-image {
+                max-width: 100px;
+                height: 100px;
+            }
+            
+            .item-name {
+                font-size: 15px;
+            }
+            
+            .price-info {
+                flex-direction: column;
+                gap: 5px;
+            }
+            
+            .original-price,
+            .final-price {
+                font-size: 14px;
+            }
+            
+            .quantity {
+                font-size: 13px;
+                margin-top: 5px;
+            }
+            
+            .action-buttons {
+                margin-top: 12px;
+            }
+            
+            .btn-sm {
+                padding: 6px 10px;
+                font-size: 12px;
+                min-width: 80px;
+            }
+            
+            .refund-breakdown {
+                padding: 10px;
+                font-size: 12px;
+            }
+            
+            .badge {
+                font-size: 11px;
+                padding: 4px 8px;
+            }
+            
+            .order-summary {
+                padding: 15px 10px;
+            }
+            
+            .price-details {
+                padding: 12px;
+            }
+            
+            .price-details h3 {
+                font-size: 15px;
+            }
+            
+            .price-row {
+                padding: 8px 0;
+                font-size: 13px;
+            }
+            
+            .price-row.total {
+                font-size: 15px;
+            }
+            
+            .price-row-details {
+                font-size: 11px;
+                padding: 3px 0;
+            }
+            
+            .btn-block {
+                padding: 12px;
+                font-size: 14px;
+            }
+            
+            .rating-display {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+            
+            .rating-display .fas.fa-star,
+            .rating-display .far.fa-star {
+                font-size: 14px;
             }
         }
 
@@ -745,61 +1013,25 @@
                       <span class="final-price">₹<%= item.regularPrice.toFixed(2) %></span>
                     </div>
                   <% } %>
-                  <div class="quantity">Quantity: <%= item.quantity %></div>
-
-                  <!-- Refund breakdown for cancelled/returned items (only for non-COD orders and successful payments) -->
-                  <% if ((item.status === 'Cancelled' || item.status === 'Returned' || item.status === 'Return Approved') && order.paymentMethod && order.paymentMethod.toLowerCase() !== 'cod' && order.paymentStatus !== 'Failed' && order.paymentStatus !== 'Pending') { %>
-                    <div class="refund-breakdown mt-2 p-2 bg-light rounded">
-                      <div class="small text-muted mb-1"><strong>Refund Breakdown:</strong></div>
-                      <div class="d-flex justify-content-between small">
-                        <span>Item Amount:</span>
-                        <span>₹<%= (item.quantity * item.price).toFixed(2) %></span>
-                      </div>
-                      <% 
-                        const itemTotal = item.quantity * item.price;
-                        
-                        // Calculate total order value including all items (cancelled + active)
-                        const totalOrderValue = order.items.reduce((sum, orderItem) => sum + (orderItem.price * orderItem.quantity), 0);
-                        
-                        // Get total coupon amount from order
-                        const totalCouponAmount = order.totalCoupon || order.couponDiscount || 0;
-                        
-                        // Calculate coupon ratio using your formula: (item total / total including cancelled/returned) * 100 * couponTotal / 100
-                        let calculatedCouponRatio = 0;
-                        let calculatedCouponDiscount = 0;
-                        
-                        if (totalOrderValue > 0 && totalCouponAmount > 0) {
-                          calculatedCouponRatio = (itemTotal / totalOrderValue);
-                          calculatedCouponDiscount = calculatedCouponRatio * totalCouponAmount;
-                        }
-                        
-                        // Use calculated values or fall back to stored values
-                        const itemCouponDiscount = calculatedCouponDiscount > 0 ? calculatedCouponDiscount : (item.itemCouponDiscount || 0);
-                        const itemCouponRatio = calculatedCouponRatio > 0 ? calculatedCouponRatio : (item.couponRatio || 0);
-                        
-                        // Calculate actual refund amount - always subtract coupon discount
-                        const actualRefundAmount = itemTotal - itemCouponDiscount;
-                      %>
-                      <% if (itemCouponDiscount > 0) { %>
-                        <div class="d-flex justify-content-between small text-danger">
-                          <span>Coupon Deduction (<%= (itemCouponRatio * 100).toFixed(2) %>% of order):</span>
-                          <span>-₹<%= itemCouponDiscount.toFixed(2) %></span>
-                        </div>
+                  <div class="quantity d-flex align-items-center gap-2">
+                    <span>Quantity: <%= item.quantity %></span>
+                    <!-- Status badge -->
+                    <% if (item.status === 'Cancelled') { %>
+                      <span class="badge bg-danger">Cancelled</span>
+                    <% } else if (item.status === 'Return Approved') { %>
+                      <span class="badge bg-success">Return Approved</span>
+                    <% } else if (item.returnStatus === 'Pending') { %>
+                      <span class="badge bg-warning">Return Requested</span>
+                    <% } else if (item.status !== 'Cancelled' && item.status !== 'Returned' && item.status !== 'Return Approved') { %>
+                      <!-- Cancel button inline with quantity -->
+                      <% if ((order.orderStatus === 'Pending' || order.orderStatus === 'Processing') && order.paymentStatus !== 'Failed') { %>
+                        <button onclick="cancelOrderItem('<%= order._id %>', '<%= item._id %>')" class="btn btn-sm btn-outline-danger">Cancel</button>
                       <% } %>
-                      <div class="d-flex justify-content-between small fw-bold border-top pt-1">
-                        <span>Total Refunded:</span>
-                        <span class="text-success">₹<%= actualRefundAmount.toFixed(2) %></span>
-                      </div>
-                    </div>
-                  <% } %>
+                    <% } %>
+                  </div>
 
-                  <!-- Status badge and actions -->
-                  <% if (item.status === 'Cancelled') { %>
-                    <span class="badge bg-danger">Cancelled</span>
-                  <% } else if (item.status === 'Return Approved') { %>
-                    <span class="badge bg-success">Return Approved</span>
-                  <% } else if (item.returnStatus === 'Pending') { %>
-                    <span class="badge bg-warning">Return Requested</span>
+                  <!-- Additional status info for pending returns -->
+                  <% if (item.returnStatus === 'Pending') { %>
                     <div class="mt-1">
                       <small class="text-muted">Waiting for admin approval</small>
                       <% 
@@ -816,12 +1048,8 @@
                     </div>
                   <% } else if (item.returnStatus === 'Rejected') { %>
                     <span class="badge bg-danger">Return Rejected</span>
-                  <% } else { %>
-                    <% if ((order.orderStatus === 'Pending' || order.orderStatus === 'Processing') && order.paymentStatus !== 'Failed') { %>
-                      <div class="action-buttons mt-2">
-                        <button onclick="cancelOrderItem('<%= order._id %>', '<%= item._id %>')" class="btn btn-sm btn-outline-danger me-2">Cancel</button>
-                      </div>
-                    <% } else if (order.orderStatus === 'Delivered' && order.paymentStatus !== 'Failed') { %>
+                  <% } else if (item.status !== 'Cancelled' && item.status !== 'Returned' && item.status !== 'Return Approved') { %>
+                    <% if (order.orderStatus === 'Delivered' && order.paymentStatus !== 'Failed') { %>
                       <div class="action-buttons mt-2">
                         <% if (order.canReturn && !item.returnStatus) { %>
                           <button onclick="returnOrderItem('<%= order._id %>', '<%= item._id %>')" class="btn btn-sm btn-outline-warning me-2">Return</button>
@@ -1136,11 +1364,7 @@
             
             <% if (displayCouponDiscount > 0 || (order.appliedCoupon && order.appliedCoupon.code)) { %>
               <div class="price-row discount">
-                <% if (order.appliedCoupon && order.appliedCoupon.code) { %>
-                  <span>Coupon Applied (<%= order.appliedCoupon.code %>)</span>
-                <% } else { %>
-                  <span>Coupon Discount</span>
-                <% } %>
+                <span>Coupon Applied</span>
                 <span id="coupon-discount">-₹<%= (balanceCoupon > 0 ? balanceCoupon : displayCouponDiscount).toFixed(2) %></span>
               </div>
               

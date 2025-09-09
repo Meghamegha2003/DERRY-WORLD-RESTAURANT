@@ -34,7 +34,6 @@ const calculateOrderTotals = async (cart) => {
             total: parseFloat(total.toFixed(2))
         };
     } catch (error) {
-        console.error('Error in calculateOrderTotals:', error);
         throw error;
     }
 };

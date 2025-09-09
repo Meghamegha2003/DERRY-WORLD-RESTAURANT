@@ -887,16 +887,13 @@
         
         // Debug logging
         if (!razorpayKey) {
-            console.error('Razorpay key is not set. Please check your environment variables.');
-        } else {
-            console.log('Razorpay key loaded successfully');
-            console.log('Razorpay Key ID:', razorpayKey);
+            // Razorpay key is not set
         }
     </script>
     
     <!-- Inline JavaScript to bypass caching issues -->
     <script>
-        console.log('Inline checkout script loaded - Version 7.0 - All functions embedded');
+        // Inline checkout script loaded - Version 7.0 - All functions embedded
         
         // Global variables
         let selectedPaymentMethod = '';
@@ -905,13 +902,11 @@
         
         // Utility functions
         function updateCartUI() {
-            console.log('updateCartUI called');
             return Promise.resolve();
         }
         
         // Handle address selection
         function selectAddress(addressId) {
-            console.log('selectAddress called with:', addressId);
             try {
                 document.querySelectorAll('.address-card').forEach(card => {
                     card.classList.remove('selected');
@@ -921,16 +916,14 @@
                 if (selectedCard) {
                     selectedCard.classList.add('selected');
                     selectedAddressId = addressId;
-                    console.log('Address selected:', addressId);
                 }
             } catch (error) {
-                console.error('Error selecting address:', error);
+                // Error selecting address
             }
         }
         
         // Handle payment method selection
         function selectPaymentMethod(method) {
-            console.log('selectPaymentMethod called with:', method);
             try {
                 selectedPaymentMethod = method;
                 document.querySelectorAll('.payment-method-card').forEach(card => {
@@ -940,9 +933,8 @@
                 if (methodCard) {
                     methodCard.classList.add('selected');
                 }
-                console.log('Payment method selected:', method);
             } catch (error) {
-                console.error('Error selecting payment method:', error);
+                // Error selecting payment method
             }
         }
         
@@ -1005,7 +997,6 @@
 
         // Handle order placement
         async function placeOrder() {
-            console.log('placeOrder called - inline version');
             
             // Validate cart quantities first
             const quantityValidation = validateCartQuantities();
@@ -1035,10 +1026,6 @@
             }
             
             try {
-                console.log('Placing order with:', {
-                    address: selectedAddressId,
-                    paymentMethod: selectedPaymentMethod
-                });
                 
                 const response = await fetch('/checkout/process', {
                     method: 'POST',
@@ -1054,7 +1041,6 @@
                 });
                 
                 const data = await response.json();
-                console.log('Checkout response:', data);
                 
                 if (!response.ok) {
                     // Handle automatic cart cleanup for blocked items
@@ -1139,10 +1125,7 @@
                                         await showSuccessAndRedirect(result.orderId);
                                     }
                                 } catch (error) {
-                                    console.error('Payment verification failed:', error);
-                                    console.log('Available result data:', result);
                                     const orderId = result.order?.orderId || result.orderId;
-                                    console.log('Redirecting to order ID:', orderId);
                                     
                                     await Swal.fire({
                                         icon: 'error',
@@ -1178,7 +1161,6 @@
                                     }).then(() => {
                                         // Redirect to order details page for cancelled payment
                                         const orderId = result.order?.orderId || result.orderId;
-                                        console.log('Payment cancelled, redirecting to order ID:', orderId);
                                         if (orderId) {
                                             window.location.href = `/orders/${orderId}`;
                                         } else {
@@ -1204,7 +1186,6 @@
                     throw new Error(data.message || 'Failed to process order');
                 }
             } catch (error) {
-                console.error('Error in placeOrder:', error);
                 await showError('Order Failed', error.message || 'Failed to process your order');
             }
         }
@@ -1238,12 +1219,11 @@
                 });
                 
                 if (clearResponse.ok) {
-                    console.log('Cart cleared successfully on server');
+                    // Cart cleared successfully on server
                 } else {
-                    console.warn('Server cart clear response not OK:', clearResponse.status);
+                    // Server cart clear response not OK
                 }
             } catch (clearError) {
-                console.warn('Error clearing cart on server:', clearError);
                 // Don't fail the success flow due to cart clear error
             }
             
@@ -1265,12 +1245,7 @@
         window.selectPaymentMethod = selectPaymentMethod;
         window.placeOrder = placeOrder;
         
-        console.log('All checkout functions exposed to global scope:', {
-            updateCartUI: typeof window.updateCartUI,
-            selectAddress: typeof window.selectAddress,
-            selectPaymentMethod: typeof window.selectPaymentMethod,
-            placeOrder: typeof window.placeOrder
-        });
+        // All checkout functions exposed to global scope
         
         // Set up checkout on page load
         document.addEventListener('DOMContentLoaded', function() {
@@ -1293,7 +1268,7 @@
                 selectPaymentMethod('wallet');
             }
             
-            console.log('Checkout initialization complete');
+            // Checkout initialization complete
         });
     </script>
 </body>

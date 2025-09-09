@@ -373,7 +373,6 @@
       const data = await response.json();
       return !data.exists;
     } catch (error) {
-      console.error('Error checking product name:', error);
       return false;
     }
   }
@@ -567,9 +566,7 @@
         // Create a File object from the blob with proper name
         const file = new File([blob], `product_image_${index + 1}.jpg`, { type: 'image/jpeg' });
         formData.append('images', file);
-        console.log(`Added image ${index + 1} to form data:`, file.name, file.size);
       } catch (error) {
-        console.error(`Error processing image ${index + 1}:`, error);
         throw new Error(`Failed to process image ${index + 1}`);
       }
     });
@@ -578,7 +575,6 @@
       // Wait for all image conversions
       await Promise.all(imagePromises);
       
-      console.log('Sending form data with', formData.getAll('images').length, 'images');
 
       const response = await fetch('/admin/products/add', {
         method: 'POST',
@@ -607,7 +603,6 @@
         throw new Error(result.message || 'Failed to add product');
       }
     } catch (error) {
-      console.error('Error:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error',

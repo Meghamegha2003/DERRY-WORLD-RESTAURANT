@@ -148,7 +148,6 @@
                 throw new Error(data.message || (isEdit ? 'Failed to update address' : 'Failed to add address'));
             }
         } catch (error) {
-            console.error('Error with address:', error);
             Swal.fire({
                 icon: 'error',
                 title: 'Error!',

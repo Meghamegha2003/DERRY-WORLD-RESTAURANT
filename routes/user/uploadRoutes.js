@@ -25,7 +25,6 @@ router.post('/cloudinary-signature', auth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Signature generation error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to generate upload signature'

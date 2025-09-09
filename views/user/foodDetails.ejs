@@ -609,8 +609,8 @@
                                     <% } %>
                                 <% } %>
                             </div>
-                            <% if (product.ratings?.length > 0) { %>
-                                <span class="rating-count">(<%= product.ratings.length %> reviews)</span>
+                            <% if (product.totalRatings > 0) { %>
+                                <span class="rating-count">(<%= product.totalRatings %> reviews)</span>
                             <% } %>
                         </div>
 
@@ -760,7 +760,7 @@
             <% } %>
 
             <!-- Reviews Section - Flipkart Style -->
-            <% if (product.ratings && product.ratings.length > 0) { %>
+            <% if (product.totalRatings > 0) { %>
                 <div class="reviews-section mt-5">
                     <div class="row">
                         <!-- Rating Summary -->
@@ -781,7 +781,7 @@
                                                 <% } %>
                                             <% } %>
                                         </div>
-                                        <p class="total-reviews"><%= product.ratings.length %> reviews</p>
+                                        <p class="total-reviews"><%= product.totalRatings %> reviews</p>
                                     </div>
                                 </div>
                                 
@@ -928,7 +928,6 @@
                         });
 
                     } catch (err) {
-                        console.error(err);
                         addButton.disabled = false;
                         addButton.innerHTML = '<i class="fas fa-shopping-cart me-2"></i>Add to Cart';
                         Swal.fire({

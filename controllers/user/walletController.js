@@ -147,7 +147,7 @@ exports.getWallet = async function(req, res) {
     try {
         const userId = req.user._id;
         const page = parseInt(req.query.page) || 1;
-        const limit = 10; // Number of transactions per page
+        const limit = 5; // Number of transactions per page
         
         let wallet = await Wallet.findOne({ user: userId });
             

@@ -259,7 +259,6 @@ document.addEventListener("DOMContentLoaded", function () {
               button.disabled = false;
             }
           } catch (err) {
-            console.error(err);
             button.innerHTML = `<i class="fas fa-exclamation-circle me-1"></i> Error`;
             button.disabled = false;
           }
@@ -327,7 +326,6 @@ document.addEventListener("DOMContentLoaded", function () {
         throw new Error(data.message || "Failed to update wishlist");
       }
     } catch (error) {
-      console.error("Error:", error);
       // If unauthorized, redirect to login
       if (error.status === 401) {
         window.location.href = "/login";

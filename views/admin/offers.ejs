@@ -639,7 +639,6 @@
       );
       editModal.show();
     } catch (error) {
-      console.error("Error opening edit modal:", error);
       Swal.fire({
         icon: "error",
         title: "Error!",
@@ -685,7 +684,6 @@
       // Refresh the page to show updated status
       window.location.reload();
     } catch (error) {
-      console.error("Error deleting offer:", error);
 
       // Show error message
       await Swal.fire({
@@ -749,7 +747,6 @@
         location.reload();
       });
     } catch (error) {
-      console.error("Error saving offer:", error);
       Swal.fire({
         icon: "error",
         title: "Error!",
@@ -811,7 +808,6 @@
         location.reload();
       });
     } catch (error) {
-      console.error("Error updating offer:", error);
       Swal.fire({
         icon: "error",
         title: "Error!",
@@ -872,7 +868,6 @@
           // Refresh the page to show updated status
           window.location.reload();
         } catch (error) {
-          console.error("Error toggling offer status:", error);
 
           // Show error message
           await Swal.fire({

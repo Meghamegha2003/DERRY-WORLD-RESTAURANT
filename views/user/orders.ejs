@@ -152,32 +152,137 @@
 
         .no-orders {
             text-align: center;
-            padding: 3rem 1rem;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            animation: slideIn 0.3s ease-out;
+            padding: 4rem 2rem;
+            background: linear-gradient(135deg, #fff4d6 0%, #ffe8b8 100%);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(255,190,51,0.15);
+            animation: slideIn 0.6s ease-out;
+            color: #8b5a2b;
+            position: relative;
+            overflow: hidden;
+            max-width: 600px;
+            margin: 2rem auto;
         }
 
-        .no-orders i {
-            font-size: 4rem;
-            color: #adb5bd;
-            margin-bottom: 1.5rem;
+        .no-orders::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .no-orders-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .no-orders-icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 2rem;
+            background: rgba(255,190,51,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255,190,51,0.3);
+            animation: pulse 2s infinite;
+        }
+
+        .no-orders-icon i {
+            font-size: 3.5rem;
+            color: #ffbe33;
+            text-shadow: none;
         }
 
         .no-orders h3 {
-            color: #495057;
+            color: #8b5a2b;
             margin-bottom: 1rem;
+            font-size: 2rem;
+            font-weight: 700;
+            text-shadow: none;
         }
 
         .no-orders p {
-            color: #6c757d;
-            margin-bottom: 2rem;
+            color: #a0692f;
+            margin-bottom: 2.5rem;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .no-orders .btn {
-            padding: 0.75rem 2rem;
+            padding: 1rem 2.5rem;
             font-size: 1.1rem;
+            font-weight: 600;
+            background: #ffbe33;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            box-shadow: 0 8px 25px rgba(255,190,51,0.2);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .no-orders .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 35px rgba(255,190,51,0.3);
+            background: #e6a82e;
+            color: white;
+        }
+
+        .no-orders-features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .feature-item {
+            background: rgba(255,190,51,0.1);
+            padding: 1.5rem;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,190,51,0.2);
+        }
+
+        .feature-item i {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: #ffbe33;
+        }
+
+        .feature-item h4 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: #8b5a2b;
+        }
+
+        .feature-item p {
+            font-size: 0.9rem;
+            margin-bottom: 0;
+            color: #a0692f;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(30px, -30px) rotate(120deg); }
+            66% { transform: translate(-20px, 20px) rotate(240deg); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
 
         @keyframes slideIn {
@@ -372,12 +477,73 @@
             background-color: #dc3545;
         }
 
+        /* Enhanced Mobile Responsive Design */
         @media (max-width: 768px) {
             .orders-container {
                 padding-top: 60px;
+                padding-left: 10px;
+                padding-right: 10px;
             }
 
-           
+            .page-title {
+                font-size: 1.5rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .order-card {
+                width: 100%;
+                margin-left: 0;
+                margin-right: 0;
+                padding: 1rem;
+                margin-bottom: 1rem;
+            }
+
+            .order-card .d-flex.flex-row {
+                flex-direction: column !important;
+            }
+
+            .order-card > .d-flex > div:first-child {
+                width: 100% !important;
+                border-right: none !important;
+                border-bottom: 1px solid #eee;
+                padding-bottom: 1rem;
+                margin-bottom: 1rem;
+                justify-content: flex-start !important;
+            }
+
+            .order-card > .d-flex > div:first-child img {
+                width: 80px !important;
+                height: 80px !important;
+                margin-right: 1rem;
+            }
+
+            .order-card .flex-grow-1 {
+                padding: 0 !important;
+            }
+
+            .order-card .d-flex.align-items-center {
+                flex-direction: column;
+                align-items: stretch !important;
+                gap: 1rem;
+                margin-top: 1rem;
+            }
+
+            .order-card .btn-outline-primary {
+                width: 100%;
+                margin-bottom: 0.5rem;
+            }
+
+            .order-card .badge {
+                align-self: center;
+                margin-bottom: 0.5rem;
+            }
+
+            .order-card .text-success,
+            .order-card .text-danger,
+            .order-card .text-warning {
+                text-align: center;
+                font-size: 0.8rem;
+            }
 
             .order-header {
                 flex-direction: column;
@@ -388,10 +554,119 @@
             .order-actions {
                 flex-direction: column;
                 width: 100%;
+                gap: 0.5rem;
             }
 
             .order-actions button {
                 width: 100%;
+            }
+
+            .fw-semibold.fs-6 {
+                font-size: 0.9rem !important;
+            }
+
+            .text-secondary.small {
+                font-size: 0.75rem !important;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .orders-container {
+                padding-top: 50px;
+                padding-left: 5px;
+                padding-right: 5px;
+            }
+
+            .page-title {
+                font-size: 1.3rem;
+                margin-bottom: 1rem;
+            }
+
+            .order-card {
+                padding: 0.75rem;
+                border-radius: 8px;
+            }
+
+            .order-card > .d-flex > div:first-child {
+                display: flex !important;
+                align-items: center;
+                justify-content: flex-start !important;
+                padding-bottom: 0.75rem;
+                margin-bottom: 0.75rem;
+            }
+
+            .order-card > .d-flex > div:first-child img {
+                width: 60px !important;
+                height: 60px !important;
+                margin-right: 0.75rem;
+                flex-shrink: 0;
+            }
+
+            .fw-semibold.fs-6 {
+                font-size: 0.85rem !important;
+                line-height: 1.3;
+            }
+
+            .fw-bold.text-primary {
+                font-size: 1.1rem;
+            }
+
+            .btn-outline-primary.btn-sm {
+                padding: 0.5rem 1rem;
+                font-size: 0.85rem;
+            }
+
+            .badge {
+                font-size: 0.75rem;
+                padding: 0.4rem 0.8rem;
+            }
+
+            .text-success.small,
+            .text-danger.small,
+            .text-warning.small {
+                font-size: 0.7rem !important;
+                line-height: 1.2;
+            }
+
+            .btn-link.p-0 {
+                font-size: 0.75rem;
+            }
+
+            .pagination {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .pagination .page-link {
+                padding: 0.375rem 0.5rem;
+                font-size: 0.8rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .order-card > .d-flex > div:first-child {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+
+            .order-card > .d-flex > div:first-child img {
+                margin-right: 0;
+                margin-bottom: 0.5rem;
+            }
+
+            .fw-semibold.fs-6 {
+                text-align: center;
+                font-size: 0.8rem !important;
+            }
+
+            .text-muted.small {
+                text-align: center;
+            }
+
+            .fw-bold.text-primary {
+                text-align: center;
+                margin-top: 0.5rem;
             }
         }
     </style>
@@ -562,6 +837,38 @@
         </nav>
     <% } %>
 </div>
+<% } else { %>
+    <!-- Beautiful Empty State -->
+    <div class="no-orders">
+        <div class="no-orders-content">
+            <div class="no-orders-icon">
+                <i class="fas fa-shopping-bag"></i>
+            </div>
+            <h3>No Orders Yet!</h3>
+            <p>Looks like you haven't placed any orders with us. Start exploring our delicious menu and place your first order today!</p>
+            <a href="/menu" class="btn">
+                <i class="fas fa-utensils me-2"></i>Explore Menu
+            </a>
+            
+            <div class="no-orders-features">
+                <div class="feature-item">
+                    <i class="fas fa-clock"></i>
+                    <h4>Quick Delivery</h4>
+                    <p>Fast and reliable delivery to your doorstep</p>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-star"></i>
+                    <h4>Quality Food</h4>
+                    <p>Fresh ingredients and authentic flavors</p>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-shield-alt"></i>
+                    <h4>Safe & Secure</h4>
+                    <p>Secure payments and contactless delivery</p>
+                </div>
+            </div>
+        </div>
+    </div>
 <% } %>
 
 <!-- Return Modal Markup -->
@@ -705,7 +1012,6 @@
     returnModal.hide();
   } catch (err) {
     Swal.fire('Network or server error. Please try again.');
-    console.error('Return request error:', err);
   }
 }
 
@@ -786,7 +1092,6 @@ async function cancelOrder(orderId) {
     }
   } catch (err) {
     Swal.fire('Network or server error. Please try again.');
-    console.error('Cancel order error:', err);
   }
 }
 

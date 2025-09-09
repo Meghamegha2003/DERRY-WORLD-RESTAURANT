@@ -50,6 +50,22 @@
             background-color: #6b3610;
             border-color: #6b3610;
         }
+        .password-field {
+            position: relative;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 71%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #5f6368;
+        }
+        .password-toggle:hover {
+            color: #8B4513;
+        }
     </style>
 </head>
 <body>
@@ -73,7 +89,10 @@
             </div>
             <div class="mb-3">
                 <label for="password" class="form-label">Password</label>
-                <input type="password" class="form-control" id="password" name="password" required>
+                <div class="password-field">
+                    <input type="password" class="form-control" id="password" name="password" required>
+                    <i class="bi bi-eye-slash password-toggle" id="togglePassword" onclick="togglePasswordVisibility()"></i>
+                </div>
             </div>
             <button type="submit" class="btn btn-primary w-100">Login</button>
         </form>
@@ -123,6 +142,22 @@
                 window.history.replaceState({}, document.title, cleanUrl);
             }
         });
+
+        // Password visibility toggle function
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('togglePassword');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('bi-eye-slash');
+                toggleIcon.classList.add('bi-eye');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('bi-eye');
+                toggleIcon.classList.add('bi-eye-slash');
+            }
+        }
     </script>
 </body>
 </html>

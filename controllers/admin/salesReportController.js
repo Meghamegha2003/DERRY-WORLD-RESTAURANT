@@ -1,4 +1,5 @@
 const { Order, ORDER_STATUS } = require("../../models/orderSchema");
+const Wallet = require("../../models/walletSchema");
 
 const PDFDocument = require("pdfkit");
 const ExcelJS = require("exceljs");
@@ -70,6 +71,28 @@ exports.viewSalesReport = async (req, res) => {
       
       return sum + currentBalance;
     }, 0);
+    
+    // Calculate total individual refunds from wallet transactions
+    const refundResult = await Wallet.aggregate([
+      { $unwind: "$transactions" },
+      {
+        $match: {
+          "transactions.type": "refund",
+          "transactions.date": { $gte: start, $lte: end },
+          "transactions.description": { 
+            $regex: /(refund|cancelled|returned)/i 
+          }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalRefunds: { $sum: "$transactions.amount" },
+          refundCount: { $sum: 1 }
+        }
+      }
+    ]);
+    const totalRefunds = refundResult[0]?.totalRefunds || 0;
     const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
     const allOrdersInDateRange = await Order.find({
       createdAt: { $gte: start, $lte: end },
@@ -122,6 +145,7 @@ exports.viewSalesReport = async (req, res) => {
       orders: processedOrders,
       totalSales,
       totalOrders,
+      totalRefunds,
       averageOrderValue,
       returnRate,
       returnedOrdersCount,
