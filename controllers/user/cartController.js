@@ -1564,96 +1564,7 @@ exports.calculateCartSummary = (cart) => {
   };
 };
 
-exports.incrementCartItem = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { productId } = req.params;
 
-    const cart = await Cart.findOne({ user: userId }).populate("items.product");
-    if (!cart) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Cart not found" });
-    }
-
-    const cartItem = cart.items.find(
-      (item) => item.product._id.toString() === productId
-    );
-    if (!cartItem) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Item not found in cart" });
-    }
-
-    if (cartItem.quantity >= 5) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Maximum quantity reached" });
-    }
-    if (cartItem.product.quantity <= cartItem.quantity) {
-      return res
-        .status(400)
-        .json({ success: false, message: "No more stock available" });
-    }
-
-    cartItem.quantity += 1;
-    await cart.save();
-    const summary = exports.calculateCartSummary(cart);
-    return res.json({
-      success: true,
-      message: "Quantity increased",
-      quantity: cartItem.quantity,
-      ...summary,
-    });
-  } catch (error) {
-    res
-      .status(HttpStatus.INTERNAL_SERVER_ERROR)
-      .json({ success: false, message: "Failed to increase quantity" });
-  }
-};
-
-exports.decrementCartItem = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { productId } = req.params;
-
-    const cart = await Cart.findOne({ user: userId }).populate("items.product");
-    if (!cart) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Cart not found" });
-    }
-
-    const cartItem = cart.items.find(
-      (item) => item.product._id.toString() === productId
-    );
-    if (!cartItem) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Item not found in cart" });
-    }
-
-    if (cartItem.quantity <= 1) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Minimum quantity is 1" });
-    }
-
-    cartItem.quantity -= 1;
-    await cart.save();
-    const summary = exports.calculateCartSummary(cart);
-    return res.json({
-      success: true,
-      message: "Quantity decreased",
-      quantity: cartItem.quantity,
-      ...summary,
-    });
-  } catch (error) {
-    res
-      .status(HttpStatus.INTERNAL_SERVER_ERROR)
-      .json({ success: false, message: "Failed to decrease quantity" });
-  }
-};
 
 exports.clearCart = async (req, res) => {
   const session = await mongoose.startSession();
@@ -1755,28 +1666,30 @@ exports.incrementCartItem = async (req, res) => {
 
     cart.items[itemIndex].quantity += 1;
     
-    if (cart.couponCode) {
-      await validateAndUpdateCartCoupon(cart);
+    // Recalculate cart totals with proper coupon handling
+    const totals = await exports.calculateCartTotal(cart);
+    
+    // Update cart with new totals
+    cart.subtotal = totals.subtotal;
+    cart.couponDiscount = totals.couponDiscount;
+    cart.total = totals.total;
+    
+    if (totals.validCoupon) {
+      cart.appliedCoupon = totals.validCoupon;
+    } else if (cart.appliedCoupon) {
+      cart.appliedCoupon = undefined;
+      cart.couponDiscount = 0;
     }
     
     await cart.save();
-
-    const subtotal = cart.items.reduce((sum, item) => {
-      const price = item.product.offerDetails?.finalPrice || 
-                   item.product.salesPrice || 
-                   item.product.regularPrice;
-      return sum + (price * item.quantity);
-    }, 0);
-
-    const total = subtotal - (cart.couponDiscount || 0);
 
     res.json({
       success: true,
       message: 'Quantity updated successfully',
       cart: {
-        subtotal: subtotal,
-        total: total,
-        couponDiscount: cart.couponDiscount || 0,
+        subtotal: totals.subtotal,
+        total: totals.total,
+        couponDiscount: totals.couponDiscount,
         itemCount: cart.items.reduce((sum, item) => sum + item.quantity, 0)
       },
       newQuantity: cart.items[itemIndex].quantity
@@ -1819,28 +1732,30 @@ exports.decrementCartItem = async (req, res) => {
 
     cart.items[itemIndex].quantity -= 1;
     
-    if (cart.couponCode) {
-      await validateAndUpdateCartCoupon(cart);
+    // Recalculate cart totals with proper coupon handling
+    const totals = await exports.calculateCartTotal(cart);
+    
+    // Update cart with new totals
+    cart.subtotal = totals.subtotal;
+    cart.couponDiscount = totals.couponDiscount;
+    cart.total = totals.total;
+    
+    if (totals.validCoupon) {
+      cart.appliedCoupon = totals.validCoupon;
+    } else if (cart.appliedCoupon) {
+      cart.appliedCoupon = undefined;
+      cart.couponDiscount = 0;
     }
     
     await cart.save();
-
-    const subtotal = cart.items.reduce((sum, item) => {
-      const price = item.product.offerDetails?.finalPrice || 
-                   item.product.salesPrice || 
-                   item.product.regularPrice;
-      return sum + (price * item.quantity);
-    }, 0);
-
-    const total = subtotal - (cart.couponDiscount || 0);
 
     res.json({
       success: true,
       message: 'Quantity updated successfully',
       cart: {
-        subtotal: subtotal,
-        total: total,
-        couponDiscount: cart.couponDiscount || 0,
+        subtotal: totals.subtotal,
+        total: totals.total,
+        couponDiscount: totals.couponDiscount,
         itemCount: cart.items.reduce((sum, item) => sum + item.quantity, 0)
       },
       newQuantity: cart.items[itemIndex].quantity
