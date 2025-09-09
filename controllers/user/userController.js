@@ -343,15 +343,12 @@ exports.registerUser = async (req, res) => {
             { expiresIn: '30m' }
         );
 
-        // Set OTP token in cookie with production-safe configuration
-        const isProduction = process.env.NODE_ENV === 'production';
-        const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
-        
+        // Set OTP token in cookie with HTTP-compatible configuration
         res.cookie('otpToken', otpToken, {
             httpOnly: true,
-            secure: isSecure,
+            secure: false, // Allow HTTP for production domain
             maxAge: 30 * 60 * 1000, // 30 minutes
-            sameSite: isProduction ? 'strict' : 'lax',
+            sameSite: 'lax',
             path: '/'
         });
 
@@ -433,14 +430,11 @@ exports.resendOTP = async (req, res) => {
     );
 
     // Set cookie with production-safe configuration for resend
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
-    
     res.cookie('otpToken', newToken, {
         httpOnly: true,
-        secure: isSecure,
+        secure: false, // Allow HTTP for production domain
         maxAge: 30 * 60 * 1000, // 30 minutes
-        sameSite: isProduction ? 'strict' : 'lax',
+        sameSite: 'lax',
         path: '/'
     });
 
@@ -492,14 +486,11 @@ exports.renderVerifyOtpPage = async (req, res) => {
       if (decoded.purpose !== 'otp_verification') throw new Error('Invalid token purpose');
       
       if (tokenFromUrl && !tokenFromCookie) {
-        const isProduction = process.env.NODE_ENV === 'production';
-        const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
-        
         res.cookie('otpToken', otpToken, {
             httpOnly: true,
-            secure: isSecure,
+            secure: false, // Allow HTTP for production domain
             maxAge: 30 * 60 * 1000, // 30 minutes
-            sameSite: isProduction ? 'strict' : 'lax',
+            sameSite: 'lax',
             path: '/'
         });
       }
