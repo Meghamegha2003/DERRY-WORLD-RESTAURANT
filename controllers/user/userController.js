@@ -149,12 +149,10 @@ exports.loginUser = async (req, res) => {
     const token = generateToken(user, cartCount);
 
     // Set the token in cookie
-    const isProduction = process.env.NODE_ENV === 'production';
-    
     res.cookie("userToken", token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: false, // Allow HTTP for production domain
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/'
     });
@@ -176,12 +174,10 @@ exports.loginUser = async (req, res) => {
 };
 
 exports.logoutUser = (req, res) => {
-  const isProduction = process.env.NODE_ENV === 'production';
-  
   res.clearCookie("userToken", {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'strict' : 'lax',
+    secure: false, // Allow HTTP for production domain
+    sameSite: 'lax',
     path: "/"
   });
 
@@ -807,12 +803,10 @@ exports.googleCallback = async (req, res) => {
     const cartCount = await getCartCount(user._id);
     const token = generateToken(user, cartCount);
 
-    const isProduction = process.env.NODE_ENV === 'production';
-    
     res.cookie('userToken', token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: false, // Allow HTTP for production domain
+      sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/'
     });

@@ -120,12 +120,10 @@ exports.loginAdmin = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "24h" }
     );
-    const isProduction = process.env.NODE_ENV === 'production';
-    
     res.cookie("adminToken", token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: false, // Allow HTTP for production domain
+      sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000,
       path: '/'
     });
@@ -146,12 +144,10 @@ exports.loginAdmin = async (req, res) => {
 
 exports.adminLogout = (req, res) => {
   try {
-    const isProduction = process.env.NODE_ENV === 'production';
-    
     res.clearCookie("adminToken", {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: false, // Allow HTTP for production domain
+      sameSite: 'lax',
       path: '/'
     });
 
