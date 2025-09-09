@@ -149,12 +149,15 @@ exports.loginUser = async (req, res) => {
     const token = generateToken(user, cartCount);
 
     // Set the token in cookie
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
+    
     res.cookie("userToken", token, {
       httpOnly: true,
-      secure: false, // Set to false for development
+      secure: isProduction && isSecure,
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/',
-      sameSite: 'lax'
+      path: '/'
     });
     
 
@@ -174,10 +177,12 @@ exports.loginUser = async (req, res) => {
 };
 
 exports.logoutUser = (req, res) => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
   res.clearCookie("userToken", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     path: "/"
   });
 
@@ -803,10 +808,15 @@ exports.googleCallback = async (req, res) => {
     const cartCount = await getCartCount(user._id);
     const token = generateToken(user, cartCount);
 
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
+    
     res.cookie('userToken', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 30 * 24 * 60 * 60 * 1000
+      secure: isProduction && isSecure,
+      sameSite: isProduction ? 'none' : 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      path: '/'
     });
 
     const flashMessage = newUserCreated ? 'Account created successfully with Google' : 'Welcome back!';

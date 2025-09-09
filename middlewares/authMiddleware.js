@@ -49,11 +49,13 @@ const verifyToken = async (token, requireAdmin = false) => {
 };
 
 const clearToken = (res, type) => {
+    const isProduction = process.env.NODE_ENV === 'production';
+    
     res.clearCookie(`${type}Token`, {
         httpOnly: true,
-        secure: false, // Match the cookie setting attributes
+        secure: isProduction,
         path: '/',
-        sameSite: 'lax' // Match the cookie setting attributes
+        sameSite: isProduction ? 'none' : 'lax'
     });
 };
 

@@ -120,11 +120,15 @@ exports.loginAdmin = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "24h" }
     );
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isSecure = req.secure || req.get('X-Forwarded-Proto') === 'https';
+    
     res.cookie("adminToken", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isProduction && isSecure,
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 24 * 60 * 60 * 1000,
-      sameSite: "strict",
+      path: '/'
     });
 
     if (req.xhr || req.headers.accept?.includes("application/json")) {
@@ -143,10 +147,12 @@ exports.loginAdmin = async (req, res) => {
 
 exports.adminLogout = (req, res) => {
   try {
+    const isProduction = process.env.NODE_ENV === 'production';
+    
     res.clearCookie("adminToken", {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
       path: '/'
     });
 
