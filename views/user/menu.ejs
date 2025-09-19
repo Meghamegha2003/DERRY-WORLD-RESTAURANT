@@ -282,9 +282,41 @@
             display: none;
         }
     }
+
+    .search-box {
+        position: relative;
+    }
+
+    .clear-search {
+        position: absolute;
+        right: 40px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #999;
+        display: none; /* Hidden by default */
+    }
+
+    .search-submit {
+        background: none;
+        border: none;
+        padding: 0;
+        margin: 0;
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        cursor: pointer;
+    }
 </style>
 
 <section class="menu-section">
+  <!-- Floating Reload Button -->
+  <button type="button" class="floating-reload-btn" title="Clear Filters" onclick="clearAllFilters()">
+    <i class="fas fa-sync-alt"></i>
+  </button>
   <div class="container">
     <div class="heading_container heading_center">
       <h2>Our Menu</h2>
@@ -308,18 +340,24 @@
         </button>
         
         <!-- Search -->
-        <div class="filter-section">
-          <h3>Search</h3>
-          <div class="search-box">
-            <input type="text" id="searchInput" name="search" placeholder="Search products..." value="<%= filters.search || '' %>">
-            <button type="submit" style="background:none;border:none;padding:0;margin:0;position:absolute;right:12px;top:50%;transform:translateY(-50%);"><i class="fas fa-search"></i></button>
-          </div>
+        <div class="search-box">
+          <input 
+            type="text" 
+            id="searchInput" 
+            name="search" 
+            placeholder="Search products..." 
+            value="<%= filters.search || '' %>"
+          >
+          <button type="submit" class="search-submit">
+            <i class="fas fa-search"></i>
+          </button>
         </div>
+
 
         <!-- Sort -->
         <div class="filter-section">
           <h3>Sort By</h3>
-          <select id="sortSelect" class="form-select no-arrow" name="sort" onchange="this.form.submit()">
+          <select id="sortSelect" class="form-select no-arrow" name="sort">
             <option value="name-asc" <%= filters.sort === 'name-asc' ? 'selected' : '' %>>Name (A to Z)</option>
             <option value="name-desc" <%= filters.sort === 'name-desc' ? 'selected' : '' %>>Name (Z to A)</option>
             <option value="price-low" <%= filters.sort === 'price-low' ? 'selected' : '' %>>Price (Low to High)</option>
@@ -333,13 +371,13 @@
           <h3>Categories</h3>
           <div class="filter-options">
             <label class="filter-option">
-              <input type="radio" name="category" value="all" <%= !filters.category || filters.category === 'all' ? 'checked' : '' %> onchange="this.form.submit()">
+              <input type="radio" name="category" value="all" <%= !filters.category || filters.category === 'all' ? 'checked' : '' %>>
               <span>All Categories</span>
             </label>
             <% if (categories && categories.length > 0) { %>
               <% categories.filter(c => !c.isBlocked).forEach(category => { %>
                 <label class="filter-option">
-                  <input type="radio" name="category" value="<%= category._id %>" <%= filters.category === String(category._id) ? 'checked' : '' %> onchange="this.form.submit()">
+                  <input type="radio" name="category" value="<%= category._id %>" <%= filters.category === String(category._id) ? 'checked' : '' %>>
                   <span><%= category.name %></span>
                 </label>
               <% }); %>
@@ -352,19 +390,19 @@
           <h3>Dietary Type</h3>
           <div class="filter-options">
             <label class="filter-option">
-              <input type="radio" name="dietaryType" value="all" <%= !filters.dietaryType || filters.dietaryType === 'all' ? 'checked' : '' %> onchange="this.form.submit()">
+              <input type="radio" name="dietaryType" value="all" <%= !filters.dietaryType || filters.dietaryType === 'all' ? 'checked' : '' %>>
               <span>All</span>
             </label>
             <label class="filter-option">
-              <input type="radio" name="dietaryType" value="veg" <%= filters.dietaryType === 'veg' ? 'checked' : '' %> onchange="this.form.submit()">
+              <input type="radio" name="dietaryType" value="veg" <%= filters.dietaryType === 'veg' ? 'checked' : '' %>>
               <span>Vegetarian</span>
             </label>
             <label class="filter-option">
-              <input type="radio" name="dietaryType" value="nonveg" <%= filters.dietaryType === 'nonveg' ? 'checked' : '' %> onchange="this.form.submit()">
+              <input type="radio" name="dietaryType" value="nonveg" <%= filters.dietaryType === 'nonveg' ? 'checked' : '' %>>
               <span>Non-Vegetarian</span>
             </label>
             <label class="filter-option">
-              <input type="radio" name="dietaryType" value="vegan" <%= filters.dietaryType === 'vegan' ? 'checked' : '' %> onchange="this.form.submit()">
+              <input type="radio" name="dietaryType" value="vegan" <%= filters.dietaryType === 'vegan' ? 'checked' : '' %>>
               <span>Vegan</span>
             </label>
           </div>
@@ -380,6 +418,7 @@
   <input type="number" id="maxPrice" name="maxPrice" value="<%= filters.maxPrice || '' %>" placeholder="Max">
 </div>
 <button type="submit" class="btn btn-primary w-100 mt-3">Apply Filters</button>
+<a href="/menu" class="btn btn-outline-secondary w-100 mt-2">Clear All Filters</a>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/14.7.0/nouislider.min.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
@@ -413,18 +452,17 @@
       minInput.value = values[0];
       maxInput.value = values[1];
     });
-    priceSlider.noUiSlider.on('change', function() {
-      form.submit();
+    priceSlider.noUiSlider.on('change', function(values) {
+      minInput.value = Math.round(values[0]);
+      maxInput.value = Math.round(values[1]);
     });
     minInput.addEventListener('change', function() {
       var min = Math.max(sliderMin, Math.min(this.value, maxInput.value));
       priceSlider.noUiSlider.set([min, null]);
-      form.submit();
     });
     maxInput.addEventListener('change', function() {
       var max = Math.min(sliderMax, Math.max(this.value, minInput.value));
       priceSlider.noUiSlider.set([null, max]);
-      form.submit();
     });
   });
 </script>
@@ -555,9 +593,35 @@
 <div class="filter-overlay" id="filterOverlay" onclick="toggleMobileFilters()"></div>
  
 <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/14.7.0/nouislider.min.js"></script>
-<script src="/public/js/menu.js"></script>
+<script src="/public/js/user/menu.js?v=1.2"></script>
 
 <script>
+
+
+function clearAllFilters() {
+    const form = document.getElementById('menuFilterForm');
+    if (!form) return;
+
+    // Reset standard inputs
+    form.querySelector('#searchInput').value = '';
+    form.querySelector('#sortSelect').selectedIndex = 0;
+    form.querySelector('input[name="category"][value="all"]').checked = true;
+    form.querySelector('input[name="dietaryType"][value="all"]').checked = true;
+
+    // Reset price slider (noUiSlider)
+    const priceSlider = document.getElementById('priceRange');
+    if (priceSlider && priceSlider.noUiSlider) {
+        priceSlider.noUiSlider.reset();
+    }
+    
+    // Clear price inputs manually as well
+    form.querySelector('#minPrice').value = '';
+    form.querySelector('#maxPrice').value = '';
+
+    // Submit the form to refresh content
+    form.submit();
+}
+
 // Function to handle pagination with POST method
 function submitPageForm(pageNumber) {
     const form = document.getElementById('menuFilterForm');
@@ -606,6 +670,7 @@ document.addEventListener('keydown', function(e) {
         }
     }
 });
+
 
 async function toggleWishlist(productId, button) {
     try {

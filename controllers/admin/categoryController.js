@@ -2,7 +2,7 @@ const Category = require("../../models/categorySchema");
 const Product = require("../../models/productSchema");
 const Cart = require("../../models/cartSchema");
 
-(exports.listCategories = async (req, res) => {
+exports.listCategories = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = 10;
@@ -51,8 +51,8 @@ const Cart = require("../../models/cartSchema");
       user: req.admin,
     });
   }
-}),
-  (exports.addCategory = async (req, res) => {
+},
+  exports.addCategory = async (req, res) => {
     try {
       const { name, description } = req.body;
 
@@ -93,8 +93,8 @@ const Cart = require("../../models/cartSchema");
         message: "Failed to add category",
       });
     }
-  }),
-  (exports.editCategory = async (req, res) => {
+  },
+  exports.editCategory = async (req, res) => {
     try {
       const { categoryId } = req.params;
       const { name, description } = req.body;
@@ -146,8 +146,8 @@ const Cart = require("../../models/cartSchema");
         message: "Failed to update category",
       });
     }
-  }),
-  (exports.toggleStatus = async (req, res) => {
+  },
+  exports.toggleStatus = async (req, res) => {
     try {
       const { categoryId } = req.params;
       const category = await Category.findById(categoryId);
@@ -181,8 +181,8 @@ const Cart = require("../../models/cartSchema");
         error: error.message,
       });
     }
-  }),
-  (exports.removeBlockedCategoryFromCarts = async function (categoryId) {
+  },
+  exports.removeBlockedCategoryFromCarts = async function (categoryId) {
     try {
      
       const productsInCategory = await Product.find({ category: categoryId });
@@ -193,7 +193,7 @@ const Cart = require("../../models/cartSchema");
       }
 
            const cartsWithBlockedProducts = await Cart.find({
-        "items.product": { $in: productIds },
+           "items.product": { $in: productIds },
       });
 
     
@@ -255,4 +255,4 @@ const Cart = require("../../models/cartSchema");
       
       throw error;
     }
-  });
+  };

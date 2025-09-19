@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+
     // Initialize everything
     initWishlistButtons();
     initCountdownTimers();

@@ -1183,6 +1183,29 @@
 
     <!-- Price Summary + Retry Payment -->
     <div class="order-summary">
+
+          <!-- Shipping Address -->
+          <div class="order-info-card" style="margin-bottom: 20px;">
+            <div class="card-header">
+              <h2>Shipping Address</h2>
+            </div>
+            <div class="card-content" style="padding: 20px;">
+              <% if (order.shippingAddress) { %>
+                <p class="address-text" style="margin-bottom: 0;">
+                  <strong><%= order.shippingAddress.name %></strong><br>
+                  <%= order.shippingAddress.addressLine1 %><br>
+                  <% if (order.shippingAddress.addressLine2) { %>
+                    <%= order.shippingAddress.addressLine2 %><br>
+                  <% } %>
+                  <%= order.shippingAddress.city %>, <%= order.shippingAddress.state %> <%= order.shippingAddress.zipCode %><br>
+                  <%= order.shippingAddress.country %><br>
+                  Phone: <%= order.shippingAddress.phone %>
+                </p>
+              <% } else { %>
+                <p>No shipping address available.</p>
+              <% } %>
+            </div>
+          </div>
       <div class="order-info-card price-summary">
         <div class="card-header">
           <h2>Price Details</h2>

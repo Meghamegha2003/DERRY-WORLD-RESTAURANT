@@ -14,6 +14,135 @@ const SORT_OPTIONS = {
     'price-high': { salesPrice: -1 }
 };
 
+exports.buildMenuPipeline = (filterData) => {
+    const { search, category, dietaryType, minPrice, maxPrice, sort } = filterData;
+    
+    const pipeline = [
+        {
+            $match: {
+                isListed: true,
+                isBlocked: false
+            }
+        },
+        {
+            $lookup: {
+                from: 'categories',
+                localField: 'category',
+                foreignField: '_id',
+                as: 'category'
+            }
+        },
+        {
+            $unwind: '$category'
+        },
+        {
+            $match: {
+                'category.isBlocked': false,
+                'category.isListed': true
+            }
+        }
+    ];
+
+    if (search && typeof search === 'string' && search.trim()) {
+        pipeline.push({
+            $match: {
+                name: { $regex: search.trim(), $options: 'i' }
+            }
+        });
+    }
+
+    if (category && category !== 'all') {
+        pipeline.push({
+            $match: {
+                'category._id': new mongoose.Types.ObjectId(category)
+            }
+        });
+    }
+
+    if (dietaryType && dietaryType !== 'all' && ['veg','nonveg','vegan'].includes(dietaryType)) {
+        pipeline.push({
+            $match: {
+                dietaryType: dietaryType
+            }
+        });
+    }
+
+    pipeline.push({
+        $addFields: {
+            basePrice: {
+                $cond: {
+                    if: { $and: [{ $ne: ['$salesPrice', null] }, { $lt: ['$salesPrice', '$regularPrice'] }] },
+                    then: '$salesPrice',
+                    else: '$regularPrice'
+                }
+            }
+        }
+    });
+
+    // Add price range filter
+    const minPriceNum = parseFloat(minPrice);
+    const maxPriceNum = parseFloat(maxPrice);
+    if (!isNaN(minPriceNum) || !isNaN(maxPriceNum)) {
+        const priceMatch = {};
+        if (!isNaN(minPriceNum)) priceMatch.$gte = minPriceNum;
+        if (!isNaN(maxPriceNum)) priceMatch.$lte = maxPriceNum;
+        
+        pipeline.push({
+            $match: {
+                basePrice: priceMatch
+            }
+        });
+    }
+
+    // Add sorting
+    let sortStage = {};
+    if (sort === 'price-low') {
+        sortStage = { basePrice: 1 };
+    } else if (sort === 'price-high') {
+        sortStage = { basePrice: -1 };
+    } else if (sort === 'name-asc') {
+        sortStage = { name: 1 };
+    } else if (sort === 'name-desc') {
+        sortStage = { name: -1 };
+    } else {
+        sortStage = { createdAt: -1 };
+    }
+    
+    pipeline.push({ $sort: sortStage });
+
+    return pipeline;
+};
+
+exports.getPriceRange = async () => {
+    const priceRangePipeline = [
+        { $match: { isListed: true, isBlocked: false } },
+        {
+            $addFields: {
+                basePrice: {
+                    $cond: {
+                        if: { $and: [{ $ne: ['$salesPrice', null] }, { $lt: ['$salesPrice', '$regularPrice'] }] },
+                        then: '$salesPrice',
+                        else: '$regularPrice'
+                    }
+                }
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                minPrice: { $min: '$basePrice' },
+                maxPrice: { $max: '$basePrice' }
+            }
+        }
+    ];
+    
+    const priceRangeResult = await Product.aggregate(priceRangePipeline);
+    return {
+        min: Math.floor(priceRangeResult[0]?.minPrice || 0),
+        max: Math.ceil(priceRangeResult[0]?.maxPrice || 1000)
+    };
+};
+
 exports.buildQuery = () => ({
     isListed: true,
     isBlocked: false,
@@ -56,66 +185,35 @@ exports.getUniqueProductCount = (cart) => {
 
 exports.renderMenuPage = async (req, res) => {
     try {
-        // Support both GET (query params) and POST (request body) methods
         const isPostRequest = req.method === 'POST';
         const filterData = isPostRequest ? req.body : req.query;
-        const { page = 1, search, sort, category, dietaryType, minPrice, maxPrice } = filterData;
+        const { page = 1 } = filterData;
         
-        const query = exports.buildQuery();
-        if (search && typeof search === 'string' && search.trim()) {
-            query.name = { $regex: '^' + search.trim(), $options: 'i' };
-        }
+        // Build aggregation pipeline
+        const pipeline = exports.buildMenuPipeline(filterData);
         
-        const activeCategories = await Category.find({ isBlocked: false, isListed: true }).lean();
-        const activeCategoryIds = activeCategories.map(cat => cat._id.toString());
+        // Get total count for pagination
+        const countPipeline = [...pipeline, { $count: "total" }];
+        const countResult = await Product.aggregate(countPipeline);
+        const totalProducts = countResult[0]?.total || 0;
+
+        // Add pagination to pipeline
+        pipeline.push(
+            { $skip: (page - 1) * ITEMS_PER_PAGE },
+            { $limit: ITEMS_PER_PAGE }
+        );
+
+        // Execute aggregation
+        let products = await Product.aggregate(pipeline);
+
+        // Apply complex offers (still needs JavaScript for complex logic)
+        let productsWithOffers = await exports.applyOffersAndFilter(products);
         
-        if (category && activeCategoryIds.includes(category)) {
-            query.category = category;
-        } else {
-            query.category = { $in: activeCategoryIds };
-        }
-        
-        if (dietaryType && ['veg','nonveg','vegan'].includes(dietaryType)) {
-            query.dietaryType = dietaryType;
-        }
-        
-        let allProducts = await Product.find(query)
-            .populate('category')
-            .lean();
-            
-        let productsWithOffers = await exports.applyOffersAndFilter(allProducts);
-        const finalPrices = productsWithOffers.map(p => p.finalPrice);
-        const priceRangeMin = finalPrices.length ? Math.min(...finalPrices) : 0;
-        const priceRangeMax = finalPrices.length ? Math.max(...finalPrices) : 0;
-        
-        let minPriceNum = parseFloat(minPrice);
-        let maxPriceNum = parseFloat(maxPrice);
-        if (!isNaN(minPriceNum)) {
-            productsWithOffers = productsWithOffers.filter(p => p.finalPrice >= minPriceNum);
-        }
-        if (!isNaN(maxPriceNum)) {
-            productsWithOffers = productsWithOffers.filter(p => p.finalPrice <= maxPriceNum);
-        }
-        
-        if (sort === 'price-low') {
-            productsWithOffers.sort((a, b) => a.finalPrice - b.finalPrice);
-        } else if (sort === 'price-high') {
-            productsWithOffers.sort((a, b) => b.finalPrice - a.finalPrice);
-        } else if (sort === 'name-asc') {
-            productsWithOffers.sort((a, b) => a.name.localeCompare(b.name));
-        } else if (sort === 'name-desc') {
-            productsWithOffers.sort((a, b) => b.name.localeCompare(a.name));
-        } else {
-            productsWithOffers.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        }
-        
-        const totalProducts = productsWithOffers.length;
-        const startIdx = (page - 1) * ITEMS_PER_PAGE;
-        const paginated = productsWithOffers.slice(startIdx, startIdx + ITEMS_PER_PAGE);
-        const products = paginated;
+        // Get price range for slider
+        const priceRange = await exports.getPriceRange();
         
         const categories = await exports.getActiveCategories();
-        const processedProducts = await exports.addWishlistStatus(products, req.user?._id);
+        const processedProducts = await exports.addWishlistStatus(productsWithOffers, req.user?._id);
         const totalPages = Math.ceil(totalProducts / ITEMS_PER_PAGE);
         
         let cartCount = 0;
@@ -131,13 +229,13 @@ exports.renderMenuPage = async (req, res) => {
             products: finalProducts,
             categories,
             filters: {
-                search: search || '',
+                search: filterData.search || '',
                 page: parseInt(page) || 1,
-                sort: sort || '',
-                category: category || '',
-                dietaryType: dietaryType || '',
-                minPrice: minPrice || '',
-                maxPrice: maxPrice || ''
+                sort: filterData.sort || '',
+                category: filterData.category || '',
+                dietaryType: filterData.dietaryType || '',
+                minPrice: filterData.minPrice || '',
+                maxPrice: filterData.maxPrice || ''
             },
             pagination: {
                 currentPage: parseInt(page) || 1,
@@ -149,11 +247,8 @@ exports.renderMenuPage = async (req, res) => {
             },
             cartCount,
             user: req.user || null,
-            activeSort: sort || 'default',
-            priceRange: {
-                min: Math.floor(priceRangeMin || 0),
-                max: Math.ceil(priceRangeMax || 1000)
-            }
+            activeSort: filterData.sort || 'default',
+            priceRange
         });
     } catch (error) {
         res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('error', {
@@ -259,7 +354,6 @@ exports.searchProducts = async (req, res) => {
             });
         }
 
-        // Search in product name and description
         const products = await Product.find({
             $and: [
                 { $or: [
@@ -311,106 +405,8 @@ exports.filterProducts = async (req, res) => {
 };
 
 exports.filterMenuPage = async (req, res) => {
-    try {
-        const { page = 1, search, sort, category, dietaryType, minPrice, maxPrice } = req.body;
-        
-        const query = exports.buildQuery();
-        if (search && typeof search === 'string' && search.trim()) {
-            query.name = { $regex: '^' + search.trim(), $options: 'i' };
-        }
-        
-        const activeCategories = await Category.find({ isBlocked: false, isListed: true }).lean();
-        const activeCategoryIds = activeCategories.map(cat => cat._id.toString());
-        
-        if (category && category !== 'all' && activeCategoryIds.includes(category)) {
-            query.category = category;
-        } else {
-            query.category = { $in: activeCategoryIds };
-        }
-        
-        if (dietaryType && dietaryType !== 'all' && ['veg','nonveg','vegan'].includes(dietaryType)) {
-            query.dietaryType = dietaryType;
-        }
-        
-        let allProducts = await Product.find(query)
-            .populate('category')
-            .lean();
-            
-        let productsWithOffers = await exports.applyOffersAndFilter(allProducts);
-        const finalPrices = productsWithOffers.map(p => p.finalPrice);
-        const priceRangeMin = finalPrices.length ? Math.min(...finalPrices) : 0;
-        const priceRangeMax = finalPrices.length ? Math.max(...finalPrices) : 0;
-        
-        let minPriceNum = parseFloat(minPrice);
-        let maxPriceNum = parseFloat(maxPrice);
-        if (!isNaN(minPriceNum)) {
-            productsWithOffers = productsWithOffers.filter(p => p.finalPrice >= minPriceNum);
-        }
-        if (!isNaN(maxPriceNum)) {
-            productsWithOffers = productsWithOffers.filter(p => p.finalPrice <= maxPriceNum);
-        }
-        
-        if (sort === 'price-low') {
-            productsWithOffers.sort((a, b) => a.finalPrice - b.finalPrice);
-        } else if (sort === 'price-high') {
-            productsWithOffers.sort((a, b) => b.finalPrice - a.finalPrice);
-        } else if (sort === 'name-asc') {
-            productsWithOffers.sort((a, b) => a.name.localeCompare(b.name));
-        } else if (sort === 'name-desc') {
-            productsWithOffers.sort((a, b) => b.name.localeCompare(a.name));
-        } else {
-            productsWithOffers.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        }
-        
-        const totalProducts = productsWithOffers.length;
-        const startIdx = (page - 1) * ITEMS_PER_PAGE;
-        const paginated = productsWithOffers.slice(startIdx, startIdx + ITEMS_PER_PAGE);
-        const products = paginated;
-        
-        const categories = await exports.getActiveCategories();
-        const processedProducts = await exports.addWishlistStatus(products, req.user?._id);
-        const totalPages = Math.ceil(totalProducts / ITEMS_PER_PAGE);
-        
-        let cartCount = 0;
-        if (req.user) {
-            const cart = await Cart.findOne({ user: req.user._id });
-            cartCount = exports.getUniqueProductCount(cart);
-        }
-        
-        const finalProducts = Array.isArray(processedProducts) ? processedProducts : [];
-        
-
-        res.render('user/menu', {
-            title: 'Menu',
-            products: finalProducts,
-            categories,
-            filters: {
-                search: search || '',
-                page: parseInt(page) || 1,
-                sort: sort || '',
-                category: category || '',
-                dietaryType: dietaryType || '',
-                minPrice: minPrice || '',
-                maxPrice: maxPrice || ''
-            },
-            pagination: {
-                currentPage: parseInt(page) || 1,
-                totalPages: totalPages || 1,
-                hasNextPage: page < totalPages,
-                hasPrevPage: page > 1,
-                nextPage: (parseInt(page) || 1) + 1,
-                prevPage: Math.max(1, (parseInt(page) || 1) - 1)
-            },
-            cartCount,
-            user: req.user || null,
-            activeSort: sort || 'default',
-            priceRange: {
-                min: Math.floor(priceRangeMin || 0),
-                max: Math.ceil(priceRangeMax || 1000)
-            },
-            priceRangeMin: Math.floor(priceRangeMin || 0),
-            priceRangeMax: Math.ceil(priceRangeMax || 1000)
-        });
+    try { 
+        return exports.renderMenuPage(req, res);
     } catch (error) {
         res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('error', {
             message: 'Failed to load menu',
