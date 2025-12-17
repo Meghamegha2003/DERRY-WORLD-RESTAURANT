@@ -313,10 +313,6 @@
 </style>
 
 <section class="menu-section">
-  <!-- Floating Reload Button -->
-  <button type="button" class="floating-reload-btn" title="Clear Filters" onclick="clearAllFilters()">
-    <i class="fas fa-sync-alt"></i>
-  </button>
   <div class="container">
     <div class="heading_container heading_center">
       <h2>Our Menu</h2>
@@ -598,29 +594,6 @@
 <script>
 
 
-function clearAllFilters() {
-    const form = document.getElementById('menuFilterForm');
-    if (!form) return;
-
-    // Reset standard inputs
-    form.querySelector('#searchInput').value = '';
-    form.querySelector('#sortSelect').selectedIndex = 0;
-    form.querySelector('input[name="category"][value="all"]').checked = true;
-    form.querySelector('input[name="dietaryType"][value="all"]').checked = true;
-
-    // Reset price slider (noUiSlider)
-    const priceSlider = document.getElementById('priceRange');
-    if (priceSlider && priceSlider.noUiSlider) {
-        priceSlider.noUiSlider.reset();
-    }
-    
-    // Clear price inputs manually as well
-    form.querySelector('#minPrice').value = '';
-    form.querySelector('#maxPrice').value = '';
-
-    // Submit the form to refresh content
-    form.submit();
-}
 
 // Function to handle pagination with POST method
 function submitPageForm(pageNumber) {

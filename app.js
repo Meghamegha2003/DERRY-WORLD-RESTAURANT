@@ -24,6 +24,7 @@ const uploadRoutes = require('./routes/user/uploadRoutes');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandlers');
 const { auth, adminAuth, checkUserBlocked } = require('./middlewares/authMiddleware');
 const { cacheControl, preventBackAfterLogin, preventCache } = require('./middlewares/cacheControl');
+const { setViewLocals } = require('./middlewares/viewLocals');
 
 const app = express();
 
@@ -37,58 +38,9 @@ app.use(cookieParser());
 app.use(cacheControl);
 app.use(preventBackAfterLogin);
 
-// Check if user is blocked
-app.use((req, res, next) => {
-    if (req.path.startsWith('/admin') || 
-        req.path.startsWith('/login') || 
-        req.path.startsWith('/register') || 
-        req.path.startsWith('/public') || 
-        req.path.startsWith('/uploads') ||
-        req.path.startsWith('/auth/google')) {
-        return next();
-    }
-    checkUserBlocked(req, res, next);
-});
-
-// Set authentication info to locals
-app.use((req, res, next) => {
-    res.locals.authenticated = Boolean(req.cookies.userToken);
-    next();
-});
-
-// Fetch user and cart info
-app.use(async (req, res, next) => {
-    try {
-        const jwt = require('jsonwebtoken');
-        const User = require('./models/userSchema');
-        const Cart = require('./models/cartSchema');
-
-        const token = req.cookies.userToken;
-        if (!token) {
-            res.locals.user = null;
-            res.locals.cartCount = 0;
-            return next();
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.userId).select('-password');
-
-        if (user && user.isActive) {
-            res.locals.user = user;
-            const cart = await Cart.findOne({ user: user._id });
-            res.locals.cartCount = cart?.items ? new Set(cart.items.map(i => i.product?.toString())).size : 0;
-        } else {
-            res.locals.user = null;
-            res.locals.cartCount = 0;
-        }
-
-        next();
-    } catch (error) {
-        res.locals.user = null;
-        res.locals.cartCount = 0;
-        next();
-    }
-});
+// Global middleware to set view locals and check for blocked users
+app.use(setViewLocals);
+app.use(checkUserBlocked);
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/public', express.static(path.join(__dirname, 'public')));
