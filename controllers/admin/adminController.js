@@ -146,7 +146,7 @@ exports.adminLogout = (req, res) => {
   try {
     res.clearCookie("adminToken", {
       httpOnly: true,
-      secure: false, // Allow HTTP for production domain
+      secure: false, 
       sameSite: 'lax',
       path: '/'
     });
@@ -156,8 +156,6 @@ exports.adminLogout = (req, res) => {
     return res.status(500).json({ success: false, message: "Logout failed", error: error.message });
   }
 };
-
-
 
 exports.loadDashboard = async (req, res) => {
   try {

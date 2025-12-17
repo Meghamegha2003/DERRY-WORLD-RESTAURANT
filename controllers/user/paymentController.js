@@ -510,7 +510,6 @@ exports.verifyPayment = async (req, res) => {
         
 
         existingOrder.paymentStatus = PAYMENT_STATUS.PAID;
-        // existingOrder.orderStatus is kept at Pending; admin must update to Processing
         existingOrder.razorpay = existingOrder.razorpay || {};
         existingOrder.razorpay.orderId = razorpayOrderId;
         existingOrder.razorpay.paymentId = razorpayPaymentId;
@@ -521,7 +520,6 @@ exports.verifyPayment = async (req, res) => {
 
         await existingOrder.save();
 
-        // Set order token in cookie to prevent going back to checkout
         const orderToken = jwt.sign(
             { orderId: order._id.toString(), userId: req.user._id },
             process.env.JWT_SECRET,
@@ -547,12 +545,10 @@ exports.processWalletPayment = async (req, res) => {
         const userId = req.user._id;
         const { addressId } = req.body;
 
-        // Start transaction if enabled
         if (useTransactions) {
             session.startTransaction();
         }
 
-        // Find user (with or without session)
         const query = User.findById(userId);
         if (useTransactions) query.session(session);
         const user = await query;
@@ -565,7 +561,6 @@ exports.processWalletPayment = async (req, res) => {
             return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'User not found' });
         }
 
-        // Find user's cart
         const cartQuery = Cart.findOne({ user: userId })
             .populate({ path: 'items.product', populate: { path: 'category' } });
             
@@ -589,7 +584,6 @@ exports.processWalletPayment = async (req, res) => {
             return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'Shipping address not found' });
         }
 
-        // First get order items with best offers applied
         const orderItems = await exports.getOrderItems(cart.items);
         
         const subtotal = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -600,7 +594,6 @@ exports.processWalletPayment = async (req, res) => {
 
        
 
-        // Calculate final amount after all discounts and offers
         const finalAmount = Math.max(0, total); 
         
       
@@ -631,7 +624,6 @@ exports.processWalletPayment = async (req, res) => {
         }
 
         try {
-            // Prepare order items with required fields
             const processedOrderItems = orderItems.map(item => ({
                 ...item,
                 status: 'Active', 
@@ -764,7 +756,6 @@ exports.processWalletPayment = async (req, res) => {
         });
     }
 };
-
 
 exports.handlePaymentFailure = async (req, res) => {
     try {

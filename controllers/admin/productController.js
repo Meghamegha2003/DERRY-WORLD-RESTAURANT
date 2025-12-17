@@ -309,7 +309,6 @@ exports.getProductDetails = async (req, res) => {
   }
 };
 
-
 exports.deleteProductImage = async (req, res) => {
   try {
     const { productId, imageIndex } = req.params;

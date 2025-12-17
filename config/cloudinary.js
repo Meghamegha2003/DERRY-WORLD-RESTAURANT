@@ -6,7 +6,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Helper function to upload buffer to Cloudinary
 const uploadToCloudinary = async (buffer, options = {}) => {
   return new Promise((resolve, reject) => {
     cloudinary.uploader.upload_stream(
@@ -25,7 +24,6 @@ const uploadToCloudinary = async (buffer, options = {}) => {
   });
 };
 
-// Helper function to delete from Cloudinary
 const deleteFromCloudinary = async (publicId) => {
   try {
     const result = await cloudinary.uploader.destroy(publicId);

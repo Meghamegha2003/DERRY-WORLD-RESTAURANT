@@ -109,7 +109,6 @@ exports.getUserOrders = async (req, res) => {
               : 0;
           return sum + itemDiscount;
         }, 0);
-        // Calculate coupon discount with same logic as orderDetails
         let couponDiscount = 0;
         if (orderObj.appliedCoupon && orderObj.appliedCoupon.code) {
           const subtotalAfterOffers = items.reduce(
@@ -117,7 +116,6 @@ exports.getUserOrders = async (req, res) => {
             0
           );
           
-          // If discountValue is missing, look up the coupon from database
           if (!orderObj.appliedCoupon.discountValue && orderObj.appliedCoupon.couponId) {
             try {
               const couponFromDB = await Coupon.findById(orderObj.appliedCoupon.couponId);
@@ -127,7 +125,6 @@ exports.getUserOrders = async (req, res) => {
                 orderObj.appliedCoupon.minPurchase = couponFromDB.minPurchase;
               }
             } catch (error) {
-              // Error fetching coupon details for orders list
             }
           }
           
@@ -208,11 +205,9 @@ exports.getUserOrders = async (req, res) => {
   }
 };
 
-// Get order details
 exports.getOrderDetails = async (req, res) => {
   try {
     if (!req.user) {
-      // Pass intended destination as a query param for stateless redirect
       return res.redirect(
         `/login?returnTo=${encodeURIComponent(req.originalUrl)}`
       );
@@ -246,14 +241,12 @@ exports.getOrderDetails = async (req, res) => {
 
     const processedOrder = order.toObject();
     
-    // Get rating information for each product
     const Rating = require('../../models/ratingSchema');
     const userRatings = await Rating.find({
       user: req.user._id,
       product: { $in: processedOrder.items.map(item => item.product._id) }
     });
     
-    // Create a map for quick lookup
     const ratingMap = {};
     userRatings.forEach(rating => {
       ratingMap[rating.product.toString()] = rating;
@@ -281,7 +274,6 @@ exports.getOrderDetails = async (req, res) => {
             ? offerDetails.finalPrice
             : item.product.salesPrice || regularPrice;
 
-        // Get user's rating for this product
         const userRating = ratingMap[item.product._id.toString()] || null;
 
         return {
@@ -310,7 +302,6 @@ exports.getOrderDetails = async (req, res) => {
           : 0;
       return sum + itemDiscount;
     }, 0);
-    // Calculate coupon discount using helper function for consistency
     let couponDiscount = 0;
     if (processedOrder.appliedCoupon && processedOrder.appliedCoupon.code) {
       const subtotalAfterOffers = processedOrder.items.reduce(
@@ -318,7 +309,6 @@ exports.getOrderDetails = async (req, res) => {
         0
       );
       
-      // If discountValue is missing, look up the coupon from database
       if (!processedOrder.appliedCoupon.discountValue && processedOrder.appliedCoupon.couponId) {
         try {
           const couponFromDB = await Coupon.findById(processedOrder.appliedCoupon.couponId);
@@ -328,7 +318,6 @@ exports.getOrderDetails = async (req, res) => {
             processedOrder.appliedCoupon.minPurchase = couponFromDB.minPurchase;
           }
         } catch (error) {
-          // Error fetching coupon details
         }
       }
       
@@ -364,7 +353,7 @@ exports.getOrderDetails = async (req, res) => {
     if (processedOrder.orderStatus === ORDER_STATUS.DELIVERED && deliveryDate) {
       const deliveryTime = new Date(deliveryDate);
       const now = new Date();
-      const returnWindowMs = 15 * 60 * 1000; // 15 minutes
+      const returnWindowMs = 15 * 60 * 1000; 
       const msLeft = deliveryTime.getTime() + returnWindowMs - now.getTime();
       if (msLeft > 0) {
         canReturn = true;
@@ -394,7 +383,6 @@ exports.getOrderDetails = async (req, res) => {
   }
 };
 
-// Cancel order
 exports.cancelOrder = async (req, res) => {
   try {
     if (!req.body.reason) {
@@ -452,7 +440,6 @@ exports.cancelOrder = async (req, res) => {
       }
     }
 
-    // Process refund using the refund service
     if (
       updatedOrder.paymentMethod &&
       updatedOrder.paymentMethod.toLowerCase() !== "cod" &&
@@ -472,7 +459,6 @@ exports.cancelOrder = async (req, res) => {
         throw new Error(`Order cancelled, but there was an issue with the refund: ${error.message}`);
       }
     } else {
-      // No refund needed
     }
 
     res.json({
@@ -491,7 +477,6 @@ exports.cancelOrder = async (req, res) => {
 };
 
 
-// Cancel order item
 exports.cancelOrderItem = async (req, res) => {
   try {
     const { orderId, itemId } = req.params;
@@ -548,28 +533,23 @@ exports.cancelOrderItem = async (req, res) => {
             { new: true }
           );
           if (!updateResult) {
-            // Product not found or update failed
           }
         }
       } catch (err) {
-        // Error updating product quantity
       }
     }
 
     const itemTotal = item.price * item.quantity;
 
-    // Mark item as cancelled FIRST so coupon calculations see the correct status
     item.status = "Cancelled";
     item.cancelReason = reason;
     item.cancelledAt = new Date();
 
-    // Update coupon calculations using new system AFTER marking as cancelled
     const { updateOrderCouponCalculations } = require('../../helpers/couponHelper');
     
     await updateOrderCouponCalculations(order);
     
 
-    // Process refund for non-COD orders
     if (
       order.paymentMethod &&
       order.paymentMethod.toLowerCase() !== "cod" &&
@@ -579,22 +559,18 @@ exports.cancelOrderItem = async (req, res) => {
         const refundResult = await processItemRefund(order, item, 'Cancellation');
         
         if (!refundResult.success) {
-          // Continue with cancellation even if refund fails
         }
         
       } catch (error) {
-        // Continue with cancellation even if refund fails
       }
     }
 
-    // Ensure the order total doesn't go below zero
     order.total = Math.max(0, order.total - itemTotal);
 
     const allItemsCancelled = order.items.every(
       (item) => item.status === "Cancelled"
     );
     
-    // If total becomes zero after cancellation, update payment status if needed
     if (order.total === 0 && order.paymentStatus === PAYMENT_STATUS.PAID) {
       order.paymentStatus = PAYMENT_STATUS.REFUNDED;
     }
@@ -609,14 +585,11 @@ exports.cancelOrderItem = async (req, res) => {
       }
     }
 
-    // Always save order after modifications
     await order.save();
 
-    // Calculate updated order totals for frontend
     const activeItems = order.items.filter(item => item.status !== 'Cancelled' && item.status !== 'Returned');
     const newItemsTotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     
-    // Coupon discount is already updated by the refund service
     const newTotal = newItemsTotal - order.couponDiscount + (order.deliveryCharge || 0);
     
     res.json({
@@ -640,7 +613,6 @@ exports.cancelOrderItem = async (req, res) => {
   }
 };
 
-// Request item return
 exports.requestItemReturn = async (req, res) => {
   try {
     const { orderId, itemId } = req.params;
@@ -654,7 +626,6 @@ exports.requestItemReturn = async (req, res) => {
       });
     }
 
-    // Find the order and verify it belongs to the user
     const order = await Order.findOne({
       _id: orderId,
       user: userId,
@@ -684,21 +655,17 @@ exports.requestItemReturn = async (req, res) => {
       });
     }
 
-    // Only set return request status - NO refund processing yet
-    item.status = "Active"; // Keep item as active until admin approves
+    item.status = "Active"; 
     item.returnStatus = "Pending";
     item.returnReason = reason;
     item.returnRequestDate = new Date();
-    // Do NOT set refundAmount or refundStatus yet - only when approved
 
-    // Check if this is a single product order or last remaining product
     const activeItems = order.items.filter(orderItem => 
       orderItem.status === 'Active' && 
       orderItem.returnStatus !== 'Pending' &&
       orderItem._id.toString() !== item._id.toString()
     );
     
-    // If no other active items remain, update order status to Return Requested
     if (activeItems.length === 0) {
       order.orderStatus = 'Return Requested';
       order.returnRequestedDate = new Date();
@@ -706,7 +673,6 @@ exports.requestItemReturn = async (req, res) => {
 
     await order.save();
 
-    // Calculate updated totals for frontend (excluding items with pending returns)
     const activeItemsForTotal = order.items.filter(item => 
       item.status !== 'Cancelled' && 
       item.status !== 'Returned' && 
@@ -717,7 +683,6 @@ exports.requestItemReturn = async (req, res) => {
     const currentCouponDiscount = order.couponDiscount || 0;
     const currentTotal = currentItemsTotal - currentCouponDiscount + (order.deliveryCharge || 0);
     
-    // Calculate pending return amount
     const pendingReturnItems = order.items.filter(item => item.returnStatus === 'Pending');
     const pendingReturnAmount = pendingReturnItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     
@@ -740,10 +705,8 @@ exports.requestItemReturn = async (req, res) => {
   }
 };
 
-// Admin: Approve return request
 exports.approveReturn = async (req, res) => {
   const { orderId, itemId } = req.params;
-  // Admin might not have a user session, so we get userId from the order
 
   try {
     const order = await Order.findById(orderId).populate('items.product');
@@ -762,24 +725,20 @@ exports.approveReturn = async (req, res) => {
     item.returnStatus = "Approved";
     item.returnApprovedDate = new Date();
     
-    // Update coupon calculations using new system
     const { updateOrderCouponCalculations } = require('../../helpers/couponHelper');
     await updateOrderCouponCalculations(order);
     
-    // Check if this approval affects order-level status
     const remainingActiveItems = order.items.filter(orderItem => 
       orderItem.status === 'Active' && 
       orderItem.returnStatus !== 'Pending' &&
       orderItem._id.toString() !== item._id.toString()
     );
     
-    // If no other active items remain, update order status to Return Approved
     if (remainingActiveItems.length === 0) {
       order.orderStatus = 'Return Approved';
       order.returnApprovedDate = new Date();
     }
 
-    // Process refund for non-COD orders
     if (
       order.paymentMethod &&
       order.paymentMethod.toLowerCase() !== "cod" &&
@@ -802,12 +761,10 @@ exports.approveReturn = async (req, res) => {
         });
       }
     } else {
-      // For COD orders, just mark as completed
       item.refundStatus = "Completed";
       item.refundDate = new Date();
     }
 
-    // Restore product quantity
     if (item.product) {
         await Product.findByIdAndUpdate(item.product._id, { $inc: { quantity: item.quantity } });
     }
@@ -821,7 +778,6 @@ exports.approveReturn = async (req, res) => {
   }
 };
 
-// Admin: Reject return request
 exports.rejectReturn = async (req, res) => {
   const { orderId, itemId } = req.params;
 
@@ -838,25 +794,21 @@ exports.rejectReturn = async (req, res) => {
       return res.status(400).json({ success: false, message: "Item not found or return not pending" });
     }
 
-    item.status = "Delivered"; // Revert status
+    item.status = "Delivered";
     item.returnStatus = "Rejected";
     item.returnRejectedDate = new Date();
     
-    // Update coupon calculations using new system
     const { updateOrderCouponCalculations } = require('../../helpers/couponHelper');
     await updateOrderCouponCalculations(order);
     
-    // Check if this rejection affects order-level status
     const pendingReturnItems = order.items.filter(orderItem => 
       orderItem.returnStatus === 'Pending'
     );
     
-    // If no pending returns remain and order was in Return Requested status, revert to Delivered
     if (pendingReturnItems.length === 0 && order.orderStatus === 'Return Requested') {
       order.orderStatus = 'Delivered';
       order.returnRejectedDate = new Date();
     } else if (pendingReturnItems.length === 0) {
-      // If there were multiple items and this was the last pending return
       const hasActiveItems = order.items.some(orderItem => 
         orderItem.status === 'Active' || orderItem.status === 'Delivered'
       );
@@ -866,7 +818,6 @@ exports.rejectReturn = async (req, res) => {
       }
     }
 
-    // Coupon discount recalculation is handled by refund service when needed
     await order.save();
 
     res.json({ success: true, message: "Return rejected." });
@@ -876,7 +827,6 @@ exports.rejectReturn = async (req, res) => {
   }
 };
 
-// Submit product rating
 exports.submitRating = async (req, res) => {
   try {
     const { productId, rating, orderId, review, images } = req.body;
@@ -890,7 +840,6 @@ exports.submitRating = async (req, res) => {
       });
     }
 
-    // Find the order and verify it belongs to the user
     const order = await Order.findOne({
       _id: orderId,
       user: userId,
@@ -915,7 +864,6 @@ exports.submitRating = async (req, res) => {
       });
     }
 
-    // Check if user already rated this product using Rating schema
     const Rating = require('../../models/ratingSchema');
     const existingRating = await Rating.findOne({
       user: userId,
@@ -929,12 +877,10 @@ exports.submitRating = async (req, res) => {
       });
     }
 
-    // Get user name for the rating
     const User = require('../../models/userSchema');
     const user = await User.findById(userId).select('name');
     const userName = user ? user.name : 'Anonymous';
 
-    // Create new rating in separate Rating schema
     const newRating = new Rating({
       user: userId,
       product: productId,
@@ -946,7 +892,6 @@ exports.submitRating = async (req, res) => {
 
     await newRating.save();
 
-    // Update product's average rating and total ratings
     const Product = require('../../models/productSchema');
     const allRatings = await Rating.find({ product: productId });
     
@@ -971,14 +916,12 @@ exports.submitRating = async (req, res) => {
   }
 };
 
-// Request return
 exports.requestReturn = async (req, res) => {
   try {
     const { orderId } = req.params;
     const { reason, comment, rating } = req.body;
     const userId = req.user._id;
 
-    // Validate reason
     if (!reason) {
       return res.status(HttpStatus.BAD_REQUEST).json({
         success: false,
@@ -986,7 +929,6 @@ exports.requestReturn = async (req, res) => {
       });
     }
 
-    // Validate orderId
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       return res.status(HttpStatus.BAD_REQUEST).json({
         success: false,
@@ -1006,7 +948,6 @@ exports.requestReturn = async (req, res) => {
       });
     }
 
-    // Check if return is possible
     const currentStatus = (
       order.orderStatus ||
       order.status ||
@@ -1040,12 +981,10 @@ exports.requestReturn = async (req, res) => {
       });
     }
 
-    // Update order status and reason
     order.orderStatus = ORDER_STATUS.RETURN_REQUESTED;
     order.status = ORDER_STATUS.RETURN_REQUESTED;
     order.returnReason = reason;
 
-    // Update all items to return requested
     order.items.forEach((item) => {
       item.status = "Return Requested";
       item.returnReason = reason;
@@ -1068,7 +1007,6 @@ exports.requestReturn = async (req, res) => {
       comment: `Return requested due to: ${reason}`,
     });
 
-    // Save order with validation bypass
     await order.save({ validateBeforeSave: false });
 
     res.status(200).json({
@@ -1093,7 +1031,6 @@ exports.requestReturn = async (req, res) => {
   }
 };
 
-// Show retry payment page
 exports.showRetryPaymentPage = async (req, res) => {
   try {
     const orderId = req.params.orderId;
@@ -1107,7 +1044,7 @@ exports.showRetryPaymentPage = async (req, res) => {
       (order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
       - (order.couponDiscount || 0)
       + (order.deliveryCharge || 0)) * 100
-    ); // in paise
+    ); 
 
     const razorpayOrder = await razorpay.orders.create({
       amount,
@@ -1127,7 +1064,6 @@ exports.showRetryPaymentPage = async (req, res) => {
   }
 };
 
-// POST /retry-payment-initiate/:orderId
 exports.initiateRetryPayment = async (req, res) => {
   try {
     const orderId = req.params.orderId;
@@ -1156,7 +1092,6 @@ exports.initiateRetryPayment = async (req, res) => {
   }
 };
 
-// Download Invoice Handler
 exports.downloadInvoice = async (req, res) => {
   try {
     const orderId = req.params.orderId;
@@ -1165,8 +1100,7 @@ exports.downloadInvoice = async (req, res) => {
       return res.status(404).send("Order not found");
     }
 
-    // Seller details (set via env or defaults)
-    const sellerName = process.env.SELLER_NAME || "Derry World"; // Updated name per request
+    const sellerName = process.env.SELLER_NAME || "Derry World"; 
     const sellerAddress = process.env.SELLER_ADDRESS || "123 Main Street, City, State, ZIP";
     const sellerGSTIN = process.env.SELLER_GSTIN || "XXXXXXXXXXXXXXX";
     const sellerEmail = process.env.SELLER_EMAIL || "DERRY@gmail.com";
@@ -1175,7 +1109,6 @@ exports.downloadInvoice = async (req, res) => {
     const sellerPhone = process.env.SELLER_PHONE || "6282679552";
     const invoiceNumber = `INV-${order._id.toString().slice(-8).toUpperCase()}`;
 
-    // Create PDF
     const doc = new PDFDocument({ margin: 40 });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename=invoice_${orderId}.pdf`);
@@ -1197,12 +1130,10 @@ exports.downloadInvoice = async (req, res) => {
        .text(`Phone: ${sellerPhone}`, { align: 'center', width: headerWidth });
     doc.moveDown();
 
-    // Invoice Title
     doc.fillColor('#ffc107').font('Helvetica-Bold').fontSize(16).text('Invoice', { align: 'center' });
     doc.fillColor('black');
     doc.moveDown();
 
-    // Order Details
     doc.font('Helvetica').fontSize(12)
        .text(`Name of user: ${req.user.name}`, left + 10)
        .text(`Order ID: #${order._id.toString().slice(-8).toUpperCase()}`, left + 10)
@@ -1211,11 +1142,9 @@ exports.downloadInvoice = async (req, res) => {
     doc.text(`Payment Method: ${method}`, left + 10);
     doc.moveDown();
 
-    // Products:
     doc.fillColor('#ffc107').font('Helvetica-Bold').fontSize(12).text('Products:', left + 10);
     doc.fillColor('black');
 
-    // Invoice Items Table
     const tableLeft = left + 10;
     const tableTop = doc.y + 10;
     const widths = [40, 220, 60, 80, 80];
@@ -1223,7 +1152,6 @@ exports.downloadInvoice = async (req, res) => {
     const widthSum = widths.reduce((acc, w) => acc + w, 0);
     const rowHeight = 25;
 
-    // Header background
     doc.fillColor('#333').rect(tableLeft, tableTop, widthSum, rowHeight).fill().stroke();
     doc.fillColor('#fff').font('Helvetica-Bold').fontSize(10);
     let x = tableLeft;
@@ -1232,14 +1160,12 @@ exports.downloadInvoice = async (req, res) => {
       x += widths[i];
     });
 
-    // Filter only active items for invoice
     const activeItems = order.items.filter(item => item.status === 'Active');
 
     for (let i = 0; i < activeItems.length + 1; i++) {
       doc.strokeColor('#ccc').lineWidth(0.5).moveTo(tableLeft, tableTop + (i + 1) * rowHeight).lineTo(tableLeft + widthSum, tableTop + (i + 1) * rowHeight).stroke();
     }
 
-    // Rows
     let y = tableTop + rowHeight;
     activeItems.forEach((item, index) => {
       if (index % 2 === 0) {
@@ -1255,20 +1181,15 @@ exports.downloadInvoice = async (req, res) => {
       y += rowHeight;
     });
 
-    // Summary - Calculate totals based on active items only
     const preTotal = activeItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
     
-    // Use new coupon system for invoice
     let currentCouponDiscount = 0;
     
     if (order.balanceCoupon && order.balanceCoupon > 0) {
-      // Use balance coupon from new system
       currentCouponDiscount = order.balanceCoupon;
     } else if (order.totalCoupon && order.deductRefundCoupon !== undefined) {
-      // Calculate from new system fields
       currentCouponDiscount = Math.max(0, order.totalCoupon - order.deductRefundCoupon);
     } else {
-      // Fallback to old calculation for unmigrated orders
       const originalTotalCoupon = order.totalCoupon || 0;
       const usedCouponAmount = order.items
         .filter(item => item.status === 'Cancelled' || item.status === 'Returned' || item.status === 'Return Approved')
@@ -1283,14 +1204,11 @@ exports.downloadInvoice = async (req, res) => {
     
     doc.font('Helvetica').fontSize(10).text(`Total Amount: ₹${preTotal.toFixed(2)}`, tableLeft, y + 10, { width: widthSum, align: 'right' });
     
-    // Show detailed coupon information if applied
     
     if (currentCouponDiscount > 0) {
       if (order.appliedCoupon && order.appliedCoupon.code) {
-        // Show coupon code and discount details
         doc.text(`Coupon Applied (${order.appliedCoupon.code}): -₹${currentCouponDiscount.toFixed(2)}`, { width: widthSum, align: 'right' });
         
-        // Add coupon details in smaller text - only for percentage discounts
         let couponDetails = '';
         if (order.appliedCoupon.discountType && order.appliedCoupon.discountValue && order.appliedCoupon.discountType === 'percentage') {
           couponDetails = `${order.appliedCoupon.discountValue}% discount`;
@@ -1305,7 +1223,6 @@ exports.downloadInvoice = async (req, res) => {
           doc.fillColor('black').fontSize(10);
         }
       } else {
-        // Fallback to simple coupon discount display
         doc.text(`Coupon Discount: -₹${currentCouponDiscount.toFixed(2)}`, { width: widthSum, align: 'right' });
       }
     }

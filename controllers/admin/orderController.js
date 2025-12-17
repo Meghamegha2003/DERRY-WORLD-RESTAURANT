@@ -76,7 +76,6 @@ exports.getStatusBadgeClass = (status) => {
     }
 };
 
-
 exports.getPaymentStatusColor = (status) => {
     switch (status) {
         case PAYMENT_STATUS.PENDING:

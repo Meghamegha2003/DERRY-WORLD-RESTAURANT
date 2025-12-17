@@ -345,7 +345,6 @@ exports.updateOffer = async (req, res) => {
     }
 };
 
-
 exports.toggleOfferStatus = async (req, res) => {
     try {
         const offer = await Offer.findById(req.params.id);

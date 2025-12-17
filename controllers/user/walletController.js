@@ -29,7 +29,7 @@ exports.initializeAddMoney = async function(req, res) {
         }
 
         const options = {
-            amount: amount * 100, // Razorpay expects amount in paise
+            amount: amount * 100, 
             currency: 'INR',
             receipt: `wallet_${Date.now()}`,
             payment_capture: 1
@@ -95,7 +95,6 @@ exports.verifyAndAddMoney = async function(req, res) {
             });
         }
 
-        // Find or create wallet
         let wallet = await Wallet.findOne({ user: userId });
         
         if (!wallet) {
@@ -108,7 +107,6 @@ exports.verifyAndAddMoney = async function(req, res) {
 
         wallet.balance = (wallet.balance || 0) + amountValue;
         
-        // Add transaction
         wallet.transactions.push({
             type: 'credit',
             amount: amountValue,
@@ -147,7 +145,7 @@ exports.getWallet = async function(req, res) {
     try {
         const userId = req.user._id;
         const page = parseInt(req.query.page) || 1;
-        const limit = 5; // Number of transactions per page
+        const limit = 5; 
         
         let wallet = await Wallet.findOne({ user: userId });
             
@@ -208,15 +206,15 @@ exports.getWallet = async function(req, res) {
                 date: txDate,
                 type: tx.type || 'credit',
                 amount: tx.amount || 0,
-                originalAmount: tx.originalAmount || tx.amount || 0, // Fallback to amount if originalAmount not set
+                originalAmount: tx.originalAmount || tx.amount || 0, 
                 couponDiscount: tx.couponDiscount || 0,
                 couponRatio: tx.couponRatio || 0,
-                offerDiscount: tx.offerDiscount || 0, // Add offerDiscount for completeness
-                finalAmount: tx.finalAmount || tx.amount || 0, // Add finalAmount
+                offerDiscount: tx.offerDiscount || 0,
+                finalAmount: tx.finalAmount || tx.amount || 0, 
                 description: description,
                 status: tx.status || 'completed',
                 orderId: tx.orderId,
-                orderReference: tx.orderId, // Add orderReference for backward compatibility
+                orderReference: tx.orderId,
                 referenceId: tx.referenceId || `TXN-${Date.now()}`,
                 previousBalance: tx.previousBalance || 0,
                 newBalance: tx.newBalance || (tx.amount || 0)
@@ -240,7 +238,7 @@ exports.getWallet = async function(req, res) {
                     prevPage: page > 1 ? page - 1 : null
                 }
             },
-            txList: txList, // Add transactions in the format expected by the view
+            txList: txList,
             cartCount: cartCount,
             referral: referral,
             razorpayKey: process.env.RAZORPAY_KEY_ID || ''
@@ -260,8 +258,8 @@ exports.generateReferralCode = function(userId) {
 
 exports.processReferralReward = async function(referrerId, referredId) {
     try {
-        const referrerBonus = 100; // ₹100 for referrer
-        const referredBonus = 50;  // ₹50 for new user
+        const referrerBonus = 100; 
+        const referredBonus = 50;  
 
         const referrerWallet = await Wallet.findOne({ user: referrerId });
         if (!referrerWallet) {
@@ -279,12 +277,11 @@ exports.processReferralReward = async function(referrerId, referredId) {
             }).save();
         } else {
             referrerWallet.balance += referrerBonus;
-            // Add transaction to wallet with order details
             referrerWallet.transactions.push({
                 type: 'debit',
-                amount: referrerBonus, // Original order total before discounts
-                finalAmount: referrerBonus, // Final amount after all discounts
-                originalAmount: referrerBonus, // Keep original amount for reference
+                amount: referrerBonus, 
+                finalAmount: referrerBonus, 
+                originalAmount: referrerBonus, 
                 offerDiscount: 0,
                 couponDiscount: 0,
                 description: `Referral bonus - Thank you for referring a friend!`,
@@ -316,12 +313,11 @@ exports.processReferralReward = async function(referrerId, referredId) {
             }).save();
         } else {
             referredWallet.balance += referredBonus;
-            // Add transaction to wallet with order details
             referredWallet.transactions.push({
                 type: 'debit',
-                amount: referredBonus, // Original order total before discounts
-                finalAmount: referredBonus, // Final amount after all discounts
-                originalAmount: referredBonus, // Keep original amount for reference
+                amount: referredBonus,
+                finalAmount: referredBonus, 
+                originalAmount: referredBonus, 
                 offerDiscount: 0,
                 couponDiscount: 0,
                 description: `Welcome bonus for joining via referral!`,
@@ -338,7 +334,6 @@ exports.processReferralReward = async function(referrerId, referredId) {
         }
 
         return true;
-        // Update user's wallet reference
         if (!user.wallet) {
             user.wallet = wallet._id;
             await user.save();

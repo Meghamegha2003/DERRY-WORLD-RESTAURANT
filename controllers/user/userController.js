@@ -113,7 +113,6 @@ exports.loginUser = async (req, res) => {
       });
     }
 
-    // Check for admin login attempt
     if (user.roles.includes("admin")) {
       return res.status(HttpStatus.UNAUTHORIZED).json({
         success: false,
@@ -121,7 +120,6 @@ exports.loginUser = async (req, res) => {
       });
     }
 
-    // Check if account is active
     if (!user.isActive) {
       res.clearCookie("userToken", {
         httpOnly: true,
@@ -134,7 +132,6 @@ exports.loginUser = async (req, res) => {
       });
     }
 
-    // Verify password
     const isMatch = await user.comparePassword(password);
     
     if (!isMatch) {
@@ -144,21 +141,18 @@ exports.loginUser = async (req, res) => {
       });
     }
 
-    // Generate token and prepare response
     const cartCount = await getCartCount(user._id);
     const token = generateToken(user, cartCount);
 
-    // Set the token in cookie
     res.cookie("userToken", token, {
       httpOnly: true,
-      secure: false, // Allow HTTP for production domain
+      secure: false, 
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/'
     });
     
 
-    // Return success response
     return res.json({
       success: true,
       message: 'Login successful',
@@ -176,7 +170,7 @@ exports.loginUser = async (req, res) => {
 exports.logoutUser = (req, res) => {
   res.clearCookie("userToken", {
     httpOnly: true,
-    secure: false, // Allow HTTP for production domain
+    secure: false, 
     sameSite: 'lax',
     path: "/"
   });
@@ -238,60 +232,49 @@ exports.registerUser = async (req, res) => {
   try {
     const { name, email, phone, password, referralCode } = req.body;
 
-    // Validate input
     if (!name || !email || !phone || !password) {
       return res.redirect(`/register?error=${encodeURIComponent('All fields are required')}&name=${encodeURIComponent(name || '')}&email=${encodeURIComponent(email || '')}&phone=${encodeURIComponent(phone || '')}`);
     }
 
-    // Validate name format
     const nameRegex = /^[A-Za-z][A-Za-z\s]*$/;
     if (!nameRegex.test(name.trim())) {
       return res.redirect(`/register?error=${encodeURIComponent('Name must start with a letter and contain only letters and spaces')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
     }
 
-    // Validate email format
     const emailRegex = /^[A-Za-z][\w.-]*@([\w-]+\.)+[a-zA-Z]{2,7}$/;
     if (!emailRegex.test(email.toLowerCase())) {
       return res.redirect(`/register?error=${encodeURIComponent('Please enter a valid email address')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
     }
 
-    // Validate phone format
     const phoneRegex = /^\d{10}$/;
     if (!phoneRegex.test(phone)) {
       return res.redirect(`/register?error=${encodeURIComponent('Phone number must be exactly 10 digits')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
     }
 
-    // Validate strong password format
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(password)) {
       return res.redirect(`/register?error=${encodeURIComponent('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
     }
 
-    // Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.redirect(`/register?error=${encodeURIComponent('Email already registered. Please login instead.')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
     }
 
-    // Check if phone already exists
     const existingPhone = await User.findOne({ phone });
     if (existingPhone) {
       return res.redirect(`/register?error=${encodeURIComponent('Phone number already registered')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
     }
 
-    // Verify referral code if provided
     let referredBy = null;
     if (referralCode && referralCode.trim() !== '') {
-      // Convert to uppercase for case-insensitive matching
       const cleanReferralCode = referralCode.trim().toUpperCase();
       
-      // Check if the referral code matches the format
       const referralCodeRegex = /^[A-Z0-9]{6,10}$/;
       if (!referralCodeRegex.test(cleanReferralCode)) {
         return res.redirect(`/register?error=${encodeURIComponent('Invalid referral code format. Must be 6-10 alphanumeric characters.')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
       }
       
-      // Find the referrer
       const referrer = await User.findOne({ 
         referralCode: { $regex: new RegExp(`^${cleanReferralCode}$`, 'i') } 
       });
@@ -300,7 +283,6 @@ exports.registerUser = async (req, res) => {
         return res.redirect(`/register?error=${encodeURIComponent('Referral code not found. Please check and try again.')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
       }
       
-      // Prevent self-referral
       if (email === referrer.email) {
         return res.redirect(`/register?error=${encodeURIComponent('You cannot use your own referral code')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
       }
@@ -309,14 +291,11 @@ exports.registerUser = async (req, res) => {
     }
 
     try {
-        // Generate OTP
         const otp = generateOtp();
-        const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+        const expiresAt = new Date(Date.now() + 30 * 60 * 1000); 
 
-        // Delete any existing OTP for this email
         await OTP.deleteMany({ email: email.toLowerCase() });
 
-        // Create new OTP record
         await OTP.create({ 
             email: email.toLowerCase(), 
             otp, 
@@ -324,17 +303,15 @@ exports.registerUser = async (req, res) => {
             createdAt: new Date()
         });
 
-        // Generate referral code for new user
         const newReferralCode = generateReferralCode();
 
-        // Create JWT token with user data for verification
         const otpToken = jwt.sign(
             {
                 purpose: 'otp_verification',
                 name: name.trim(),
                 email: email.toLowerCase(),
                 phone,
-                password, // Will be hashed later during user creation
+                password, 
                 referralCode: newReferralCode,
                 referredBy,
                 timestamp: Date.now()
@@ -343,23 +320,19 @@ exports.registerUser = async (req, res) => {
             { expiresIn: '30m' }
         );
 
-        // Set OTP token in cookie with HTTP-compatible configuration
         res.cookie('otpToken', otpToken, {
             httpOnly: true,
-            secure: false, // Allow HTTP for production domain
-            maxAge: 30 * 60 * 1000, // 30 minutes
+            secure: false, 
+            maxAge: 30 * 60 * 1000, 
             sameSite: 'lax',
             path: '/'
         });
 
-        // Also include the token in the redirect URL as a fallback
         const redirectUrl = `/verify-otp?token=${encodeURIComponent(otpToken)}`;
         
         
-        // Send OTP email
         await sendOtpEmail(email.toLowerCase(), otp);
 
-        // Redirect with token in URL as fallback
         res.redirect(redirectUrl);
     } catch (error) {
         return res.redirect(`/register?error=${encodeURIComponent('Registration failed. Please try again.')}`);
@@ -401,7 +374,7 @@ exports.resendOTP = async (req, res) => {
     }
 
     const otp = generateOtp();
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); 
 
     await OTP.deleteMany({ email: decoded.email });
     await OTP.create({ 
@@ -429,11 +402,10 @@ exports.resendOTP = async (req, res) => {
       { expiresIn: '30m' }
     );
 
-    // Set cookie with production-safe configuration for resend
     res.cookie('otpToken', newToken, {
         httpOnly: true,
-        secure: false, // Allow HTTP for production domain
-        maxAge: 30 * 60 * 1000, // 30 minutes
+        secure: false, 
+        maxAge: 30 * 60 * 1000, 
         sameSite: 'lax',
         path: '/'
     });
@@ -488,8 +460,8 @@ exports.renderVerifyOtpPage = async (req, res) => {
       if (tokenFromUrl && !tokenFromCookie) {
         res.cookie('otpToken', otpToken, {
             httpOnly: true,
-            secure: false, // Allow HTTP for production domain
-            maxAge: 30 * 60 * 1000, // 30 minutes
+            secure: false, 
+            maxAge: 30 * 60 * 1000, 
             sameSite: 'lax',
             path: '/'
         });
@@ -644,7 +616,6 @@ exports.verifyOTP = async (req, res) => {
         
         exports.sendWelcomeEmail(userData.email, userData.name)
           .catch(emailError => {
-            // Email sending failed, but continue with registration
           });
         
         if (req.accepts('json')) {
@@ -796,7 +767,7 @@ exports.googleCallback = async (req, res) => {
 
     res.cookie('userToken', token, {
       httpOnly: true,
-      secure: false, // Allow HTTP for production domain
+      secure: false, 
       sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/'
@@ -817,13 +788,11 @@ exports.googleCallback = async (req, res) => {
 };
 
 
-// Profile Controllers
 exports.updateUserProfile = async (req, res) => {
   try {
     const userId = req.user._id;
     const { name, email, phone } = req.body;
 
-    // Validate input
     if (!name || !email || !phone) {
       return res.status(400).json({
         success: false,
@@ -831,7 +800,6 @@ exports.updateUserProfile = async (req, res) => {
       });
     }
 
-    // Check if email is already taken by another user
     const existingUser = await User.findOne({ 
       email, 
       _id: { $ne: userId } 
@@ -844,7 +812,6 @@ exports.updateUserProfile = async (req, res) => {
       });
     }
 
-    // Update user profile
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { 
@@ -881,7 +848,6 @@ exports.updateUserProfile = async (req, res) => {
   }
 };
 
-// Render home page
 exports.renderHomePage = async (req, res) => {
   try {
     const selectedCategoryId = req.query.category;
@@ -897,7 +863,7 @@ exports.renderHomePage = async (req, res) => {
     const productQuery = {
       isListed: true,
       isBlocked: false,
-      quantity: { $gt: 0 } // Only include products with quantity > 0
+      quantity: { $gt: 0 } 
     };
 
     if (selectedCategoryId && selectedCategoryId !== 'all') {
@@ -910,13 +876,12 @@ exports.renderHomePage = async (req, res) => {
         match: { isBlocked: false, isListed: true }
       })
       .populate('ratings')
-      .sort({ createdAt: -1 }) // Sort by newest first
-      .limit(8) // Limit to 8 products
+      .sort({ createdAt: -1 }) 
+      .limit(8) 
       .lean();
 
     const validProducts = products.filter(p => p.category);
 
-    // Apply offers
     const productsWithOffers = await Promise.all(validProducts.map(async (product) => {
       const offerDetails = await OfferService.getBestOffer(product);
       return {
@@ -925,7 +890,6 @@ exports.renderHomePage = async (req, res) => {
       };
     }));
 
-    // Get wishlist & cart
     let wishlistItems = [];
     let cartItems = [];
 
@@ -937,7 +901,6 @@ exports.renderHomePage = async (req, res) => {
       cartItems = cart?.items?.map(item => item.product.toString()) || [];
     }
 
-    // Add wishlist + cart status to products
     const finalProducts = productsWithOffers.map(product => ({
       ...product,
       isInWishlist: req.user ? wishlistItems.includes(product._id.toString()) : false,
@@ -962,7 +925,6 @@ exports.renderHomePage = async (req, res) => {
 };
 
 
-// Render about page
 exports.renderAboutPage = async (req, res) => {
   try {
     let cartCount = 0;
@@ -981,7 +943,6 @@ exports.renderAboutPage = async (req, res) => {
   }
 };
 
-// Render contact page
 exports.renderContactPage = async (req, res) => {
     try {
         let cartCount = 0;
@@ -1004,7 +965,6 @@ exports.renderContactPage = async (req, res) => {
     }
 };
 
-// Address Controllers
 exports.getAddresses = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
@@ -1028,7 +988,6 @@ exports.addAddress = async (req, res) => {
   try {
     const { fullName, phone, addressLine1, addressLine2, city, state, pincode, addressType } = req.body;
 
-    // Validate required fields
     if (!fullName || !phone || !addressLine1 || !city || !state || !pincode || !addressType) {
       return res.status(400).json({
         success: false,
@@ -1036,7 +995,6 @@ exports.addAddress = async (req, res) => {
       });
     }
 
-    // Validate address type
     const validTypes = ['Home', 'Work', 'Other'];
     if (!validTypes.includes(addressType)) {
       return res.status(400).json({
@@ -1045,7 +1003,6 @@ exports.addAddress = async (req, res) => {
       });
     }
 
-    // Check if address already exists
     const existingUser = await User.findOne({
       _id: req.user._id,
       'addresses': {
@@ -1064,11 +1021,9 @@ exports.addAddress = async (req, res) => {
       });
     }
 
-    // Get current address count to determine if this is the first address
     const user = await User.findById(req.user._id);
     const isFirstAddress = user.addresses.length === 0;
 
-    // Create new address object
     const newAddress = {
       fullName,
       phone,
@@ -1081,7 +1036,6 @@ exports.addAddress = async (req, res) => {
       isDefault: isFirstAddress
     };
 
-    // Update the user's addresses array directly using findByIdAndUpdate
     const updatedUser = await User.findByIdAndUpdate(
       req.user._id,
       { 
@@ -1092,7 +1046,6 @@ exports.addAddress = async (req, res) => {
       { new: true, runValidators: true }
     );
 
-    // If this is the first address, make it default
     if (isFirstAddress) {
       await User.updateOne(
         { _id: req.user._id },
@@ -1101,7 +1054,6 @@ exports.addAddress = async (req, res) => {
       newAddress.isDefault = true;
     }
 
-    // Get the newly added address
     const addedAddress = updatedUser.addresses.find(addr => 
       addr.addressLine1 === addressLine1 && 
       addr.city === city && 
@@ -1127,7 +1079,6 @@ exports.updateAddress = async (req, res) => {
     const { id } = req.params;
     const { fullName, phone, addressLine1, addressLine2, city, state, pincode, addressType } = req.body;
 
-    // Validate required fields
     if (!fullName || !phone || !addressLine1 || !city || !state || !pincode || !addressType) {
       return res.status(400).json({
         success: false,
@@ -1135,7 +1086,6 @@ exports.updateAddress = async (req, res) => {
       });
     }
 
-    // Validate address type
     const validTypes = ['Home', 'Work', 'Other'];
     if (!validTypes.includes(addressType)) {
       return res.status(400).json({
@@ -1144,7 +1094,6 @@ exports.updateAddress = async (req, res) => {
       });
     }
 
-    // Validate phone number (10 digits)
     if (!/^\d{10}$/.test(phone)) {
       return res.status(400).json({
         success: false,
@@ -1152,7 +1101,6 @@ exports.updateAddress = async (req, res) => {
       });
     }
 
-    // Validate pincode (6 digits)
     if (!/^\d{6}$/.test(pincode)) {
       return res.status(400).json({
         success: false,
@@ -1160,7 +1108,6 @@ exports.updateAddress = async (req, res) => {
       });
     }
 
-    // Check if the address exists and belongs to the user
     const user = await User.findOne({
       _id: req.user._id,
       'addresses._id': id
@@ -1173,7 +1120,6 @@ exports.updateAddress = async (req, res) => {
       });
     }
 
-    // Check for duplicate address (excluding current address)
     const isDuplicate = user.addresses.some(addr => 
       addr._id.toString() !== id &&
       addr.addressLine1 === addressLine1 &&
@@ -1188,7 +1134,6 @@ exports.updateAddress = async (req, res) => {
       });
     }
 
-    // Prepare the update object
     const updateObj = {
       'addresses.$.fullName': fullName,
       'addresses.$.phone': phone,
@@ -1201,7 +1146,6 @@ exports.updateAddress = async (req, res) => {
       'addresses.$.updatedAt': new Date()
     };
 
-    // Update the address directly in the database
     const result = await User.findOneAndUpdate(
       { 
         _id: req.user._id,
@@ -1218,7 +1162,6 @@ exports.updateAddress = async (req, res) => {
       });
     }
 
-    // Find the updated address to return
     const updatedAddress = result.addresses.find(addr => addr._id.toString() === id);
 
     res.json({
@@ -1245,7 +1188,6 @@ exports.deleteAddress = async (req, res) => {
       });
     }
 
-    // Use findByIdAndUpdate with $pull to remove the address without triggering wishlist validation
     const result = await User.findByIdAndUpdate(
       req.user._id,
       { $pull: { addresses: { _id: addressId } } },
@@ -1259,7 +1201,6 @@ exports.deleteAddress = async (req, res) => {
       });
     }
 
-    // Check if the address was actually removed
     const addressExists = result.addresses.some(addr => 
       addr._id.toString() === addressId
     );
@@ -1284,7 +1225,6 @@ exports.deleteAddress = async (req, res) => {
   }
 };
 
-//handle offer
 exports.applyOffersToProducts = async (products) => {
   for (const product of products) {
     const basePrice = (product.salesPrice && product.salesPrice < product.regularPrice) 
@@ -1388,7 +1328,6 @@ exports.handleResetPassword = async (req, res) => {
     const { token } = req.params;
     const { password, confirmPassword } = req.body;
 
-    // Password validation
     if (!password || !confirmPassword) {
       return res.status(400).json({
         success: false,
@@ -1403,7 +1342,6 @@ exports.handleResetPassword = async (req, res) => {
       });
     }
 
-    // Password strength validation
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
@@ -1423,12 +1361,11 @@ exports.handleResetPassword = async (req, res) => {
       });
     }
 
-    // Set the new password - the pre-save hook will hash it
     user.password = password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
     
-    await user.save(); // This will trigger the pre-save hook to hash the password
+    await user.save(); 
 
     return res.status(200).json({
       success: true,
@@ -1473,7 +1410,6 @@ exports.changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword, confirmPassword } = req.body;
 
-    // Validate input
     if (!currentPassword || !newPassword || !confirmPassword) {
       return res.status(400).json({
         success: false,
@@ -1488,13 +1424,10 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-    // Debug: Print raw MongoDB user document
     const userRaw = await User.collection.findOne({ _id: req.user._id });
-    // If wallet is not null and not an ObjectId, forcibly set it to null in the database (fix legacy/corrupt field)
     if (userRaw.wallet && typeof userRaw.wallet === 'object' && !(userRaw.wallet instanceof require('bson').ObjectId)) {
       await User.collection.updateOne({ _id: req.user._id }, { $set: { wallet: null } });
     }
-    // Get user with password
     const user = await User.findById(req.user._id).select('+password');
     if (!user) {
       return res.status(404).json({
@@ -1503,7 +1436,6 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-    // Check current password
     const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
     if (!isPasswordValid) {
       return res.status(HttpStatus.UNAUTHORIZED).json({
@@ -1513,7 +1445,6 @@ exports.changePassword = async (req, res) => {
     }
 
       user.password = newPassword;
-    // Ensure all optional fields exist (set to null if missing)
     [
       'wallet',
       'verificationToken',
@@ -1524,7 +1455,6 @@ exports.changePassword = async (req, res) => {
     ].forEach(field => {
       if (typeof user[field] === 'undefined') user[field] = null;
     });
-    // Fix wallet field if it is not null and not a valid ObjectId
     const mongoose = require('mongoose');
     if (
       user.wallet !== null &&
@@ -1533,13 +1463,10 @@ exports.changePassword = async (req, res) => {
     ) {
       user.wallet = null;
     }
-     // Save the user with the new password
     await user.save();
-    // Double-check the password hash in the database after save
     const userDb = await User.findById(user._id).select('+password');
    
 
-    // Invalidate user session by clearing the auth cookie (userToken)
     res.clearCookie('userToken');
     res.json({
       success: true,
@@ -1609,25 +1536,23 @@ exports.verifyReferralCode = async (req, res) => {
 
 exports.sendWelcomeEmail = async (email, name) => {
   try {
-    // Create a test account for development
     const testAccount = await nodemailer.createTestAccount();
 
-    // Create reusable transporter object using the default SMTP transport
     const transporter = nodemailer.createTransport({
       host: 'smtp.ethereal.email',
       port: 587,
-      secure: false, // true for 465, false for other ports
+      secure: false,
       auth: {
-        user: testAccount.user, // generated ethereal user
-        pass: testAccount.pass, // generated ethereal password
+        user: testAccount.user,
+        pass: testAccount.pass, 
       },
     });
 
-    // Send mail with defined transport object
+   
     const info = await transporter.sendMail({
-      from: '"Derry World" <welcome@derryworld.com>', // sender address
-      to: email, // list of receivers
-      subject: 'Welcome to Derry World!', // Subject line
+      from: '"Derry World" <welcome@derryworld.com>',
+      to: email, 
+      subject: 'Welcome to Derry World!', 
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
           <h2 style="color: #333;">Welcome to Derry World, ${name}!</h2>
@@ -1708,7 +1633,6 @@ exports.getCartCount = async (userId) => {
   try {
     const cart = await Cart.findOne({ user: userId });
     if (!cart || !cart.items) return 0;
-    // Count unique products, not total quantities
     return new Set(
       cart.items
         .filter(item => item && item.product)
@@ -1767,7 +1691,7 @@ exports.forgotPassword = async (req, res) => {
             .digest('hex');
 
         user.resetPasswordToken = resetTokenHash;
-        user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+        user.resetPasswordExpires = Date.now() + 3600000; 
         await user.save();
 
         

@@ -4,10 +4,8 @@ const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-// Import passport configuration
 require('./config/passport');
 
-// Import routes
 const adminRouter = require('./routes/admin/adminRouter');
 const userRouter = require('./routes/user/userRouter');
 const cartRouter = require('./routes/user/cartRoutes');
@@ -36,13 +34,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Cache control middleware
 app.use(cacheControl);
 app.use(preventBackAfterLogin);
 
-// Check for blocked users on all routes (except admin and auth routes)
+// Check if user is blocked
 app.use((req, res, next) => {
-    // Skip check for admin routes, login/register pages, and static files
     if (req.path.startsWith('/admin') || 
         req.path.startsWith('/login') || 
         req.path.startsWith('/register') || 
@@ -54,55 +50,38 @@ app.use((req, res, next) => {
     checkUserBlocked(req, res, next);
 });
 
-// Apply preventCache to all routes that should not be cached after logout
+// Set authentication info to locals
 app.use((req, res, next) => {
-    if (req.cookies.userToken) {
-        res.locals.authenticated = true;
-    }
+    res.locals.authenticated = Boolean(req.cookies.userToken);
     next();
 });
 
-// Global middleware to make user data available to all templates
+// Fetch user and cart info
 app.use(async (req, res, next) => {
     try {
         const jwt = require('jsonwebtoken');
         const User = require('./models/userSchema');
         const Cart = require('./models/cartSchema');
-        
+
         const token = req.cookies.userToken;
-        
-        if (token) {
-            try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET);
-                const user = await User.findById(decoded.userId).select('-password');
-                
-                if (user && user.isActive) {
-                    res.locals.user = user;
-                    
-                    // Get cart count for user
-                    try {
-                        const cart = await Cart.findOne({ user: user._id });
-                        res.locals.cartCount = cart?.items ? new Set(
-                            cart.items
-                                .filter(item => item && item.product)
-                                .map(item => item.product.toString())
-                        ).size : 0;
-                    } catch (error) {
-                        res.locals.cartCount = 0;
-                    }
-                } else {
-                    res.locals.user = null;
-                    res.locals.cartCount = 0;
-                }
-            } catch (error) {
-                res.locals.user = null;
-                res.locals.cartCount = 0;
-            }
+        if (!token) {
+            res.locals.user = null;
+            res.locals.cartCount = 0;
+            return next();
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.userId).select('-password');
+
+        if (user && user.isActive) {
+            res.locals.user = user;
+            const cart = await Cart.findOne({ user: user._id });
+            res.locals.cartCount = cart?.items ? new Set(cart.items.map(i => i.product?.toString())).size : 0;
         } else {
             res.locals.user = null;
             res.locals.cartCount = 0;
         }
-        
+
         next();
     } catch (error) {
         res.locals.user = null;
@@ -111,11 +90,11 @@ app.use(async (req, res, next) => {
     }
 });
 
-// Static files with cache control
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
+// Admin routes
 const adminGroup = express.Router();
 adminGroup.use('/offers', adminOfferRoutes);
 adminGroup.use('/orders', adminOrderRoutes);
@@ -124,9 +103,10 @@ adminGroup.use('/categories', adminCategoryRoutes);
 adminGroup.use('/coupons', adminCouponRoutes);
 adminGroup.use('/wallet', adminWalletRoutes);
 
-// Admin routes with cache control
 app.use('/admin', preventCache, adminRouter);
 app.use('/admin', preventCache, adminGroup);  
+
+// User routes
 app.use('/payment', paymentRoutes);
 app.use('/auth/google', googleOAuthRoutes);
 app.use('/cart', preventCache, auth, cartRouter);
@@ -135,10 +115,22 @@ app.use('/user/coupons', auth, userCouponRoutes);
 app.use('/checkout', auth, checkoutRouter);
 app.use('/orders', auth, userOrderRoutes);
 app.use('/upload', uploadRoutes);
+
+// Error handling
 app.use(notFoundHandler);
 app.use(errorHandler);
 
+// ----------------- MONGODB CONNECTION -----------------
 const PORT = process.env.PORT || 3000;
+
 mongoose.connect(process.env.MONGODB_URI)
-.then(()=>app.listen(PORT,()=>{console.log(`server run on http://localhost:${PORT}/`); module.exports = app;}))
-.catch((err)=>console.error(err))
+.then(() => {
+    console.log('MongoDB connected successfully');
+    app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}/`));
+})
+.catch((err) => {
+    console.error('MongoDB connection error:', err.message);
+    process.exit(1);
+});
+
+module.exports = app;
