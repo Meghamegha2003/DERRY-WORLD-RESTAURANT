@@ -135,60 +135,79 @@ exports.verifyAndAddMoney = async function (req, res) {
 };
 
 exports.getWallet = async function (req, res) {
-  try {
-    const userId = req.user._id;
-    const page = parseInt(req.query.page) || 1;
-    const limit = 5;
+    try {
+        const userId = req.user._id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = 5;
 
-    let wallet = await Wallet.findOne({ user: userId });
+        let wallet = await Wallet.findOne({ user: userId });
 
-    if (!wallet) {
-      wallet = await Wallet.create({
-        user: userId,
-        balance: 0,
-        transactions: []
-      });
+        if (!wallet) {
+            wallet = await Wallet.create({
+                user: userId,
+                balance: 0,
+                transactions: []
+            });
+        }
+
+        const cart = await Cart.findOne({ user: userId });
+
+        const cartCount = cart?.items
+            ? new Set(cart.items.map(i => i.product.toString())).size
+            : 0;
+
+        const transactionsSorted = wallet.transactions
+            .slice()
+            .sort((a, b) =>
+                new Date(b.createdAt || b.date || 0) -
+                new Date(a.createdAt || a.date || 0)
+            );
+
+        const start = (page - 1) * limit;
+        const paginated = transactionsSorted.slice(start, start + limit);
+
+        const txList = paginated.map(tx => ({
+            _id: tx._id || new mongoose.Types.ObjectId(),
+            date: tx.createdAt || tx.date,
+            type: tx.type,
+            amount: tx.amount,
+            finalAmount: tx.finalAmount,
+            description: tx.description,
+            status: tx.status
+        }));
+
+        const referralTransactions = wallet.transactions.filter(
+            transaction =>
+                transaction.description &&
+                transaction.description.toLowerCase().includes('referral bonus')
+        );
+
+        const referral = {
+            referrerBonus: 100,
+            referredBonus: 50,
+            count: referralTransactions.length,
+            earnings: referralTransactions.reduce(
+                (total, transaction) =>
+                    total + (transaction.amount || 0),
+                0
+            ),
+            code: req.user.referralCode || ''
+        };
+
+        res.render('user/wallet', {
+            title: 'My Wallet',
+            user: req.user,
+            wallet,
+            txList,
+            cartCount,
+            referral
+        });
+
+    } catch (error) {
+        console.error(error);
+        req.flash('error', 'Failed to load wallet');
+        res.redirect('/user/dashboard');
     }
-
-    const cart = await Cart.findOne({ user: userId });
-
-    const cartCount = cart?.items
-      ? new Set(cart.items.map(i => i.product.toString())).size
-      : 0;
-
-    const transactionsSorted = wallet.transactions
-      .slice()
-      .sort((a, b) =>
-        new Date(b.createdAt || b.date || 0) -
-        new Date(a.createdAt || a.date || 0)
-      );
-
-    const start = (page - 1) * limit;
-    const paginated = transactionsSorted.slice(start, start + limit);
-
-    const txList = paginated.map(tx => ({
-      _id: tx._id || new mongoose.Types.ObjectId(),
-      date: tx.createdAt || tx.date,
-      type: tx.type,
-      amount: tx.amount,
-      finalAmount: tx.finalAmount,
-      description: tx.description,
-      status: tx.status
-    }));
-
-    res.render('user/wallet', {
-      title: 'My Wallet',
-      user: req.user,
-      wallet,
-      txList,
-      cartCount
-    });
-
-  } catch (error) {
-    console.error(error);
-    req.flash('error', 'Failed to load wallet');
-    res.redirect('/user/dashboard');
-  }
 };
 
 
