@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 const { Order, ORDER_STATUS, PAYMENT_STATUS } = require('../../models/orderSchema');
 const User = require('../../models/userSchema');
 const Product = require('../../models/productSchema');
-const Wallet = require('../../models/walletSchema');
+const { processOrderRefund, processItemRefund } = require('../../services/refundService');
+const { updateOrderCouponCalculations } = require('../../helpers/couponHelper');
 const { approveReturn, rejectReturn } = require('../user/orderController');
 
 const STATUS_TRANSITIONS = {
@@ -12,9 +13,9 @@ const STATUS_TRANSITIONS = {
     'Delivered': ['Return Requested'],
     'Return Requested': ['Return Approved', 'Return Rejected'],
     'Return Approved': ['Return Completed'],
-    'Return Rejected': [], 
-    'Return Completed': [], 
-    'Cancelled': [] 
+    'Return Rejected': [],
+    'Return Completed': [],
+    'Cancelled': []
 };
 
 
@@ -131,25 +132,25 @@ exports.getOrders = async (req, res) => {
                 let idPart = searchValue.replace(/^#/, '').toUpperCase();
                 const allOrders = await Order.find({}, '_id');
                 const matchedOrderIds = allOrders
-                  .filter(o => o._id.toString().slice(-8).toUpperCase() === idPart)
-                  .map(o => o._id);
+                    .filter(o => o._id.toString().slice(-8).toUpperCase() === idPart)
+                    .map(o => o._id);
                 if (matchedOrderIds.length > 0) {
-                  filter._id = { $in: matchedOrderIds };
+                    filter._id = { $in: matchedOrderIds };
                 } else {
-                  filter._id = { $in: [] };
+                    filter._id = { $in: [] };
                 }
             } else if (searchType === 'customer') {
                 const userRegex = new RegExp(searchValue, 'i');
                 const users = await User.find({
-                  $or: [
-                    { email: userRegex },
-                    { name: userRegex }
-                  ]
+                    $or: [
+                        { email: userRegex },
+                        { name: userRegex }
+                    ]
                 }).select('_id');
                 if (users.length > 0) {
-                  filter.user = { $in: users.map(u => u._id) };
+                    filter.user = { $in: users.map(u => u._id) };
                 } else {
-                  filter.user = null;
+                    filter.user = null;
                 }
             } else if (searchType === 'payment') {
                 filter.paymentMethod = { $regex: searchValue, $options: 'i' };
@@ -210,7 +211,7 @@ exports.getOrders = async (req, res) => {
             formatPaymentMethod: exports.formatPaymentMethod,
             getStatusBadgeClass: exports.getStatusBadgeClass,
             getNextStatuses: exports.getNextStatuses,
-            path : '/admin/orders'
+            path: '/admin/orders'
         });
     } catch (error) {
         if (req.xhr || req.headers.accept?.includes('application/json')) {
@@ -229,10 +230,13 @@ exports.getOrders = async (req, res) => {
 
 exports.updateOrderStatus = async (req, res) => {
     try {
-        const { id } = req.params;
+        const { orderId } = req.params;
         const { status, note } = req.body;
 
-        const order = await Order.findById(id);
+        const order = await Order.findById(orderId)
+            .populate('user')
+            .populate('items.product');
+
         if (!order) {
             return res.status(404).json({
                 success: false,
@@ -240,98 +244,162 @@ exports.updateOrderStatus = async (req, res) => {
             });
         }
 
-       
-        const hasItemActions = order.items && order.items.some(item => 
-            item.status === 'Cancelled' || 
-            item.status === 'Returned' || 
-            item.status === 'Return Requested' || 
-            item.status === 'Return Approved'
-        );
-        const isRetryPaymentScenario = (
-            order.paymentMethod === 'online' && 
-            order.paymentStatus !== PAYMENT_STATUS.PAID && 
-            order.orderStatus === 'Pending' &&
-            !hasItemActions
-        );
-
-        if (isRetryPaymentScenario) {
+        if (
+            order.paymentMethod &&
+            order.paymentMethod.toLowerCase() !== 'cod' &&
+            order.paymentStatus === PAYMENT_STATUS.PENDING &&
+            status === ORDER_STATUS.PROCESSING
+        ) {
             return res.status(400).json({
                 success: false,
-                message: 'Cannot update status: payment not completed'
+                message: 'Payment is still pending'
             });
         }
 
-        const allowedStatuses = exports.getAvailableStatuses(order.orderStatus);
+        const currentStatus = order.orderStatus;
+        const allowedStatuses = STATUS_TRANSITIONS[currentStatus] || [];
+
         if (!allowedStatuses.includes(status)) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid status transition'
+                message: `Cannot change order status from ${currentStatus} to ${status}`
+            });
+        }
+
+        if (status === ORDER_STATUS.CANCELLED) {
+            const result = await exports.handleOrderCancellation(
+                order,
+                note || 'Cancelled by admin'
+            );
+
+            return res.json({
+                success: true,
+                message: 'Order cancelled successfully',
+                refundAmount: result.refundAmount || 0
+            });
+        }
+
+        if (status === ORDER_STATUS.RETURN_APPROVED) {
+            let totalRefundAmount = 0;
+            let processedItems = 0;
+
+            await updateOrderCouponCalculations(order);
+
+            for (const item of order.items) {
+                if (
+                    item.returnStatus === 'Pending' ||
+                    item.status === 'Active'
+                ) {
+                    if (
+                        order.paymentMethod &&
+                        order.paymentMethod.toLowerCase() !== 'cod'
+                    ) {
+                        const refundResult = await processItemRefund(
+                            order,
+                            item,
+                            'Return'
+                        );
+
+                        if (!refundResult.success) {
+                            throw new Error(refundResult.message);
+                        }
+
+                        totalRefundAmount += Number(
+                            refundResult.refundAmount || 0
+                        );
+                    } else {
+                        item.refundAmount = 0;
+                        item.refundStatus = 'Completed';
+                        item.refundDate = new Date();
+                    }
+
+                    item.status = 'Return Approved';
+                    item.returnStatus = 'Approved';
+                    item.returnApprovedAt = new Date();
+
+                    if (item.product) {
+                        const productId = item.product._id
+                            ? item.product._id
+                            : item.product;
+
+                        await Product.findByIdAndUpdate(
+                            productId,
+                            { $inc: { quantity: item.quantity } }
+                        );
+                    }
+
+                    processedItems++;
+                }
+            }
+
+            order.orderStatus = ORDER_STATUS.RETURN_APPROVED;
+
+            if (note) {
+                order.adminNote = note;
+            }
+
+            await updateOrderCouponCalculations(order);
+
+            await order.save();
+
+            return res.json({
+                success: true,
+                message: 'Return approved and refund processed successfully',
+                refundAmount: Number(totalRefundAmount.toFixed(2)),
+                itemsProcessed: processedItems
+            });
+        }
+
+        if (status === ORDER_STATUS.RETURN_REJECTED) {
+            order.orderStatus = ORDER_STATUS.RETURN_REJECTED;
+
+            for (const item of order.items) {
+                if (item.returnStatus === 'Pending') {
+                    item.returnStatus = 'Rejected';
+                    item.returnRejectedAt = new Date();
+                }
+            }
+
+            if (note) {
+                order.adminNote = note;
+            }
+
+            await order.save();
+
+            return res.json({
+                success: true,
+                message: 'Return rejected successfully'
             });
         }
 
         order.orderStatus = status;
+
         if (note) {
-            order.notes.push({
-                content: note,
-                addedBy: req.admin._id
-            });
+            order.adminNote = note;
         }
 
-        if (status === 'Cancelled') {
-            await exports.handleOrderCancellation(order);
-        } else if (status === 'Return Completed') {
-            await exports.handleReturnCompletion(order);
-        } else if (status === ORDER_STATUS.DELIVERED) {
+        if (status === ORDER_STATUS.DELIVERED) {
             order.deliveryDate = new Date();
+        }
+
+        if (status === ORDER_STATUS.RETURN_COMPLETED) {
+            await handleReturnCompletion(order);
         }
 
         await order.save();
 
-        if (status === ORDER_STATUS.RETURN_APPROVED) {
-            const { processItemRefund } = require('../../services/refundService');
-            const { updateOrderCouponCalculations } = require('../../helpers/couponHelper');
-            
-            for (const item of order.items) {
-                item.status = "Return Approved";
-                item.returnStatus = "Approved";
-                item.returnApprovedDate = new Date();
-                
-                if (item.product) {
-                    await Product.findByIdAndUpdate(item.product, { $inc: { quantity: item.quantity } });
-                }
-                
-               if (order.paymentMethod && order.paymentMethod.toLowerCase() !== "cod") {
-                    try {
-                        await processItemRefund(order, item, 'Return');
-                    } catch (error) {}
-                } else {
-                    item.refundStatus = "Completed";
-                    item.refundDate = new Date();
-                }
-            }
-            
-            await updateOrderCouponCalculations(order);
-            
-        }
+        return res.json({
+            success: true,
+            message: `Order status updated to ${status}`
+        });
 
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.json({
-                success: true,
-                message: 'Order status updated successfully',
-                order: {
-                    ...order.toObject(),
-                    statusBadgeClass: exports.getStatusBadgeClass(status),
-                    nextStatuses: exports.getNextStatuses(status)
-                }
-            });
-        }
-
-        res.redirect('/admin/orders/' + id);
     } catch (error) {
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(500).json({ success: false, message: 'Failed to update order status' });
-        }
-        res.status(500).render('admin/error', { message: 'Failed to update order status', error });
+        console.error('updateOrderStatus error:', error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to update order status'
+        });
     }
 };
 
@@ -399,41 +467,8 @@ exports.getOrderDetails = async (req, res) => {
             error
         });
     }
-}; 
-
-exports.handleRefund = async (order, item) => {
-    try {
-        let wallet = await Wallet.findOne({ user: order.user });
-        if (!wallet) {
-            wallet = new Wallet({ user: order.user, balance: 0, transactions: [] });
-        }
-
-        const unitPrice = item.offerPrice != null ? item.offerPrice : item.price;
-        const refundAmount = unitPrice * (item.quantity || 1);
-
-        if (refundAmount > 0) {
-            wallet.balance -= refundAmount;
-            wallet.transactions.push({
-                type: 'debit',
-                amount: refundAmount,
-                description: `Debit for returned item (${item.product ? item.product.toString() : ''})`,
-                date: new Date(),
-                orderId: order._id.toString(),
-                status: 'completed'
-            });
-            await wallet.save();
-            await User.findByIdAndUpdate(order.user, { wallet: wallet._id });
-
-            item.refundAmount = refundAmount;
-            item.refundStatus = 'Completed';
-            item.refundDate = new Date();
-            await order.save();
-          
-        } 
-    } catch (err) {
-        throw err;
-    }
 };
+
 
 exports.handleReturnAction = async (req, res) => {
     const { orderId, itemId, action } = req.params;
@@ -451,40 +486,73 @@ exports.handleReturnAction = async (req, res) => {
 
 exports.handleOrderCancellation = async (order, reason = 'Cancelled by admin') => {
     try {
+        const isOnlinePayment =
+            order.paymentMethod &&
+            order.paymentMethod.toLowerCase() !== 'cod';
+
+        const isPaid =
+            order.paymentStatus === PAYMENT_STATUS.PAID ||
+            order.paymentStatus === PAYMENT_STATUS.COMPLETED;
+
+        let refundAmount = 0;
+
+        if (isOnlinePayment && isPaid) {
+            await updateOrderCouponCalculations(order);
+
+            const refundResult = await processOrderRefund(
+                order,
+                'Cancellation'
+            );
+
+            if (!refundResult.success && refundResult.refundAmount <= 0) {
+                throw new Error(refundResult.message);
+            }
+
+            refundAmount = Number(refundResult.refundAmount || 0);
+
+            if (refundAmount > 0) {
+                order.refundAmount = refundAmount;
+                order.refundStatus = 'Completed';
+                order.refundDate = new Date();
+                order.paymentStatus = PAYMENT_STATUS.REFUNDED;
+            }
+        }
+
+        for (const item of order.items) {
+            if (
+                item.product &&
+                item.status !== 'Cancelled' &&
+                item.status !== 'Returned' &&
+                item.status !== 'Return Approved'
+            ) {
+                const productId = item.product._id
+                    ? item.product._id
+                    : item.product;
+
+                await Product.findByIdAndUpdate(
+                    productId,
+                    { $inc: { quantity: item.quantity } }
+                );
+
+                item.status = 'Cancelled';
+                item.cancelledAt = new Date();
+                item.cancelReason = reason;
+            }
+        }
+
         order.orderStatus = ORDER_STATUS.CANCELLED;
         order.cancelReason = reason;
         order.cancelledAt = new Date();
 
-        for (const item of order.items) {
-            if (item.product) {
-                await Product.findByIdAndUpdate(item.product, { $inc: { quantity: item.quantity } });
-            }
-        }
-
-        if (order.paymentStatus === PAYMENT_STATUS.COMPLETED && order.paymentMethod !== 'COD') {
-            let wallet = await Wallet.findOne({ user: order.user });
-            if (!wallet) {
-                wallet = new Wallet({ user: order.user, balance: 0, transactions: [] });
-            }
-
-            const refundAmount = order.totalAmount || order.total;
-            wallet.balance += refundAmount;
-            wallet.transactions.push({
-                type: 'credit',
-                amount: refundAmount,
-                description: `Refund for cancelled order ${order._id}`,
-                date: new Date(),
-                orderId: order._id.toString(),
-                status: 'completed'
-            });
-
-            await wallet.save();
-            await User.findByIdAndUpdate(order.user, { wallet: wallet._id });
-
-        }
-
         await order.save();
+
+        return {
+            success: true,
+            refundAmount
+        };
+
     } catch (error) {
+        console.error('handleOrderCancellation error:', error);
         throw error;
     }
 };
