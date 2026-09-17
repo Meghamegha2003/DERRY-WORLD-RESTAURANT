@@ -25,14 +25,8 @@ router.post('/register', cacheControl, userController.registerUser);
 router.get('/verify-otp', userController.renderVerifyOtpPage);
 router.post('/verify-otp', userController.verifyOTP);
 router.post('/resend-otp', userController.resendOTP);
+router.post('/resend-otp', userController.handleResendOTP);
 
-// <====Forgot Password Routes====>
-router.get('/forgot-password', cacheControl, preventBackAfterLogin, userController.renderForgotPassword);
-router.post('/forgot-password', cacheControl, userController.handleForgotPassword);
-
-// <====Reset Password Routes====>
-router.get('/reset-password/:token', cacheControl, preventBackAfterLogin, userController.renderResetPassword);
-router.post('/reset-password/:token', cacheControl, userController.handleResetPassword);
 router.post('/verify-referral', cacheControl, userController.verifyReferralCode);
 
 // <====Google Auth Routes====>

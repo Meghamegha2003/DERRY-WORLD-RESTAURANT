@@ -5,7 +5,8 @@ const nodemailer = require("nodemailer");
 const HttpStatus = require('../../utils/httpStatus')
 const generateReferralCode = require('../../utils/generateReferralCode');
 const generateOtp = require('../../utils/generateOtp');
-const {sendOtpEmail}= require('../../utils/sendOtpEmail');
+
+const { sendOtpEmail, sendWelcomeEmail } = require('../../services/emailService');
 
 const cartController = require('./cartController');
 const { processReferralReward } = require('./walletController');
@@ -20,13 +21,15 @@ const Cart = require("../../models/cartSchema");
 const Rating = require("../../models/ratingSchema");
 const OfferService = require('../../services/offerService');
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+const crypto = require("crypto");
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  path: '/'
+};
+
 
 const generateToken = (user, cartCount = 0) => {
   return jwt.sign(
@@ -46,7 +49,7 @@ const handleLoginError = (req, res, message, redirectUrl = '/login', errorType =
   if (errorType === 'admin_login_attempt') {
     message = 'Invalid email or password';
   }
-  
+
   if (req.xhr || req.headers.accept?.includes('application/json')) {
     return res.status(HttpStatus.UNAUTHORIZED).json({
       success: false,
@@ -54,7 +57,7 @@ const handleLoginError = (req, res, message, redirectUrl = '/login', errorType =
       errorType: errorType === 'admin_login_attempt' ? 'error' : errorType
     });
   }
-  
+
   return res.status(HttpStatus.UNAUTHORIZED).render('user/login', {
     title: 'Login',
     path: '/login',
@@ -63,18 +66,7 @@ const handleLoginError = (req, res, message, redirectUrl = '/login', errorType =
   });
 };
 
-const getCartCount = async (userId) => {
-  try {
-    const cart = await Cart.findOne({ user: userId });
-    return cart?.items ? new Set(
-      cart.items
-        .filter(item => item && item.product)
-        .map(item => item.product.toString())
-    ).size : 0;
-  } catch (error) {
-    return 0;
-  }
-};
+
 
 exports.renderLoginPage = async (req, res) => {
   try {
@@ -105,7 +97,7 @@ exports.loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email: email.toLowerCase() });
-    
+
     if (!user) {
       return res.status(HttpStatus.UNAUTHORIZED).json({
         success: false,
@@ -133,7 +125,7 @@ exports.loginUser = async (req, res) => {
     }
 
     const isMatch = await user.comparePassword(password);
-    
+
     if (!isMatch) {
       return res.status(HttpStatus.UNAUTHORIZED).json({
         success: false,
@@ -141,17 +133,12 @@ exports.loginUser = async (req, res) => {
       });
     }
 
-    const cartCount = await getCartCount(user._id);
+    const cart = await Cart.findOne({ user: user._id });
+    const cartCount = cart?.items?.length || 0;
     const token = generateToken(user, cartCount);
 
-    res.cookie("userToken", token, {
-      httpOnly: true,
-      secure: false, 
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/'
-    });
-    
+    res.cookie("userToken", token, cookieOptions);
+
 
     return res.json({
       success: true,
@@ -170,7 +157,7 @@ exports.loginUser = async (req, res) => {
 exports.logoutUser = (req, res) => {
   res.clearCookie("userToken", {
     httpOnly: true,
-    secure: false, 
+    secure: false,
     sameSite: 'lax',
     path: "/"
   });
@@ -232,211 +219,263 @@ exports.registerUser = async (req, res) => {
   try {
     const { name, email, phone, password, referralCode } = req.body;
 
+    const normalizedEmail = email.toLowerCase();
+
     if (!name || !email || !phone || !password) {
-      return res.redirect(`/register?error=${encodeURIComponent('All fields are required')}&name=${encodeURIComponent(name || '')}&email=${encodeURIComponent(email || '')}&phone=${encodeURIComponent(phone || '')}`);
+      return res.redirect(
+        `/register?error=${encodeURIComponent('All fields are required')}&name=${encodeURIComponent(name || '')}&email=${encodeURIComponent(email || '')}&phone=${encodeURIComponent(phone || '')}`
+      );
     }
 
     const nameRegex = /^[A-Za-z][A-Za-z\s]*$/;
+
     if (!nameRegex.test(name.trim())) {
-      return res.redirect(`/register?error=${encodeURIComponent('Name must start with a letter and contain only letters and spaces')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+      return res.redirect(
+        `/register?error=${encodeURIComponent('Invalid name format')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`
+      );
     }
 
     const emailRegex = /^[A-Za-z][\w.-]*@([\w-]+\.)+[a-zA-Z]{2,7}$/;
-    if (!emailRegex.test(email.toLowerCase())) {
-      return res.redirect(`/register?error=${encodeURIComponent('Please enter a valid email address')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+
+    if (!emailRegex.test(normalizedEmail)) {
+      return res.redirect(
+        `/register?error=${encodeURIComponent('Invalid email')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`
+      );
     }
 
     const phoneRegex = /^\d{10}$/;
+
     if (!phoneRegex.test(phone)) {
-      return res.redirect(`/register?error=${encodeURIComponent('Phone number must be exactly 10 digits')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+      return res.redirect(
+        `/register?error=${encodeURIComponent('Phone must be 10 digits')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`
+      );
     }
 
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    const passwordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+
     if (!passwordRegex.test(password)) {
-      return res.redirect(`/register?error=${encodeURIComponent('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+      return res.redirect(
+        `/register?error=${encodeURIComponent('Weak password')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`
+      );
     }
 
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const existingUser = await User.findOne({
+      email: normalizedEmail
+    });
+
     if (existingUser) {
-      return res.redirect(`/register?error=${encodeURIComponent('Email already registered. Please login instead.')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+      return res.redirect(
+        `/register?error=${encodeURIComponent('Email already exists')}`
+      );
     }
 
     const existingPhone = await User.findOne({ phone });
+
     if (existingPhone) {
-      return res.redirect(`/register?error=${encodeURIComponent('Phone number already registered')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+      return res.redirect(
+        `/register?error=${encodeURIComponent('Phone already exists')}`
+      );
     }
 
     let referredBy = null;
+
     if (referralCode && referralCode.trim() !== '') {
-      const cleanReferralCode = referralCode.trim().toUpperCase();
-      
-      const referralCodeRegex = /^[A-Z0-9]{6,10}$/;
-      if (!referralCodeRegex.test(cleanReferralCode)) {
-        return res.redirect(`/register?error=${encodeURIComponent('Invalid referral code format. Must be 6-10 alphanumeric characters.')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
-      }
-      
-      const referrer = await User.findOne({ 
-        referralCode: { $regex: new RegExp(`^${cleanReferralCode}$`, 'i') } 
+      const cleanCode = referralCode.trim().toUpperCase();
+
+      const referrer = await User.findOne({
+        referralCode: {
+          $regex: new RegExp(`^${cleanCode}$`, 'i')
+        }
       });
-      
+
       if (!referrer) {
-        return res.redirect(`/register?error=${encodeURIComponent('Referral code not found. Please check and try again.')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+        return res.redirect(
+          `/register?error=${encodeURIComponent('Invalid referral code')}`
+        );
       }
-      
-      if (email === referrer.email) {
-        return res.redirect(`/register?error=${encodeURIComponent('You cannot use your own referral code')}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+
+      if (referrer.email === normalizedEmail) {
+        return res.redirect(
+          `/register?error=${encodeURIComponent('Cannot use own referral code')}`
+        );
       }
-      
+
       referredBy = referrer._id;
     }
 
-    try {
-        const otp = generateOtp();
-        const expiresAt = new Date(Date.now() + 30 * 60 * 1000); 
+    const otp = generateOtp();
 
-        await OTP.deleteMany({ email: email.toLowerCase() });
+    const expiresAt = new Date(
+      Date.now() + 30 * 60 * 1000
+    );
 
-        await OTP.create({ 
-            email: email.toLowerCase(), 
-            otp, 
-            expiresAt,
-            createdAt: new Date()
-        });
+    const newReferralCode = generateReferralCode(8);
 
-        const newReferralCode = generateReferralCode();
+    await OTP.deleteMany({
+      email: normalizedEmail
+    });
 
-        const otpToken = jwt.sign(
-            {
-                purpose: 'otp_verification',
-                name: name.trim(),
-                email: email.toLowerCase(),
-                phone,
-                password, 
-                referralCode: newReferralCode,
-                referredBy,
-                timestamp: Date.now()
-            },
-            process.env.JWT_SECRET,
-            { expiresIn: '30m' }
-        );
+    await OTP.create({
+      email: normalizedEmail,
+      otp,
+      expiresAt,
+      createdAt: new Date(),
+      name: name.trim(),
+      phone,
+      password,
+      referralCode: newReferralCode,
+      referredBy
+    });
 
-        res.cookie('otpToken', otpToken, {
-            httpOnly: true,
-            secure: false, 
-            maxAge: 30 * 60 * 1000, 
-            sameSite: 'lax',
-            path: '/'
-        });
+    const otpToken = jwt.sign(
+      {
+        purpose: 'otp_verification',
+        name: name.trim(),
+        email: normalizedEmail,
+        phone,
+        password,
+        referralCode: newReferralCode,
+        referredBy,
+        timestamp: Date.now()
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: '30m'
+      }
+    );
 
-        const redirectUrl = `/verify-otp?token=${encodeURIComponent(otpToken)}`;
-        
-        
-        await sendOtpEmail(email.toLowerCase(), otp);
+    res.cookie('otpToken', otpToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      maxAge: 30 * 60 * 1000,
+      path: '/'
+    });
 
-        res.redirect(redirectUrl);
-    } catch (error) {
-        return res.redirect(`/register?error=${encodeURIComponent('Registration failed. Please try again.')}`);
-    }
+    await sendOtpEmail(
+      normalizedEmail,
+      otp
+    );
+
+    return res.redirect(
+      `/verify-otp?token=${encodeURIComponent(otpToken)}`
+    );
 
   } catch (error) {
-    return res.redirect(`/register?error=${encodeURIComponent('Registration failed. Please try again.')}`);
+    console.error('REGISTER ERROR:', error);
+
+    return res.redirect(
+      `/register?error=${encodeURIComponent('Registration failed')}`
+    );
   }
 };
 
 exports.resendOTP = async (req, res) => {
   try {
-    let otpToken = req.body.token || req.query.token || req.cookies.otpToken;
-    
+    const otpToken =
+      req.body.token ||
+      req.query.token ||
+      req.cookies.otpToken;
+
     if (!otpToken) {
-      const errorMsg = 'Verification session expired. Please register again.';
-      if (req.accepts('json')) {
-        return res.status(HttpStatus.BAD_REQUEST).json({ 
-          success: false, 
-          message: errorMsg
-        });
-      }
-      return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
+      return res.status(HttpStatus.BAD_REQUEST).json({
+        success: false,
+        message:
+          'Verification session expired. Please register again.'
+      });
     }
 
     let decoded;
+
     try {
-      decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
-      if (decoded.purpose !== 'otp_verification') throw new Error('Invalid token purpose');
+      decoded = jwt.verify(
+        otpToken,
+        process.env.JWT_SECRET
+      );
+
+      if (decoded.purpose !== 'otp_verification') {
+        throw new Error('Invalid token purpose');
+      }
     } catch (error) {
       res.clearCookie('otpToken');
-      if (req.accepts('json')) {
-        return res.status(HttpStatus.BAD_REQUEST).json({ 
-          success: false, 
-          message: 'Verification session expired. Please register again.' 
-        });
-      }
-      return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
+
+      return res.status(HttpStatus.BAD_REQUEST).json({
+        success: false,
+        message:
+          'Verification session expired. Please register again.'
+      });
     }
 
     const otp = generateOtp();
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); 
 
-    await OTP.deleteMany({ email: decoded.email });
-    await OTP.create({ 
-      email: decoded.email, 
-      otp, 
-      expiresAt,
-      createdAt: new Date()
+    const expiresAt = new Date(
+      Date.now() + 30 * 60 * 1000
+    );
+
+    await OTP.deleteMany({
+      email: decoded.email.toLowerCase()
     });
-    
 
-    await sendOtpEmail(decoded.email, otp);
+    await OTP.create({
+      email: decoded.email.toLowerCase(),
+      otp,
+      expiresAt,
+      createdAt: new Date(),
+      name: decoded.name,
+      phone: decoded.phone,
+      password: decoded.password,
+      referralCode: decoded.referralCode,
+      referredBy: decoded.referredBy
+    });
+
+    await sendOtpEmail(
+      decoded.email,
+      otp
+    );
 
     const newToken = jwt.sign(
-      { 
+      {
+        purpose: 'otp_verification',
         name: decoded.name,
         email: decoded.email,
         phone: decoded.phone,
         password: decoded.password,
         referralCode: decoded.referralCode,
         referredBy: decoded.referredBy,
-        purpose: 'otp_verification',
         timestamp: Date.now()
       },
       process.env.JWT_SECRET,
-      { expiresIn: '30m' }
+      {
+        expiresIn: '30m'
+      }
     );
 
     res.cookie('otpToken', newToken, {
-        httpOnly: true,
-        secure: false, 
-        maxAge: 30 * 60 * 1000, 
-        sameSite: 'lax',
-        path: '/'
+      httpOnly: true,
+      secure: false,
+      maxAge: 30 * 60 * 1000,
+      sameSite: 'lax',
+      path: '/'
     });
 
-    const responseData = {
-      success: true, 
+    return res.json({
+      success: true,
       message: 'New OTP sent successfully to your email',
-      token: newToken 
-    };
-
-    if (req.accepts('json')) {
-      return res.json(responseData);
-    }
-
-    return res.redirect(`/verify-otp?token=${encodeURIComponent(newToken)}&message=${encodeURIComponent('New OTP sent successfully to your email')}`);
+      token: newToken
+    });
 
   } catch (error) {
-    const errorMsg = error.message || 'Failed to resend OTP. Please try again.';
-    
-    if (req.accepts('json')) {
-      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
-        success: false, 
-        message: errorMsg
-      });
-    }
-    
-    const redirectUrl = req.cookies.otpToken || req.body.token || req.query.token
-      ? `/verify-otp?token=${encodeURIComponent(req.cookies.otpToken || req.body.token || req.query.token)}&error=${encodeURIComponent(errorMsg)}`
-      : `/register?error=${encodeURIComponent(errorMsg)}`;
-      
-    return res.redirect(redirectUrl);
+    console.error('RESEND OTP ERROR:', error);
+
+    return res.status(
+      HttpStatus.INTERNAL_SERVER_ERROR
+    ).json({
+      success: false,
+      message:
+        error.message ||
+        'Failed to resend OTP. Please try again.'
+    });
   }
 };
 
@@ -444,291 +483,428 @@ exports.renderVerifyOtpPage = async (req, res) => {
   try {
     const tokenFromUrl = req.query.token;
     const tokenFromCookie = req.cookies.otpToken;
-    
-    const otpToken = tokenFromUrl || tokenFromCookie;
-    
+
+    const otpToken =
+      tokenFromUrl || tokenFromCookie;
+
     if (!otpToken) {
-      return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
+      return res.redirect(
+        '/register?error=' +
+        encodeURIComponent(
+          'Verification session expired. Please register again.'
+        )
+      );
     }
-    
+
     let decoded;
+
     try {
-      decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
-      
-      if (decoded.purpose !== 'otp_verification') throw new Error('Invalid token purpose');
-      
+      decoded = jwt.verify(
+        otpToken,
+        process.env.JWT_SECRET
+      );
+
+      if (decoded.purpose !== 'otp_verification') {
+        throw new Error('Invalid token purpose');
+      }
+
       if (tokenFromUrl && !tokenFromCookie) {
         res.cookie('otpToken', otpToken, {
-            httpOnly: true,
-            secure: false, 
-            maxAge: 30 * 60 * 1000, 
-            sameSite: 'lax',
-            path: '/'
+          httpOnly: true,
+          secure: false,
+          maxAge: 30 * 60 * 1000,
+          sameSite: 'lax',
+          path: '/'
         });
       }
+
     } catch (error) {
       res.clearCookie('otpToken');
-      return res.redirect('/register?error=' + encodeURIComponent('Verification session expired. Please register again.'));
-    }
-    
 
-    res.render('user/verify-otp', {
+      return res.redirect(
+        '/register?error=' +
+        encodeURIComponent(
+          'Verification session expired. Please register again.'
+        )
+      );
+    }
+
+    return res.render('user/verify-otp', {
       title: 'Verify OTP',
       email: decoded.email,
-      token: otpToken, 
+      token: otpToken,
       error: req.query.error || null,
       message: req.query.message || null
     });
+
   } catch (error) {
-    res.redirect('/register?error=' + encodeURIComponent('Something went wrong. Please try again.'));
+    console.error(
+      'RENDER VERIFY OTP ERROR:',
+      error
+    );
+
+    return res.redirect(
+      '/register?error=' +
+      encodeURIComponent(
+        'Something went wrong. Please try again.'
+      )
+    );
   }
 };
 
 exports.verifyOTP = async (req, res) => {
-    try {
-        const { otp, token: tokenFromBody } = req.body;
-        
-        const otpToken = tokenFromBody || req.query.token || req.cookies.otpToken;
-        
-        if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
-            const errorMsg = 'Please enter a valid 6-digit OTP';
-            
-            if (req.accepts('json')) {
-                return res.status(HttpStatus.BAD_REQUEST).json({ 
-                    success: false, 
-                    message: errorMsg 
-                });
-            }
-            return res.status(HttpStatus.BAD_REQUEST).render('user/verify-otp', {
-                title: 'Verify OTP',
-                error: errorMsg,
-                token: otpToken
-            });
-        }
-        
-        if (!otpToken) {
-            const errorMsg = 'Verification session expired. Please register again.';
-            
-            if (req.accepts('json')) {
-                return res.status(HttpStatus.BAD_REQUEST).json({ 
-                    success: false, 
-                    message: errorMsg 
-                });
-            }
-            return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
-        }
-        
-        let decoded;
-        try {
-            decoded = jwt.verify(otpToken, process.env.JWT_SECRET, { ignoreExpiration: false });
-            
-            if (decoded.purpose !== 'otp_verification') {
-                const errorMsg = 'Invalid verification request. Please try again.';
-                
-                if (req.accepts('json')) {
-                    return res.status(HttpStatus.BAD_REQUEST).json({ 
-                        success: false, 
-                        message: errorMsg 
-                    });
-                }
-                return res.status(HttpStatus.BAD_REQUEST).render('user/verify-otp', {
-                    title: 'Verify OTP',
-                    error: errorMsg,
-                    token: otpToken
-                });
-            }
-            
-        } catch (error) {
-            const errorMsg = 'Verification session expired. Please register again.';
-            
-            res.clearCookie('otpToken', {
-                path: '/',
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
-            });
-            
-            if (req.accepts('json')) {
-                return res.status(HttpStatus.BAD_REQUEST).json({ 
-                    success: false, 
-                    message: errorMsg 
-                });
-            }
-            return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
-        }
-        
-        const otpRecord = await OTP.findOne({
-            email: { $regex: new RegExp(`^${decoded.email}$`, 'i') },
-            otp: otp,
-            expiresAt: { $gt: new Date() }
-        });
-        
-        if (!otpRecord) {
-            const errorMsg = 'Invalid or expired OTP. Please try again.';
-            
-            if (req.accepts('json')) {
-                return res.status(HttpStatus.BAD_REQUEST).json({ 
-                    success: false, 
-                    message: errorMsg 
-                });
-            }
-            
-            return res.status(HttpStatus.BAD_REQUEST).render('user/verify-otp', {
-                title: 'Verify OTP',
-                error: errorMsg,
-                token: otpToken,
-                email: decoded.email
-            });
-        }
-        
-        await OTP.deleteOne({ _id: otpRecord._id });
+  try {
+    const { otp, token: tokenFromBody } = req.body;
 
-    const userData = decoded;
-    if (userData.name) {
-      try {
-        const newUser = new User({
-          name: userData.name,
-          email: userData.email.toLowerCase(),
-          phone: userData.phone,
-          password: userData.password, 
-          referralCode: userData.referralCode,
-          referredBy: userData.referredBy,
-          isVerified: true,
-          isActive: true
+    const otpToken =
+      tokenFromBody ||
+      req.query.token ||
+      req.cookies.otpToken;
+
+    if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
+      const errorMsg =
+        'Please enter a valid 6-digit OTP';
+
+      if (req.accepts('json')) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: errorMsg
         });
-        
-        await newUser.save();
-        
-        
-        if (userData.referredBy) {
-          try {
-            await processReferralReward(userData.referredBy, newUser._id);
-          } catch (referralError) {
-          }
-        }
-        
-        res.clearCookie('otpToken', {
-            path: '/',
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
-        });
-        
-        exports.sendWelcomeEmail(userData.email, userData.name)
-          .catch(emailError => {
-          });
-        
-        if (req.accepts('json')) {
-          return res.json({ 
-            success: true, 
-            message: 'Registration successful! You can now log in.',
-            redirectUrl: '/login?message=' + encodeURIComponent('Registration successful! Please log in.')
-          });
-        }
-        
-        return res.redirect('/login?message=' + encodeURIComponent('Registration successful! Please log in.'));
-        
-      } catch (error) {
-        const errorMsg = 'Failed to create user. Please try again.';
-        
-        if (req.accepts('json')) {
-          return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
-            success: false, 
-            message: errorMsg 
-          });
-        }
-        
-        return res.redirect(`/register?error=${encodeURIComponent(errorMsg)}`);
       }
-    } else {
+
+      return res.status(HttpStatus.BAD_REQUEST).render(
+        'user/verify-otp',
+        {
+          title: 'Verify OTP',
+          error: errorMsg,
+          token: otpToken
+        }
+      );
+    }
+
+    if (!otpToken) {
+      const errorMsg =
+        'Verification session expired. Please register again.';
+
+      if (req.accepts('json')) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: errorMsg
+        });
+      }
+
+      return res.redirect(
+        `/register?error=${encodeURIComponent(errorMsg)}`
+      );
+    }
+
+    let decoded;
+
+    try {
+      decoded = jwt.verify(
+        otpToken,
+        process.env.JWT_SECRET
+      );
+
+      if (decoded.purpose !== 'otp_verification') {
+        throw new Error('Invalid token purpose');
+      }
+
+    } catch (error) {
+      console.error('JWT ERROR:', error);
+
       res.clearCookie('otpToken', {
-          path: '/',
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+        path: '/',
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite:
+          process.env.NODE_ENV === 'production'
+            ? 'none'
+            : 'lax'
       });
-      return res.redirect('/login?message=' + encodeURIComponent('Verification successful. Please login to continue.'));
+
+      const errorMsg =
+        'Verification session expired. Please register again.';
+
+      if (req.accepts('json')) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: errorMsg
+        });
+      }
+
+      return res.redirect(
+        `/register?error=${encodeURIComponent(errorMsg)}`
+      );
+    }
+
+    const otpRecord = await OTP.findOne({
+      email: decoded.email.toLowerCase(),
+      otp,
+      expiresAt: {
+        $gt: new Date()
+      }
+    });
+
+    if (!otpRecord) {
+      const errorMsg =
+        'Invalid or expired OTP. Please try again.';
+
+      if (req.accepts('json')) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: errorMsg
+        });
+      }
+
+      return res.status(HttpStatus.BAD_REQUEST).render(
+        'user/verify-otp',
+        {
+          title: 'Verify OTP',
+          error: errorMsg,
+          token: otpToken,
+          email: decoded.email
+        }
+      );
+    }
+
+    if (
+      !otpRecord.name ||
+      !otpRecord.phone ||
+      !otpRecord.password
+    ) {
+      const errorMsg =
+        'Registration information is missing. Please register again.';
+
+      return res.status(HttpStatus.BAD_REQUEST).render(
+        'user/verify-otp',
+        {
+          title: 'Verify OTP',
+          error: errorMsg,
+          token: otpToken,
+          email: decoded.email
+        }
+      );
+    }
+
+    try {
+      const newUser = new User({
+        name: otpRecord.name,
+        email: otpRecord.email.toLowerCase(),
+        phone: otpRecord.phone,
+        password: otpRecord.password,
+        referralCode: otpRecord.referralCode,
+        referredBy: otpRecord.referredBy,
+        isVerified: true,
+        isActive: true
+      });
+
+      await newUser.save();
+
+      await OTP.deleteMany({
+        email: otpRecord.email
+      });
+
+      if (otpRecord.referredBy) {
+        try {
+          await processReferralReward(
+            otpRecord.referredBy,
+            newUser._id
+          );
+        } catch (referralError) {
+          console.error(
+            'Referral reward error:',
+            referralError
+          );
+        }
+      }
+
+      res.clearCookie('otpToken', {
+        path: '/',
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite:
+          process.env.NODE_ENV === 'production'
+            ? 'none'
+            : 'lax'
+      });
+
+      sendWelcomeEmail(
+        otpRecord.email,
+        otpRecord.name
+      ).catch(error => {
+        console.error(
+          'Welcome email failed:',
+          error
+        );
+      });
+
+      if (req.accepts('json')) {
+        return res.json({
+          success: true,
+          message:
+            'Registration successful! You can now log in.',
+          redirectUrl:
+            '/login?message=' +
+            encodeURIComponent(
+              'Registration successful! Please log in.'
+            )
+        });
+      }
+
+      return res.redirect(
+        '/login?message=' +
+        encodeURIComponent(
+          'Registration successful! Please log in.'
+        )
+      );
+
+    } catch (error) {
+      console.error(
+        'USER CREATION ERROR:',
+        error
+      );
+
+      const errorMsg =
+        'Failed to create user. Please try again.';
+
+      if (req.accepts('json')) {
+        return res.status(
+          HttpStatus.INTERNAL_SERVER_ERROR
+        ).json({
+          success: false,
+          message: errorMsg
+        });
+      }
+
+      return res.status(
+        HttpStatus.INTERNAL_SERVER_ERROR
+      ).render(
+        'user/verify-otp',
+        {
+          title: 'Verify OTP',
+          error: errorMsg,
+          token: otpToken,
+          email: otpRecord.email
+        }
+      );
     }
 
   } catch (error) {
-    return res.redirect('/verify-otp?error=' + encodeURIComponent('Verification failed. Please try again.'));
-  }
-};
-
-exports.renderForgotPassword = async (req, res) => {
-  res.render('user/forgot-password', {
-    message: req.query.message || '',
-    successMessage: req.query.successMessage || '',
-    activePage: 'forgot-password',
-    error: null,
-    path: '/forgot-password'
-  });
-};
-
-exports.handleForgotPassword = async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    const user = await User.findOne({ email });
-    if (!user) {
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'No account found with that email address.' });
-      }
-      return res.render('user/forgot-password', {
-        message: 'No account found with that email address.',
-        successMessage: '',
-        activePage: 'forgot-password',
-        error: null,
-        path: '/forgot-password'
-      });
-    }
-
-    const passwordResetToken = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
+    console.error(
+      'VERIFY OTP ERROR:',
+      error
     );
 
-    user.resetPasswordToken = passwordResetToken;
-    user.resetPasswordExpires = Date.now() + 3600000; 
-    await user.save();
-
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: user.email,
-      subject: 'Password Reset Request',
-      html: `
-        <h1>Password Reset Request</h1>
-        <p>You requested a password reset. Click the link below to reset your password:</p>
-        <a href="${req.protocol}://${req.get('host')}/reset-password/${passwordResetToken}">Reset Password</a>
-        <p>This link will expire in 1 hour.</p>
-        <p>If you didn't request this, please ignore this email.</p>
-      `
-    });
-
-    if (req.xhr || req.headers.accept?.includes('application/json')) {
-      return res.status(HttpStatus.OK).json({ success: true, message: 'Password reset link has been sent to your email.' });
-    }
-    res.render('user/forgot-password', {
-      message: '',
-      successMessage: 'Password reset link has been sent to your email.',
-      activePage: 'forgot-password',
-      error: null,
-      path: '/forgot-password'
-    });
-
-  } catch (error) {
-    if (req.xhr || req.headers.accept?.includes('application/json')) {
-      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: 'An error occurred while processing your request.' });
-    }
-    res.render('user/forgot-password', {
-      message: '',
-      successMessage: '',
-      activePage: 'forgot-password',
-      error: 'An error occurred while processing your request.',
-      path: '/forgot-password'
-    });
+    return res.redirect(
+      '/verify-otp?error=' +
+      encodeURIComponent(
+        'Verification failed. Please try again.'
+      )
+    );
   }
+};
+
+exports.handleResendOTP = async (req, res) => {
+    try {
+        const otpToken =
+            req.body.token ||
+            req.query.token ||
+            req.cookies.otpToken;
+
+        if (!otpToken) {
+            return res.status(400).json({
+                success: false,
+                message: 'Verification session expired. Please register again.'
+            });
+        }
+
+        let decoded;
+
+        try {
+            decoded = jwt.verify(
+                otpToken,
+                process.env.JWT_SECRET
+            );
+
+            if (decoded.purpose !== 'otp_verification') {
+                throw new Error('Invalid token purpose');
+            }
+        } catch (error) {
+            res.clearCookie('otpToken');
+
+            return res.status(400).json({
+                success: false,
+                message: 'Verification session expired. Please register again.'
+            });
+        }
+
+        const otp = generateOtp();
+
+        const expiresAt = new Date(
+            Date.now() + 30 * 60 * 1000
+        );
+
+        await OTP.deleteMany({
+            email: decoded.email.toLowerCase()
+        });
+
+        await OTP.create({
+            email: decoded.email.toLowerCase(),
+            otp,
+            expiresAt,
+            createdAt: new Date(),
+            name: decoded.name,
+            phone: decoded.phone,
+            password: decoded.password,
+            referralCode: decoded.referralCode,
+            referredBy: decoded.referredBy
+        });
+
+        await sendOtpEmail(
+            decoded.email,
+            otp
+        );
+
+        const newToken = jwt.sign(
+            {
+                purpose: 'otp_verification',
+                name: decoded.name,
+                email: decoded.email,
+                phone: decoded.phone,
+                password: decoded.password,
+                referralCode: decoded.referralCode,
+                referredBy: decoded.referredBy,
+                timestamp: Date.now()
+            },
+            process.env.JWT_SECRET,
+            {
+                expiresIn: '30m'
+            }
+        );
+
+        res.cookie('otpToken', newToken, {
+            httpOnly: true,
+            secure: false,
+            maxAge: 30 * 60 * 1000,
+            sameSite: 'lax',
+            path: '/'
+        });
+
+        return res.json({
+            success: true,
+            message: 'New OTP sent successfully to your email',
+            token: newToken
+        });
+
+    } catch (error) {
+        console.error('RESEND OTP ERROR:', error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to resend OTP. Please try again.'
+        });
+    }
 };
 
 exports.googleCallback = async (req, res) => {
@@ -767,7 +943,7 @@ exports.googleCallback = async (req, res) => {
 
     res.cookie('userToken', token, {
       httpOnly: true,
-      secure: false, 
+      secure: false,
       sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/'
@@ -800,9 +976,9 @@ exports.updateUserProfile = async (req, res) => {
       });
     }
 
-    const existingUser = await User.findOne({ 
-      email, 
-      _id: { $ne: userId } 
+    const existingUser = await User.findOne({
+      email,
+      _id: { $ne: userId }
     });
 
     if (existingUser) {
@@ -814,7 +990,7 @@ exports.updateUserProfile = async (req, res) => {
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { 
+      {
         name,
         email,
         phone,
@@ -863,7 +1039,7 @@ exports.renderHomePage = async (req, res) => {
     const productQuery = {
       isListed: true,
       isBlocked: false,
-      quantity: { $gt: 0 } 
+      quantity: { $gt: 0 }
     };
 
     if (selectedCategoryId && selectedCategoryId !== 'all') {
@@ -876,8 +1052,8 @@ exports.renderHomePage = async (req, res) => {
         match: { isBlocked: false, isListed: true }
       })
       .populate('ratings')
-      .sort({ createdAt: -1 }) 
-      .limit(8) 
+      .sort({ createdAt: -1 })
+      .limit(8)
       .lean();
 
     const validProducts = products.filter(p => p.category);
@@ -931,7 +1107,7 @@ exports.renderAboutPage = async (req, res) => {
     if (req.user) {
       cartCount = await getCartCount(req.user._id);
     }
-    res.render('user/about', { 
+    res.render('user/about', {
       user: req.user,
       cartCount: cartCount,
       title: 'About Us - Derry World Restaurant',
@@ -944,25 +1120,25 @@ exports.renderAboutPage = async (req, res) => {
 };
 
 exports.renderContactPage = async (req, res) => {
-    try {
-        let cartCount = 0;
-        if (req.user) {
-            cartCount = await getCartCount(req.user._id) || 0;
-        }
-
-        res.render('user/contact', {
-            title: 'Contact Us - Derry World',
-            user: req.user || null,
-            cartCount: cartCount
-        });
-    } catch (error) {
-        res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('error', { 
-            message: 'Error loading contact page',
-            error: process.env.NODE_ENV === 'development' ? error : {},
-            cartCount: 0,
-            user: null
-        });
+  try {
+    let cartCount = 0;
+    if (req.user) {
+      cartCount = await getCartCount(req.user._id) || 0;
     }
+
+    res.render('user/contact', {
+      title: 'Contact Us - Derry World',
+      user: req.user || null,
+      cartCount: cartCount
+    });
+  } catch (error) {
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).render('error', {
+      message: 'Error loading contact page',
+      error: process.env.NODE_ENV === 'development' ? error : {},
+      cartCount: 0,
+      user: null
+    });
+  }
 };
 
 exports.getAddresses = async (req, res) => {
@@ -1038,10 +1214,10 @@ exports.addAddress = async (req, res) => {
 
     const updatedUser = await User.findByIdAndUpdate(
       req.user._id,
-      { 
-        $push: { 
-          addresses: newAddress 
-        } 
+      {
+        $push: {
+          addresses: newAddress
+        }
       },
       { new: true, runValidators: true }
     );
@@ -1054,9 +1230,9 @@ exports.addAddress = async (req, res) => {
       newAddress.isDefault = true;
     }
 
-    const addedAddress = updatedUser.addresses.find(addr => 
-      addr.addressLine1 === addressLine1 && 
-      addr.city === city && 
+    const addedAddress = updatedUser.addresses.find(addr =>
+      addr.addressLine1 === addressLine1 &&
+      addr.city === city &&
       addr.pincode === pincode
     );
 
@@ -1120,7 +1296,7 @@ exports.updateAddress = async (req, res) => {
       });
     }
 
-    const isDuplicate = user.addresses.some(addr => 
+    const isDuplicate = user.addresses.some(addr =>
       addr._id.toString() !== id &&
       addr.addressLine1 === addressLine1 &&
       addr.city === city &&
@@ -1147,9 +1323,9 @@ exports.updateAddress = async (req, res) => {
     };
 
     const result = await User.findOneAndUpdate(
-      { 
+      {
         _id: req.user._id,
-        'addresses._id': id 
+        'addresses._id': id
       },
       { $set: updateObj },
       { new: true, runValidators: true }
@@ -1201,7 +1377,7 @@ exports.deleteAddress = async (req, res) => {
       });
     }
 
-    const addressExists = result.addresses.some(addr => 
+    const addressExists = result.addresses.some(addr =>
       addr._id.toString() === addressId
     );
 
@@ -1227,8 +1403,8 @@ exports.deleteAddress = async (req, res) => {
 
 exports.applyOffersToProducts = async (products) => {
   for (const product of products) {
-    const basePrice = (product.salesPrice && product.salesPrice < product.regularPrice) 
-      ? product.salesPrice 
+    const basePrice = (product.salesPrice && product.salesPrice < product.regularPrice)
+      ? product.salesPrice
       : product.regularPrice;
 
     if (!product.category || !product.category._id) {
@@ -1277,8 +1453,8 @@ exports.applyOffersToProducts = async (products) => {
       product.offerDetails = {
         hasOffer: false,
         finalPrice: basePrice,
-        discountPercentage: product.salesPrice && product.salesPrice < product.regularPrice 
-          ? Math.round((1 - product.salesPrice/product.regularPrice) * 100)
+        discountPercentage: product.salesPrice && product.salesPrice < product.regularPrice
+          ? Math.round((1 - product.salesPrice / product.regularPrice) * 100)
           : 0,
         originalPrice: product.regularPrice
       };
@@ -1290,95 +1466,7 @@ exports.applyOffersToProducts = async (products) => {
 
 
 
-exports.renderResetPassword = async (req, res) => {
-  try {
-    const { token } = req.params;
-    const user = await User.findOne({
-      resetPasswordToken: token,
-      resetPasswordExpires: { $gt: Date.now() }
-    });
 
-    if (!user) {
-      return res.render('user/reset-password', {
-        message: 'Password reset token is invalid or has expired.',
-        validToken: false,
-        token: null,
-        path: '/reset-password'
-      });
-    }
-
-    res.render('user/reset-password', {
-      message: '',
-      validToken: true,
-      token,
-      path: '/reset-password'
-    });
-  } catch (error) {
-    res.render('user/reset-password', {
-      message: 'An error occurred. Please try again.',
-      validToken: false,
-      token: null,
-      path: '/reset-password'
-    });
-  }
-};
-
-exports.handleResetPassword = async (req, res) => {
-  try {
-    const { token } = req.params;
-    const { password, confirmPassword } = req.body;
-
-    if (!password || !confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Both password fields are required'
-      });
-    }
-
-    if (password !== confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Passwords do not match'
-      });
-    }
-
-    if (password.length < 8) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 8 characters long'
-      });
-    }
-
-    const user = await User.findOne({
-      resetPasswordToken: token,
-      resetPasswordExpires: { $gt: Date.now() }
-    });
-
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password reset token is invalid or has expired'
-      });
-    }
-
-    user.password = password;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
-    
-    await user.save(); 
-
-    return res.status(200).json({
-      success: true,
-      message: 'Password has been reset successfully'
-    });
-  } catch (error) {
-    return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-      success: false,
-      message: 'An error occurred while resetting password',
-      error: error
-    });
-  }
-};
 
 exports.renderProfilePage = async (req, res) => {
   try {
@@ -1444,7 +1532,7 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-      user.password = newPassword;
+    user.password = newPassword;
     [
       'wallet',
       'verificationToken',
@@ -1465,7 +1553,7 @@ exports.changePassword = async (req, res) => {
     }
     await user.save();
     const userDb = await User.findById(user._id).select('+password');
-   
+
 
     res.clearCookie('userToken');
     res.json({
@@ -1534,97 +1622,29 @@ exports.verifyReferralCode = async (req, res) => {
   }
 };
 
-exports.sendWelcomeEmail = async (email, name) => {
-  try {
-    const testAccount = await nodemailer.createTestAccount();
 
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      secure: false,
-      auth: {
-        user: testAccount.user,
-        pass: testAccount.pass, 
-      },
-    });
 
-   
-    const info = await transporter.sendMail({
-      from: '"Derry World" <welcome@derryworld.com>',
-      to: email, 
-      subject: 'Welcome to Derry World!', 
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
-          <h2 style="color: #333;">Welcome to Derry World, ${name}!</h2>
-          <p>Thank you for registering with us. We're excited to have you on board!</p>
-          <p>Start exploring our delicious menu and place your first order today.</p>
-          <p>If you have any questions, feel free to contact our support team.</p>
-          <p>Best regards,<br>The Derry World Team</p>
-        </div>
-      `,
-    });
-
-    return true;
-  } catch (error) {
-    return false;
-  }
-};
-
-exports.sendOTPEmail = async (email, otp) => {
-  try {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
-
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'Verify Your Email - Derry World',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">Welcome to Derry World!</h2>
-          <p>Your verification code is:</p>
-          <h1 style="color: #ffbe33; font-size: 32px; letter-spacing: 5px;">${otp}</h1>
-          <p>This code will expire in 10 minutes.</p>
-          <p style="color: #666; font-size: 14px;">
-            If you didn't request this code, you can safely ignore this email.
-          </p>
-        </div>
-      `
-    };
-
-    await transporter.sendMail(mailOptions);
-    
-  } catch (error) {
-   
-    throw error;
-  }
-};
 
 exports.generateAndSaveOtp = async (email) => {
   try {
     await OTP.deleteMany({ email });
-   
+
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  
+
     const newOTP = new OTP({
       email,
       otp,
       expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes expiry
     });
     await newOTP.save();
-    
 
-    await sendOTPEmail(email, otp);
+
+    await sendOtpEmail(email, otp);
 
     return { otp };
   } catch (error) {
-    
+
     throw error;
   }
 };
@@ -1646,140 +1666,140 @@ exports.getCartCount = async (userId) => {
 
 
 exports.forgotPassword = async (req, res) => {
-    try {
-        const { email } = req.body;
-       
-        if (!email) {
-            if (req.xhr || req.headers.accept?.includes('application/json')) {
-                return res.status(HttpStatus.BAD_REQUEST).json({
-                    success: false,
-                    message: 'Please provide your email address'
-                });
-            }
-            res.setMessage('error', 'Please provide your email address');
-            return res.redirect('/forgot-password');
-        }
+  try {
+    const { email } = req.body;
 
-        const user = await User.findOne({ email: email.toLowerCase() });
-        if (!user) {
-            
-            if (req.xhr || req.headers.accept?.includes('application/json')) {
-                return res.status(200).json({
-                    success: true,
-                    message: 'If an account exists with this email, you will receive password reset instructions.'
-                });
-            }
-            res.setMessage('success', 'If an account exists with this email, you will receive password reset instructions.');
-            return res.redirect('/forgot-password');
-        }
+    if (!email) {
+      if (req.xhr || req.headers.accept?.includes('application/json')) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: 'Please provide your email address'
+        });
+      }
+      res.setMessage('error', 'Please provide your email address');
+      return res.redirect('/forgot-password');
+    }
 
-        if (!user.isActive) {
-            if (req.xhr || req.headers.accept?.includes('application/json')) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Your account has been blocked. Please contact support.'
-                });
-            }
-            res.setMessage('error', 'Your account has been blocked. Please contact support.');
-            return res.redirect('/forgot-password');
-        }
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
 
-        const resetToken = crypto.randomBytes(32).toString('hex');
-        const resetTokenHash = crypto
-            .createHash('sha256')
-            .update(resetToken)
-            .digest('hex');
+      if (req.xhr || req.headers.accept?.includes('application/json')) {
+        return res.status(200).json({
+          success: true,
+          message: 'If an account exists with this email, you will receive password reset instructions.'
+        });
+      }
+      res.setMessage('success', 'If an account exists with this email, you will receive password reset instructions.');
+      return res.redirect('/forgot-password');
+    }
 
-        user.resetPasswordToken = resetTokenHash;
-        user.resetPasswordExpires = Date.now() + 3600000; 
-        await user.save();
+    if (!user.isActive) {
+      if (req.xhr || req.headers.accept?.includes('application/json')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Your account has been blocked. Please contact support.'
+        });
+      }
+      res.setMessage('error', 'Your account has been blocked. Please contact support.');
+      return res.redirect('/forgot-password');
+    }
 
-        
-        const mailOptions = {
-          to: user.email,
-          subject: 'Password Reset Request',
-          html: `
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+
+    user.resetPasswordToken = resetTokenHash;
+    user.resetPasswordExpires = Date.now() + 3600000;
+    await user.save();
+
+
+    const mailOptions = {
+      to: user.email,
+      subject: 'Password Reset Request',
+      html: `
             <h1>Password Reset Request</h1>
             <p>You requested to reset your password. Click the link below to reset your password:</p>
             <a href="${req.protocol}://${req.get('host')}/reset-password/${resetToken}">Reset Password</a>
             <p>This link will expire in 1 hour.</p>
             <p>If you didn't request this, please ignore this email.</p>
           `
-        };
+    };
 
-       
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(200).json({
-                success: true,
-                message: 'Password reset instructions have been sent to your email'
-            });
-        }
-        res.setMessage('success', 'Password reset instructions have been sent to your email');
-        res.redirect('/forgot-password');
 
-    } catch (error) {
-        
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-                success: false,
-                message: 'An error occurred while processing your request'
-            });
-        }
-        res.setMessage('error', 'An error occurred while processing your request');
-        res.redirect('/forgot-password');
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(200).json({
+        success: true,
+        message: 'Password reset instructions have been sent to your email'
+      });
     }
+    res.setMessage('success', 'Password reset instructions have been sent to your email');
+    res.redirect('/forgot-password');
+
+  } catch (error) {
+
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: 'An error occurred while processing your request'
+      });
+    }
+    res.setMessage('error', 'An error occurred while processing your request');
+    res.redirect('/forgot-password');
+  }
 };
 
 exports.resetPassword = async (req, res) => {
-    try {
-        const { token } = req.params;
-        const { password } = req.body;
-        
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
 
-        if (!password || password.length < 6) {
-            if (req.xhr || req.headers.accept?.includes('application/json')) {
-                return res.status(HttpStatus.BAD_REQUEST).json({
-                    success: false,
-                    message: 'Please provide a valid password (minimum 6 characters)'
-                });
-            }
-            res.setMessage('error', 'Please provide a valid password (minimum 6 characters)');
-            return res.redirect(`/reset-password/${token}`);
-        }
 
-        const resetTokenHash = crypto
-            .createHash('sha256')
-            .update(token)
-            .digest('hex');
-
-        const user = await User.findOne({
-            resetPasswordToken: resetTokenHash,
-            resetPasswordExpires: { $gt: Date.now() }
+    if (!password || password.length < 6) {
+      if (req.xhr || req.headers.accept?.includes('application/json')) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: 'Please provide a valid password (minimum 6 characters)'
         });
+      }
+      res.setMessage('error', 'Please provide a valid password (minimum 6 characters)');
+      return res.redirect(`/reset-password/${token}`);
+    }
 
-        if (!user) {
-            
-            if (req.xhr || req.headers.accept?.includes('application/json')) {
-                return res.status(HttpStatus.BAD_REQUEST).json({
-                    success: false,
-                    message: 'Password reset link is invalid or has expired'
-                });
-            }
-            res.setMessage('error', 'Password reset link is invalid or has expired');
-            return res.redirect('/forgot-password');
-        }
+    const resetTokenHash = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
 
-        user.password = await bcrypt.hash(password, 10);
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
-        await user.save();
+    const user = await User.findOne({
+      resetPasswordToken: resetTokenHash,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
 
-        
+    if (!user) {
 
-        const mailOptions = {
-            to: user.email,
-            subject: 'Password Reset Successful - Derry World',
-            html: `
+      if (req.xhr || req.headers.accept?.includes('application/json')) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: 'Password reset link is invalid or has expired'
+        });
+      }
+      res.setMessage('error', 'Password reset link is invalid or has expired');
+      return res.redirect('/forgot-password');
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+
+
+    const mailOptions = {
+      to: user.email,
+      subject: 'Password Reset Successful - Derry World',
+      html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                     <h2 style="color: #ffbe33;">Password Reset Successful</h2>
                     <p>Hello ${user.name},</p>
@@ -1794,74 +1814,69 @@ exports.resetPassword = async (req, res) => {
                     </p>
                 </div>
             `
-        };
+    };
 
-        await sendEmail(mailOptions);
+    await sendOtpEmail(mailOptions);
 
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(200).json({
-                success: true,
-                message: 'Your password has been reset successfully. Please login with your new password.',
-                redirectUrl: '/login'
-            });
-        }
-        res.setMessage('success', 'Your password has been reset successfully. Please login with your new password.');
-        res.redirect('/login');
-
-    } catch (error) {
-      
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-                success: false,
-                message: 'An error occurred while resetting your password'
-            });
-        }
-        res.setMessage('error', 'An error occurred while resetting your password');
-        res.redirect('/forgot-password');
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(200).json({
+        success: true,
+        message: 'Your password has been reset successfully. Please login with your new password.',
+        redirectUrl: '/login'
+      });
     }
+    res.setMessage('success', 'Your password has been reset successfully. Please login with your new password.');
+    res.redirect('/login');
+
+  } catch (error) {
+
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: 'An error occurred while resetting your password'
+      });
+    }
+    res.setMessage('error', 'An error occurred while resetting your password');
+    res.redirect('/forgot-password');
+  }
 };
 
-exports.renderForgotPasswordPage = async (req, res) => {
-    res.render('user/forgot-password');
-};
 
-exports.renderResetPasswordPage = async (req, res) => {
-    res.render('user/reset-password', { token: req.params.token });
-};
+
 
 exports.handleContactForm = async (req, res) => {
-    try {
-        const { name, email, phone, message } = req.body;
+  try {
+    const { name, email, phone, message } = req.body;
 
-        if (!name || !email || !phone || !message) {
-            return res.status(HttpStatus.BAD_REQUEST).json({
-                success: false,
-                message: 'Please fill in all required fields'
-            });
-        }
-
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            return res.status(HttpStatus.BAD_REQUEST).json({
-                success: false,
-                message: 'Please enter a valid email address'
-            });
-        }
-
-        if (!/^\d{10}$/.test(phone)) {
-            return res.status(HttpStatus.BAD_REQUEST).json({
-                success: false,
-                message: 'Please enter a valid 10-digit phone number'
-            });
-        }
-       
-        res.json({
-            success: true,
-            message: 'Thank you for your message. We will get back to you soon!'
-        });
-    } catch (error) {
-        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-            success: false,
-            message: 'An error occurred. Please try again.'
-        });
+    if (!name || !email || !phone || !message) {
+      return res.status(HttpStatus.BAD_REQUEST).json({
+        success: false,
+        message: 'Please fill in all required fields'
+      });
     }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(HttpStatus.BAD_REQUEST).json({
+        success: false,
+        message: 'Please enter a valid email address'
+      });
+    }
+
+    if (!/^\d{10}$/.test(phone)) {
+      return res.status(HttpStatus.BAD_REQUEST).json({
+        success: false,
+        message: 'Please enter a valid 10-digit phone number'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Thank you for your message. We will get back to you soon!'
+    });
+  } catch (error) {
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'An error occurred. Please try again.'
+    });
+  }
 };
